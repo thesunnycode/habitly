@@ -120,7 +120,29 @@ fun HabitlyNavHost(navController: NavHostController, startDestination: String) {
             val uiState by viewModel.uiState.collectAsState()
             com.habitly.app.ui.achievements.AchievementsScreen(uiState = uiState)
         }
-        composable(Destination.Settings.route) { Text("TODO Settings") }
+        composable(Destination.Settings.route) {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val repository = remember {
+                val db = com.habitly.app.data.local.AppDatabase.getInstance(context)
+                com.habitly.app.data.repository.HabitRepository(db.habitDao(), db.habitLogDao(), db.achievementDao())
+            }
+            val prefs = remember { com.habitly.app.data.prefs.SettingsPrefs(context) }
+            val viewModel: com.habitly.app.ui.settings.SettingsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                        @Suppress("UNCHECKED_CAST")
+                        return com.habitly.app.ui.settings.SettingsViewModel(prefs, repository) as T
+                    }
+                },
+            )
+            val uiState by viewModel.uiState.collectAsState()
+            com.habitly.app.ui.settings.SettingsScreen(
+                uiState = uiState,
+                onThemeModeChange = viewModel::onThemeModeChange,
+                onNotificationsToggle = viewModel::onNotificationsToggle,
+                onResetAllData = viewModel::onResetAllData,
+            )
+        }
         composable(
             route = Destination.AddEditHabit.route,
             arguments = listOf(navArgument("habitId") { type = NavType.LongType; defaultValue = -1L }),
