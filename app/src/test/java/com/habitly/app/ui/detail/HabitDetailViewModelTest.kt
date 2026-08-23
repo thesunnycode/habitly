@@ -24,6 +24,7 @@ private fun habitWithStats(id: Long, streak: Int) = HabitWithStats(
 )
 
 private class FakeHabitDataSource(private val habits: List<HabitWithStats>) : HabitDataSource {
+    var lastIncremented: Pair<Long, LocalDate>? = null
     var lastSetStatus: Pair<Long, com.habitly.app.domain.CompletionStatus?>? = null
     var archivedId: Long? = null
     var deletedHabit: HabitEntity? = null
@@ -34,6 +35,11 @@ private class FakeHabitDataSource(private val habits: List<HabitWithStats>) : Ha
     override suspend fun updateHabit(habit: HabitEntity) { if (habit.isArchived) archivedId = habit.id }
     override suspend fun deleteHabit(habit: HabitEntity) { deletedHabit = habit }
     override suspend fun toggleCompletion(habitId: Long, date: LocalDate, note: String?) = emptySet<AchievementType>()
+    override suspend fun incrementProgress(habitId: Long, date: LocalDate): Set<AchievementType> {
+        lastIncremented = habitId to date
+        return emptySet()
+    }
+
     override suspend fun setStatus(
         habitId: Long,
         date: LocalDate,

@@ -59,6 +59,7 @@ class HabitRepository(
                     last7DaysDue = (6 downTo 0).map { offset -> schedule.isDue(today.minusDays(offset.toLong())) },
                     last7DaysStatus = (6 downTo 0).map { offset -> statusByDate[today.minusDays(offset.toLong())] },
                     lastBrokenDueDay = StreakCalculator.lastBrokenDueDay(records, today, schedule),
+                    todayProgress = todayLog?.progress ?: 0,
                 )
             }
         }
@@ -83,6 +84,38 @@ class HabitRepository(
         return setStatus(habitId, date, target, note)
     }
 
+    override suspend fun incrementProgress(habitId: Long, date: LocalDate): Set<AchievementType> {
+        val habit = habitDao.getById(habitId) ?: return emptySet()
+        val target = habit.targetCount
+            // No goal to count towards, so a tap is just a tick.
+            ?: return toggleCompletion(habitId, date, null)
+
+        val dateStr = date.format(ISO)
+        val existing = logDao.getLog(habitId, dateStr)
+        val current = existing?.progress ?: 0
+
+        // Tapping past a met goal clears the day, so the control stays a way out as well as in.
+        if (current >= target) {
+            logDao.deleteLog(habitId, dateStr)
+            return emptySet()
+        }
+
+        val next = current + 1
+        val reached = next >= target
+        logDao.upsert(
+            HabitLogEntity(
+                id = existing?.id ?: 0,
+                habitId = habitId,
+                date = dateStr,
+                status = if (reached) CompletionStatus.DONE else CompletionStatus.PARTIAL,
+                completedAt = if (reached) System.currentTimeMillis() else null,
+                note = existing?.note,
+                progress = next,
+            )
+        )
+        return if (reached) evaluateAchievements(habitId) else emptySet()
+    }
+
     override suspend fun setStatus(
         habitId: Long,
         date: LocalDate,
@@ -105,11 +138,19 @@ class HabitRepository(
                 status = status,
                 completedAt = if (status == CompletionStatus.DONE) System.currentTimeMillis() else null,
                 note = note,
+                progress = when (status) {
+                    // Marking a goal habit done fills its counter; anything else empties it.
+                    CompletionStatus.DONE -> habitDao.getById(habitId)?.targetCount ?: 0
+                    else -> 0
+                },
             )
         )
 
         if (status != CompletionStatus.DONE) return emptySet()
+        return evaluateAchievements(habitId)
+    }
 
+    private suspend fun evaluateAchievements(habitId: Long): Set<AchievementType> {
         val allHabitsBefore = habitDao.observeAllHabits().first()
         val isFirstHabitEver = allHabitsBefore.size <= 1 &&
             logDao.observeLogsForHabit(habitId).first()

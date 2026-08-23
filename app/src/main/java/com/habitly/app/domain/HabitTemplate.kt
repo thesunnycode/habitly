@@ -12,6 +12,9 @@ data class HabitTemplate(
     val category: String,
     val frequencyType: FrequencyType = FrequencyType.DAILY,
     val specificDays: Set<java.time.DayOfWeek> = emptySet(),
+    /** Only worth setting where counting up in single taps is realistic. */
+    val targetCount: Int? = null,
+    val unit: String? = null,
     val reminderTime: String? = null,
 )
 
@@ -23,7 +26,15 @@ object HabitTemplates {
         HabitTemplateGroup(
             title = "Essentials",
             templates = listOf(
-                HabitTemplate("Drink water", "water_drop", "#1098AD", "Health", reminderTime = "09:00"),
+                HabitTemplate(
+                    name = "Drink water",
+                    icon = "water_drop",
+                    colorHex = "#1098AD",
+                    category = "Health",
+                    targetCount = 8,
+                    unit = "cups",
+                    reminderTime = "09:00",
+                ),
                 HabitTemplate("Sleep by 11pm", "sleep", "#4C6EF5", "Health", reminderTime = "22:30"),
                 HabitTemplate("Eat breakfast", "food", "#F6BD60", "Health", reminderTime = "08:00"),
                 HabitTemplate("Take vitamins", "star", "#12B886", "Health", reminderTime = "09:00"),

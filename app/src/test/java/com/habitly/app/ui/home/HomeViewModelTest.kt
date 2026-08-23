@@ -18,6 +18,7 @@ import org.junit.Test
 import java.time.LocalDate
 
 private class FakeHabitDataSource : HabitDataSource {
+    var lastIncremented: Pair<Long, LocalDate>? = null
     var lastSetStatus: Pair<Long, com.habitly.app.domain.CompletionStatus?>? = null
     val habits = MutableStateFlow<List<HabitWithStats>>(emptyList())
     var lastToggledId: Long? = null
@@ -36,6 +37,11 @@ private class FakeHabitDataSource : HabitDataSource {
         lastToggledDate = date
         return emptySet()
     }
+    override suspend fun incrementProgress(habitId: Long, date: LocalDate): Set<AchievementType> {
+        lastIncremented = habitId to date
+        return emptySet()
+    }
+
     override suspend fun setStatus(
         habitId: Long,
         date: LocalDate,
@@ -72,12 +78,14 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun onToggleHabitDelegatesToRepositoryWithTheGivenId() = runTest {
+    fun onToggleHabitCountsUpTowardsTheHabitsGoal() = runTest {
+        // The primary tap goes through incrementProgress, which falls back to a plain toggle for a
+        // habit with no numeric goal — so one path serves both kinds.
         val fake = FakeHabitDataSource()
         val viewModel = HomeViewModel(fake, today = { LocalDate.of(2026, 8, 22) })
         viewModel.onToggleHabit(42L)
         advanceUntilIdle()
-        assertEquals(42L, fake.lastToggledId)
+        assertEquals(42L, fake.lastIncremented?.first)
     }
 
     @Test
@@ -126,7 +134,7 @@ class HomeViewModelTest {
         viewModel.onToggleHabit(7L)
         advanceUntilIdle()
 
-        assertEquals(LocalDate.of(2026, 8, 19), fake.lastToggledDate)
+        assertEquals(LocalDate.of(2026, 8, 19), fake.lastIncremented?.second)
     }
 
     @Test

@@ -64,9 +64,21 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
     }
 }
 
+/**
+ * Habits gain a numeric goal (target plus unit) and logs gain the units recorded that day, so a
+ * habit can be "2 of 3 cups" rather than only done or not.
+ */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `habits` ADD COLUMN `targetCount` INTEGER")
+        db.execSQL("ALTER TABLE `habits` ADD COLUMN `unit` TEXT")
+        db.execSQL("ALTER TABLE `habit_logs` ADD COLUMN `progress` INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
 @Database(
     entities = [HabitEntity::class, HabitLogEntity::class, AchievementEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -82,7 +94,7 @@ abstract class AppDatabase : RoomDatabase() {
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext, AppDatabase::class.java, "habitly.db"
-                ).addMigrations(MIGRATION_1_2).build().also { INSTANCE = it }
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3).build().also { INSTANCE = it }
             }
     }
 }

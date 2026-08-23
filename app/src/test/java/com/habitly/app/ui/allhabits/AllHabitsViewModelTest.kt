@@ -24,6 +24,7 @@ private fun habit(id: Long, name: String, category: String) = HabitWithStats(
 )
 
 private class FakeHabitDataSource(habits: List<HabitWithStats>) : HabitDataSource {
+    var lastIncremented: Pair<Long, LocalDate>? = null
     var lastSetStatus: Pair<Long, com.habitly.app.domain.CompletionStatus?>? = null
     private val flow = MutableStateFlow(habits)
     var lastToggledId: Long? = null
@@ -35,6 +36,11 @@ private class FakeHabitDataSource(habits: List<HabitWithStats>) : HabitDataSourc
         lastToggledId = habitId
         return emptySet()
     }
+    override suspend fun incrementProgress(habitId: Long, date: LocalDate): Set<AchievementType> {
+        lastIncremented = habitId to date
+        return emptySet()
+    }
+
     override suspend fun setStatus(
         habitId: Long,
         date: LocalDate,
@@ -91,11 +97,11 @@ class AllHabitsViewModelTest {
     }
 
     @Test
-    fun onToggleHabitDelegatesToRepositoryWithTheGivenId() = runTest {
+    fun onToggleHabitCountsUpTowardsTheHabitsGoal() = runTest {
         val fake = FakeHabitDataSource(sampleHabits)
         val viewModel = AllHabitsViewModel(fake, today = { LocalDate.of(2026, 8, 22) })
         viewModel.onToggleHabit(3L)
         advanceUntilIdle()
-        assertEquals(3L, fake.lastToggledId)
+        assertEquals(3L, fake.lastIncremented?.first)
     }
 }

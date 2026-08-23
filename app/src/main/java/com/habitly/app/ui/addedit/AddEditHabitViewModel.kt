@@ -31,6 +31,8 @@ class AddEditHabitViewModel(
     fun onFrequencyTypeChange(type: FrequencyType) { _uiState.value = _uiState.value.copy(frequencyType = type) }
     fun onSpecificDaysChange(days: Set<DayOfWeek>) { _uiState.value = _uiState.value.copy(specificDays = days) }
     fun onIntervalDaysChange(days: Int?) { _uiState.value = _uiState.value.copy(intervalDays = days) }
+    fun onTargetCountChange(target: Int?) { _uiState.value = _uiState.value.copy(targetCount = target) }
+    fun onUnitChange(unit: String) { _uiState.value = _uiState.value.copy(unit = unit) }
     fun onReminderTimeChange(time: String?) { _uiState.value = _uiState.value.copy(reminderTime = time) }
 
     /**
@@ -45,6 +47,8 @@ class AddEditHabitViewModel(
             category = template.category,
             frequencyType = template.frequencyType,
             specificDays = template.specificDays,
+            targetCount = template.targetCount,
+            unit = template.unit.orEmpty(),
             reminderTime = template.reminderTime,
             nameError = null,
         )
@@ -74,6 +78,8 @@ class AddEditHabitViewModel(
                 reminderTime = state.reminderTime,
                 createdAt = System.currentTimeMillis(),
                 isArchived = false,
+                targetCount = state.targetCount?.takeIf { it > 1 },
+                unit = state.unit.trim().takeIf { it.isNotBlank() },
             )
             if (state.habitId == null) repository.addHabit(entity) else repository.updateHabit(entity)
             _uiState.value = _uiState.value.copy(isSaved = true)

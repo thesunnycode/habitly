@@ -36,9 +36,13 @@ class AllHabitsViewModel(
         )
     }
 
+    /**
+     * The primary tap. For a habit with a numeric goal this adds one unit; for a plain habit
+     * incrementProgress falls through to a straight toggle, so both behave as expected.
+     */
     fun onToggleHabit(habitId: Long) {
         viewModelScope.launch {
-            repository.toggleCompletion(habitId, today(), null)
+            repository.incrementProgress(habitId, today())
         }
     }
 

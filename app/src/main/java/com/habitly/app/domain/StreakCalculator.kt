@@ -2,6 +2,13 @@ package com.habitly.app.domain
 
 import java.time.LocalDate
 
+/**
+ * Nothing recorded, or a numeric goal still in progress: either way today has not been decided yet,
+ * so it must not be allowed to break a streak while the day is still running.
+ */
+private fun CompletionStatus?.isUnjudged(): Boolean =
+    this == null || this == CompletionStatus.PARTIAL
+
 object StreakCalculator {
 
     /**
@@ -22,7 +29,7 @@ object StreakCalculator {
         val earliest = records.minOfOrNull { it.date } ?: return 0
 
         var day = today
-        if (schedule.isDue(today) && byDate[today] == null) {
+        if (schedule.isDue(today) && byDate[today].isUnjudged()) {
             // Today is still open: judge the streak as it stood yesterday.
             day = today.minusDays(1)
         }
@@ -56,7 +63,7 @@ object StreakCalculator {
         val earliest = records.minOfOrNull { it.date } ?: return null
 
         var day = today
-        if (schedule.isDue(today) && byDate[today] == null) day = today.minusDays(1)
+        if (schedule.isDue(today) && byDate[today].isUnjudged()) day = today.minusDays(1)
 
         while (!day.isBefore(earliest)) {
             if (schedule.isDue(day)) {

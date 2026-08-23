@@ -25,4 +25,6 @@ data class HabitLogEntity(
     val status: CompletionStatus,
     val completedAt: Long?,
     val note: String?,
+    /** Units logged on this day, for habits that carry a numeric goal. */
+    val progress: Int = 0,
 )

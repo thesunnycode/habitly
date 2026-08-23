@@ -131,4 +131,76 @@ class HabitRepositoryTest {
         val stats = repo.observeHabitsWithStats(LocalDate.of(2026, 8, 22)).first().first()
         assertEquals(LocalDate.of(2026, 8, 21), stats.lastBrokenDueDay)
     }
+
+    private fun goalHabit(target: Int) = newHabit("Drink water").copy(
+        targetCount = target,
+        unit = "cups",
+    )
+
+    @Test
+    fun incrementingAGoalHabitRecordsPartialProgressUntilTheTargetIsMet() = runBlocking {
+        val id = repo.addHabit(goalHabit(3))
+        val today = LocalDate.of(2026, 8, 22)
+
+        repo.incrementProgress(id, today)
+        var stats = repo.observeHabitsWithStats(today).first().first()
+        assertEquals(1, stats.todayProgress)
+        assertEquals(CompletionStatus.PARTIAL, stats.todayStatus)
+        assertEquals(false, stats.isCompletedToday)
+
+        repo.incrementProgress(id, today)
+        repo.incrementProgress(id, today)
+        stats = repo.observeHabitsWithStats(today).first().first()
+        assertEquals(3, stats.todayProgress)
+        assertEquals(CompletionStatus.DONE, stats.todayStatus)
+        assertTrue(stats.isCompletedToday)
+    }
+
+    @Test
+    fun partialProgressDoesNotCountTowardsTheStreak() = runBlocking {
+        val id = repo.addHabit(goalHabit(3))
+        val today = LocalDate.of(2026, 8, 22)
+        repo.incrementProgress(id, today)
+        assertEquals(0, repo.observeHabitsWithStats(today).first().first().currentStreak)
+    }
+
+    @Test
+    fun tappingPastAMetGoalClearsTheDay() = runBlocking {
+        val id = repo.addHabit(goalHabit(2))
+        val today = LocalDate.of(2026, 8, 22)
+        repo.incrementProgress(id, today)
+        repo.incrementProgress(id, today)
+        repo.incrementProgress(id, today)
+
+        val stats = repo.observeHabitsWithStats(today).first().first()
+        assertEquals(0, stats.todayProgress)
+        assertEquals(null, stats.todayStatus)
+    }
+
+    @Test
+    fun incrementingAHabitWithNoGoalJustTicksItOff() = runBlocking {
+        val id = repo.addHabit(newHabit())
+        val today = LocalDate.of(2026, 8, 22)
+        repo.incrementProgress(id, today)
+        assertTrue(repo.observeHabitsWithStats(today).first().first().isCompletedToday)
+    }
+
+    @Test
+    fun markingAGoalHabitDoneOutrightFillsItsCounter() = runBlocking {
+        val id = repo.addHabit(goalHabit(4))
+        val today = LocalDate.of(2026, 8, 22)
+        repo.setStatus(id, today, CompletionStatus.DONE, null)
+        assertEquals(4, repo.observeHabitsWithStats(today).first().first().todayProgress)
+    }
+
+    @Test
+    fun aPartialDayInThePastBreaksTheStreakLikeAMiss() = runBlocking {
+        val id = repo.addHabit(goalHabit(3))
+        repo.setStatus(id, LocalDate.of(2026, 8, 20), CompletionStatus.DONE, null)
+        repo.incrementProgress(id, LocalDate.of(2026, 8, 21))
+        repo.setStatus(id, LocalDate.of(2026, 8, 22), CompletionStatus.DONE, null)
+
+        val stats = repo.observeHabitsWithStats(LocalDate.of(2026, 8, 22)).first().first()
+        assertEquals(1, stats.currentStreak)
+    }
 }

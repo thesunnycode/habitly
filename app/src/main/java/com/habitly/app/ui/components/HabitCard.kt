@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -206,6 +207,7 @@ private fun TodayControl(
                     CompletionStatus.DONE -> "Done today"
                     CompletionStatus.SKIPPED -> "Rest day"
                     CompletionStatus.MISSED -> "Missed today"
+                    CompletionStatus.PARTIAL -> goalLabel(habit) ?: "In progress"
                     null -> "Not recorded"
                 }
             },
@@ -239,6 +241,14 @@ private fun TodayControl(
                     imageVector = Icons.Filled.Close,
                     contentDescription = null,
                     tint = contentColor,
+                )
+                // Partial progress shows the count itself, which is more use than any glyph.
+                CompletionStatus.PARTIAL -> Text(
+                    text = "${habit.todayProgress}",
+                    color = contentColor,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = with(LocalDensity.current) { 15.dp.toSp() },
+                    lineHeight = with(LocalDensity.current) { 17.dp.toSp() },
                 )
                 null -> Unit
             }
@@ -298,6 +308,7 @@ private fun DayPill(
     val fill = when {
         status == CompletionStatus.DONE -> contentColor
         status == CompletionStatus.SKIPPED -> contentColor.copy(alpha = 0.35f)
+        status == CompletionStatus.PARTIAL -> contentColor.copy(alpha = 0.5f)
         !isDue -> contentColor.copy(alpha = 0.08f)
         else -> contentColor.copy(alpha = 0.16f)
     }
@@ -317,6 +328,12 @@ private fun DayPill(
     ) {
         when (status) {
             // Glyphs, not just fills: the state has to survive being seen in greyscale.
+            CompletionStatus.PARTIAL -> Icon(
+                imageVector = Icons.Filled.MoreHoriz,
+                contentDescription = null,
+                tint = contentColor,
+                modifier = Modifier.size(14.dp),
+            )
             CompletionStatus.SKIPPED -> Icon(
                 imageVector = Icons.Filled.Remove,
                 contentDescription = null,
@@ -348,8 +365,16 @@ private fun DayPill(
     }
 }
 
+/** "2 / 3 cups" for a habit with a numeric goal, null for a plain done/not-done one. */
+private fun goalLabel(habit: HabitWithStats): String? {
+    val target = habit.habit.targetCount ?: return null
+    val unit = habit.habit.unit?.let { " $it" } ?: ""
+    return "${habit.todayProgress} / $target$unit"
+}
+
 private fun statusLineFor(habit: HabitWithStats): String {
     val parts = mutableListOf(habit.habit.category)
+    goalLabel(habit)?.let { parts.add(it) }
     habit.habit.reminderTime?.let { parts.add(it) }
     parts.add(
         when {

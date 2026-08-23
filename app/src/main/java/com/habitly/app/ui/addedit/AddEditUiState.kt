@@ -13,6 +13,9 @@ data class AddEditUiState(
     val specificDays: Set<DayOfWeek> = emptySet(),
     val intervalDays: Int? = null,
     val reminderTime: String? = null,
+    /** Units that count as a full day, or null for a plain done/not-done habit. */
+    val targetCount: Int? = null,
+    val unit: String = "",
     val nameError: String? = null,
     val isSaved: Boolean = false,
 )

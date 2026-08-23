@@ -15,6 +15,12 @@ interface HabitDataSource {
     suspend fun deleteHabit(habit: HabitEntity)
     suspend fun toggleCompletion(habitId: Long, date: LocalDate, note: String?): Set<AchievementType>
 
+    /**
+     * Adds one unit towards a numeric goal, marking the day done once the target is reached and
+     * wrapping back to nothing recorded once it is exceeded.
+     */
+    suspend fun incrementProgress(habitId: Long, date: LocalDate): Set<AchievementType>
+
     /** Records an explicit status for a day, or clears the day entirely when [status] is null. */
     suspend fun setStatus(
         habitId: Long,

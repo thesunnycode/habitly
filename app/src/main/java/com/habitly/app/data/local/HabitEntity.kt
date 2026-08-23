@@ -17,4 +17,8 @@ data class HabitEntity(
     val reminderTime: String?,
     val createdAt: Long,
     val isArchived: Boolean,
+    /** How many units count as a full day, or null for a plain done/not-done habit. */
+    val targetCount: Int? = null,
+    /** What one unit is called — "cups", "pages", "minutes". */
+    val unit: String? = null,
 )

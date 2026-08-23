@@ -20,6 +20,8 @@ object ContributionLevels {
         records.mapNotNull { record ->
             when (record.status) {
                 CompletionStatus.DONE -> record.date to MAX
+                // Partial progress earns a middling shade: real effort, short of the goal.
+                CompletionStatus.PARTIAL -> record.date to 2
                 CompletionStatus.SKIPPED -> record.date to 1
                 CompletionStatus.MISSED -> null
             }

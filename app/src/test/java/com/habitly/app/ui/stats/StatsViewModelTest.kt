@@ -24,6 +24,7 @@ private fun habit(id: Long, name: String, rate: Float, last7Days: List<Boolean> 
 )
 
 private class FakeHabitDataSource(habits: List<HabitWithStats>) : HabitDataSource {
+    var lastIncremented: Pair<Long, LocalDate>? = null
     var lastSetStatus: Pair<Long, com.habitly.app.domain.CompletionStatus?>? = null
     private val flow = MutableStateFlow(habits)
     override fun observeHabitsWithStats(today: LocalDate) = flow.asStateFlow()
@@ -31,6 +32,11 @@ private class FakeHabitDataSource(habits: List<HabitWithStats>) : HabitDataSourc
     override suspend fun updateHabit(habit: HabitEntity) {}
     override suspend fun deleteHabit(habit: HabitEntity) {}
     override suspend fun toggleCompletion(habitId: Long, date: LocalDate, note: String?) = emptySet<AchievementType>()
+    override suspend fun incrementProgress(habitId: Long, date: LocalDate): Set<AchievementType> {
+        lastIncremented = habitId to date
+        return emptySet()
+    }
+
     override suspend fun setStatus(
         habitId: Long,
         date: LocalDate,

@@ -21,4 +21,6 @@ data class HabitWithStats(
     val last7DaysStatus: List<CompletionStatus?> = emptyList(),
     /** The scheduled day that ended the streak, if it is broken — the day worth offering to rest. */
     val lastBrokenDueDay: java.time.LocalDate? = null,
+    /** Units logged today, for habits carrying a numeric goal. */
+    val todayProgress: Int = 0,
 )

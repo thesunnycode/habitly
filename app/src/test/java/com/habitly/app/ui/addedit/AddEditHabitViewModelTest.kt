@@ -19,6 +19,7 @@ import org.junit.Test
 import java.time.LocalDate
 
 private class FakeHabitDataSource : HabitDataSource {
+    var lastIncremented: Pair<Long, LocalDate>? = null
     var lastSetStatus: Pair<Long, com.habitly.app.domain.CompletionStatus?>? = null
     var addedHabit: HabitEntity? = null
     var updatedHabit: HabitEntity? = null
@@ -28,6 +29,11 @@ private class FakeHabitDataSource : HabitDataSource {
     override suspend fun updateHabit(habit: HabitEntity) { updatedHabit = habit }
     override suspend fun deleteHabit(habit: HabitEntity) {}
     override suspend fun toggleCompletion(habitId: Long, date: LocalDate, note: String?) = emptySet<AchievementType>()
+    override suspend fun incrementProgress(habitId: Long, date: LocalDate): Set<AchievementType> {
+        lastIncremented = habitId to date
+        return emptySet()
+    }
+
     override suspend fun setStatus(
         habitId: Long,
         date: LocalDate,
