@@ -1,6 +1,5 @@
 package com.habitly.app.ui.allhabits
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -8,6 +7,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -22,6 +23,7 @@ fun AllHabitsScreen(
     uiState: AllHabitsUiState,
     onSearchQueryChange: (String) -> Unit,
     onCategorySelect: (String?) -> Unit,
+    onToggleHabit: (Long) -> Unit,
     onHabitClick: (Long) -> Unit,
 ) {
     Scaffold(topBar = { TopAppBar(title = { Text("All Habits") }) }) { padding ->
@@ -42,9 +44,14 @@ fun AllHabitsScreen(
                     )
                 }
             }
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyColumn {
                 items(uiState.filteredHabits, key = { it.habit.id }) { habit ->
-                    HabitCard(habit = habit, onToggle = {}, onClick = { onHabitClick(habit.habit.id) })
+                    HabitCard(
+                        habit = habit,
+                        onToggle = { onToggleHabit(habit.habit.id) },
+                        onClick = { onHabitClick(habit.habit.id) },
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
                 }
             }
         }

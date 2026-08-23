@@ -72,6 +72,7 @@ fun HabitlyNavHost(
                 uiState = uiState,
                 onSearchQueryChange = viewModel::onSearchQueryChange,
                 onCategorySelect = viewModel::onCategorySelect,
+                onToggleHabit = viewModel::onToggleHabit,
                 onHabitClick = { id -> navController.navigate(Destination.HabitDetail.createRoute(id)) },
             )
         }

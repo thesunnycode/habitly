@@ -1,19 +1,24 @@
 package com.habitly.app.ui.navigation
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShowChart
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 
@@ -46,19 +51,32 @@ fun HabitlyScaffold(
     Scaffold(
         bottomBar = {
             if (BOTTOM_NAV_DESTINATIONS.any { it.route == currentRoute }) {
-                NavigationBar {
-                    BOTTOM_NAV_DESTINATIONS.forEach { destination ->
-                        NavigationBarItem(
-                            selected = currentRoute == destination.route,
-                            onClick = {
-                                navController.navigate(destination.route) {
-                                    popUpTo(Destination.Home.route) { inclusive = false }
-                                    launchSingleTop = true
-                                }
-                            },
-                            icon = { Icon(iconFor(destination), contentDescription = labelFor(destination)) },
-                            label = { Text(labelFor(destination)) },
-                        )
+                Column {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+                    NavigationBar(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 0.dp,
+                    ) {
+                        BOTTOM_NAV_DESTINATIONS.forEach { destination ->
+                            NavigationBarItem(
+                                selected = currentRoute == destination.route,
+                                onClick = {
+                                    navController.navigate(destination.route) {
+                                        popUpTo(Destination.Home.route) { inclusive = false }
+                                        launchSingleTop = true
+                                    }
+                                },
+                                icon = { Icon(iconFor(destination), contentDescription = labelFor(destination)) },
+                                label = { Text(labelFor(destination)) },
+                                colors = NavigationBarItemDefaults.colors(
+                                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                                    indicatorColor = MaterialTheme.colorScheme.surface,
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                ),
+                            )
+                        }
                     }
                 }
             }

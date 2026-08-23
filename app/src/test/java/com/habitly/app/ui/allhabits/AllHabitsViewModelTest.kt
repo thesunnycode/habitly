@@ -25,11 +25,15 @@ private fun habit(id: Long, name: String, category: String) = HabitWithStats(
 
 private class FakeHabitDataSource(habits: List<HabitWithStats>) : HabitDataSource {
     private val flow = MutableStateFlow(habits)
+    var lastToggledId: Long? = null
     override fun observeHabitsWithStats(today: LocalDate) = flow.asStateFlow()
     override suspend fun addHabit(habit: HabitEntity) = 1L
     override suspend fun updateHabit(habit: HabitEntity) {}
     override suspend fun deleteHabit(habit: HabitEntity) {}
-    override suspend fun toggleCompletion(habitId: Long, date: LocalDate, note: String?) = emptySet<AchievementType>()
+    override suspend fun toggleCompletion(habitId: Long, date: LocalDate, note: String?): Set<AchievementType> {
+        lastToggledId = habitId
+        return emptySet()
+    }
     override fun observeAchievements(): Flow<List<AchievementEntity>> = MutableStateFlow(emptyList())
     override fun observeRecordsForHabit(habitId: Long): Flow<List<CompletionRecord>> = MutableStateFlow(emptyList())
 }
@@ -74,5 +78,14 @@ class AllHabitsViewModelTest {
         viewModel.onCategorySelect("Health")
         viewModel.onSearchQueryChange("work")
         assertEquals(listOf("Workout"), viewModel.uiState.value.filteredHabits.map { it.habit.name })
+    }
+
+    @Test
+    fun onToggleHabitDelegatesToRepositoryWithTheGivenId() = runTest {
+        val fake = FakeHabitDataSource(sampleHabits)
+        val viewModel = AllHabitsViewModel(fake, today = { LocalDate.of(2026, 8, 22) })
+        viewModel.onToggleHabit(3L)
+        advanceUntilIdle()
+        assertEquals(3L, fake.lastToggledId)
     }
 }

@@ -34,4 +34,10 @@ class AllHabitsViewModel(
             selectedCategory = if (_uiState.value.selectedCategory == category) null else category,
         )
     }
+
+    fun onToggleHabit(habitId: Long) {
+        viewModelScope.launch {
+            repository.toggleCompletion(habitId, today(), null)
+        }
+    }
 }
