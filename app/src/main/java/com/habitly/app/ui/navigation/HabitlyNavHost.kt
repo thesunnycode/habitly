@@ -69,7 +69,23 @@ fun HabitlyNavHost(navController: NavHostController, startDestination: String) {
                 onHabitClick = { id -> navController.navigate(Destination.HabitDetail.createRoute(id)) },
             )
         }
-        composable(Destination.Stats.route) { Text("TODO Stats") }
+        composable(Destination.Stats.route) {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val repository = remember {
+                val db = com.habitly.app.data.local.AppDatabase.getInstance(context)
+                com.habitly.app.data.repository.HabitRepository(db.habitDao(), db.habitLogDao(), db.achievementDao())
+            }
+            val viewModel: com.habitly.app.ui.stats.StatsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                        @Suppress("UNCHECKED_CAST")
+                        return com.habitly.app.ui.stats.StatsViewModel(repository) as T
+                    }
+                },
+            )
+            val uiState by viewModel.uiState.collectAsState()
+            com.habitly.app.ui.stats.StatsScreen(uiState = uiState)
+        }
         composable(Destination.Calendar.route) { Text("TODO Calendar") }
         composable(Destination.Achievements.route) { Text("TODO Achievements") }
         composable(Destination.Settings.route) { Text("TODO Settings") }
