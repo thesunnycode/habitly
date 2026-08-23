@@ -186,6 +186,7 @@ fun HabitlyNavHost(
                 onSpecificDaysChange = viewModel::onSpecificDaysChange,
                 onIntervalDaysChange = viewModel::onIntervalDaysChange,
                 onSave = viewModel::onSave,
+                onTemplateSelected = viewModel::onTemplateSelected,
                 onCancel = { navController.popBackStack() },
             )
         }

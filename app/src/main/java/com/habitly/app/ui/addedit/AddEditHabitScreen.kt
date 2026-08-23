@@ -37,6 +37,8 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.habitly.app.domain.FrequencyType
+import com.habitly.app.domain.HabitTemplate
+import com.habitly.app.domain.HabitTemplates
 import com.habitly.app.ui.components.HABIT_COLOR_SWATCHES
 import com.habitly.app.ui.components.HABIT_ICON_KEYS
 import com.habitly.app.ui.components.ScreenHeader
@@ -65,6 +67,7 @@ fun AddEditHabitScreen(
     onIntervalDaysChange: (Int?) -> Unit,
     onSave: () -> Unit,
     onCancel: () -> Unit,
+    onTemplateSelected: (HabitTemplate) -> Unit = {},
 ) {
     val selectedColor = parseColor(uiState.colorHex)
 
@@ -83,6 +86,33 @@ fun AddEditHabitScreen(
 
         // Showing the card they're building removes the guesswork from icon and colour choice.
         item { HabitPreview(name = uiState.name, icon = uiState.icon, color = selectedColor) }
+
+        // Only offered for a brand new habit: an empty first session is where habit apps lose
+        // people, and one tap here fills the name, icon, colour, category and schedule together.
+        if (uiState.habitId == null) {
+            item {
+                SectionCard(title = "Start from a template", subtitle = "Or scroll down and write your own") {
+                    HabitTemplates.groups.forEach { group ->
+                        Text(
+                            text = group.title,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 10.dp, bottom = 6.dp),
+                        )
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(group.templates) { template ->
+                                TemplateChip(
+                                    template = template,
+                                    selected = uiState.name == template.name,
+                                    onClick = { onTemplateSelected(template) },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         item {
             SectionCard(title = "Name") {
@@ -227,6 +257,41 @@ fun AddEditHabitScreen(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun TemplateChip(template: HabitTemplate, selected: Boolean, onClick: () -> Unit) {
+    val accent = parseColor(template.colorHex)
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(if (selected) accent.copy(alpha = 0.22f) else MaterialTheme.colorScheme.surface)
+            .border(
+                width = if (selected) 2.dp else 1.dp,
+                color = if (selected) accent else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
+                shape = RoundedCornerShape(20.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier.size(26.dp).clip(CircleShape).background(accent),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = habitIconFor(template.icon),
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(16.dp),
+            )
+        }
+        Text(
+            text = template.name,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(start = 8.dp),
+        )
     }
 }
 

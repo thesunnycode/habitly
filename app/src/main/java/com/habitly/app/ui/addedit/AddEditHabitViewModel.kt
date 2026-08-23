@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.habitly.app.data.local.HabitEntity
 import com.habitly.app.data.repository.HabitDataSource
 import com.habitly.app.domain.FrequencyType
+import com.habitly.app.domain.HabitTemplate
 import com.habitly.app.domain.FrequencyValidator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +32,23 @@ class AddEditHabitViewModel(
     fun onSpecificDaysChange(days: Set<DayOfWeek>) { _uiState.value = _uiState.value.copy(specificDays = days) }
     fun onIntervalDaysChange(days: Int?) { _uiState.value = _uiState.value.copy(intervalDays = days) }
     fun onReminderTimeChange(time: String?) { _uiState.value = _uiState.value.copy(reminderTime = time) }
+
+    /**
+     * Applies a ready-made habit. Everything the form asks for arrives at once — name, icon, colour,
+     * category and schedule — so creating a first habit is one tap rather than six decisions.
+     */
+    fun onTemplateSelected(template: HabitTemplate) {
+        _uiState.value = _uiState.value.copy(
+            name = template.name,
+            icon = template.icon,
+            colorHex = template.colorHex,
+            category = template.category,
+            frequencyType = template.frequencyType,
+            specificDays = template.specificDays,
+            reminderTime = template.reminderTime,
+            nameError = null,
+        )
+    }
 
     fun onSave() {
         val state = _uiState.value

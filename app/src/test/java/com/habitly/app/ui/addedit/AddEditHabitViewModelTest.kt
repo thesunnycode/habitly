@@ -89,4 +89,54 @@ class AddEditHabitViewModelTest {
         viewModel.onNameChange("Read")
         assertNull(viewModel.uiState.value.nameError)
     }
+
+    @Test
+    fun selectingATemplateFillsEveryFieldTheFormAsksFor() = runTest {
+        val viewModel = AddEditHabitViewModel(FakeHabitDataSource(), habitId = null)
+        val template = com.habitly.app.domain.HabitTemplate(
+            name = "Drink water",
+            icon = "water_drop",
+            colorHex = "#1098AD",
+            category = "Health",
+            reminderTime = "09:00",
+        )
+
+        viewModel.onTemplateSelected(template)
+
+        val state = viewModel.uiState.value
+        assertEquals("Drink water", state.name)
+        assertEquals("water_drop", state.icon)
+        assertEquals("#1098AD", state.colorHex)
+        assertEquals("Health", state.category)
+        assertEquals("09:00", state.reminderTime)
+    }
+
+    @Test
+    fun selectingATemplateCarriesItsScheduleAcross() = runTest {
+        val viewModel = AddEditHabitViewModel(FakeHabitDataSource(), habitId = null)
+        val template = com.habitly.app.domain.HabitTemplate(
+            name = "Weekly review",
+            icon = "star",
+            colorHex = "#495057",
+            category = "Learning",
+            frequencyType = com.habitly.app.domain.FrequencyType.SPECIFIC_DAYS,
+            specificDays = setOf(java.time.DayOfWeek.SUNDAY),
+        )
+
+        viewModel.onTemplateSelected(template)
+
+        val state = viewModel.uiState.value
+        assertEquals(com.habitly.app.domain.FrequencyType.SPECIFIC_DAYS, state.frequencyType)
+        assertEquals(setOf(java.time.DayOfWeek.SUNDAY), state.specificDays)
+    }
+
+    @Test
+    fun aTemplatePickIsImmediatelySaveable() = runTest {
+        val fake = FakeHabitDataSource()
+        val viewModel = AddEditHabitViewModel(fake, habitId = null)
+        viewModel.onTemplateSelected(com.habitly.app.domain.HabitTemplates.all.first())
+        viewModel.onSave()
+        advanceUntilIdle()
+        assertEquals(true, viewModel.uiState.value.isSaved)
+    }
 }
