@@ -74,6 +74,7 @@ fun HabitlyNavHost(
                 onCategorySelect = viewModel::onCategorySelect,
                 onToggleHabit = viewModel::onToggleHabit,
                 onHabitClick = { id -> navController.navigate(Destination.HabitDetail.createRoute(id)) },
+                onAddHabit = { navController.navigate(Destination.AddEditHabit.createRoute()) },
             )
         }
         composable(Destination.Stats.route) {
