@@ -13,6 +13,7 @@ import com.habitly.app.domain.StreakCalculator
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -49,6 +50,11 @@ class HabitRepository(
     override suspend fun deleteHabit(habit: HabitEntity) = habitDao.delete(habit)
 
     override fun observeAchievements(): Flow<List<AchievementEntity>> = achievementDao.observeAll()
+
+    override fun observeRecordsForHabit(habitId: Long): Flow<List<CompletionRecord>> =
+        logDao.observeLogsForHabit(habitId).map { logs ->
+            logs.map { CompletionRecord(LocalDate.parse(it.date, ISO), it.completed) }
+        }
 
     override suspend fun toggleCompletion(habitId: Long, date: LocalDate, note: String?): Set<AchievementType> {
         val dateStr = date.format(ISO)

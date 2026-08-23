@@ -86,6 +86,32 @@ fun HabitlyNavHost(navController: NavHostController, startDestination: String) {
         composable(
             route = Destination.HabitDetail.route,
             arguments = listOf(navArgument("habitId") { type = NavType.LongType }),
-        ) { Text("TODO HabitDetail") }
+        ) { backStackEntry ->
+            val habitId = backStackEntry.arguments?.getLong("habitId") ?: return@composable
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val repository = remember {
+                val db = com.habitly.app.data.local.AppDatabase.getInstance(context)
+                com.habitly.app.data.repository.HabitRepository(db.habitDao(), db.habitLogDao(), db.achievementDao())
+            }
+            val viewModel: com.habitly.app.ui.detail.HabitDetailViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                        @Suppress("UNCHECKED_CAST")
+                        return com.habitly.app.ui.detail.HabitDetailViewModel(repository, habitId) as T
+                    }
+                },
+            )
+            val uiState by viewModel.uiState.collectAsState()
+            if (uiState.isDeleted) {
+                androidx.compose.runtime.LaunchedEffect(Unit) { navController.popBackStack() }
+            }
+            com.habitly.app.ui.detail.HabitDetailScreen(
+                uiState = uiState,
+                onArchive = viewModel::onArchive,
+                onDelete = viewModel::onDelete,
+                onMonthChange = viewModel::onMonthChange,
+                onBack = { navController.popBackStack() },
+            )
+        }
     }
 }

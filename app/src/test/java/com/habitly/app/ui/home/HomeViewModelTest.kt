@@ -30,6 +30,7 @@ private class FakeHabitDataSource : HabitDataSource {
         return emptySet()
     }
     override fun observeAchievements(): Flow<List<AchievementEntity>> = MutableStateFlow(emptyList())
+    override fun observeRecordsForHabit(habitId: Long) = MutableStateFlow(emptyList<com.habitly.app.domain.CompletionRecord>())
 }
 
 private fun habit(id: Long, completed: Boolean) = HabitWithStats(

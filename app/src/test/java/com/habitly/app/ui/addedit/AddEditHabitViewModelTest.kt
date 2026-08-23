@@ -28,6 +28,7 @@ private class FakeHabitDataSource : HabitDataSource {
     override suspend fun deleteHabit(habit: HabitEntity) {}
     override suspend fun toggleCompletion(habitId: Long, date: LocalDate, note: String?) = emptySet<AchievementType>()
     override fun observeAchievements(): Flow<List<AchievementEntity>> = MutableStateFlow(emptyList())
+    override fun observeRecordsForHabit(habitId: Long) = MutableStateFlow(emptyList<com.habitly.app.domain.CompletionRecord>())
 }
 
 class AddEditHabitViewModelTest {

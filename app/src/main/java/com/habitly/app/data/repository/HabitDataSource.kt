@@ -3,6 +3,7 @@ package com.habitly.app.data.repository
 import com.habitly.app.data.local.AchievementEntity
 import com.habitly.app.data.local.HabitEntity
 import com.habitly.app.domain.AchievementType
+import com.habitly.app.domain.CompletionRecord
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 
@@ -13,4 +14,5 @@ interface HabitDataSource {
     suspend fun deleteHabit(habit: HabitEntity)
     suspend fun toggleCompletion(habitId: Long, date: LocalDate, note: String?): Set<AchievementType>
     fun observeAchievements(): Flow<List<AchievementEntity>>
+    fun observeRecordsForHabit(habitId: Long): Flow<List<CompletionRecord>>
 }
