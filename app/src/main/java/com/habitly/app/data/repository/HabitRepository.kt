@@ -9,12 +9,15 @@ import com.habitly.app.data.local.HabitLogEntity
 import com.habitly.app.domain.AchievementEvaluator
 import com.habitly.app.domain.AchievementType
 import com.habitly.app.domain.CompletionRecord
+import com.habitly.app.domain.HabitSchedule
 import com.habitly.app.domain.StreakCalculator
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 private val ISO = DateTimeFormatter.ISO_LOCAL_DATE
@@ -35,13 +38,22 @@ class HabitRepository(
                 val todayLog = logsByHabit[habit.id]?.find { it.date == today.format(ISO) }
                 val completedByDate = records.filter { it.completed }.map { it.date }.toSet()
                 val last7Days = (6 downTo 0).map { offset -> today.minusDays(offset.toLong()) in completedByDate }
+                val schedule = HabitSchedule.parse(
+                    type = habit.frequencyType,
+                    frequencyDays = habit.frequencyDays,
+                    intervalDays = habit.intervalDays,
+                    startDate = Instant.ofEpochMilli(habit.createdAt)
+                        .atZone(ZoneId.systemDefault()).toLocalDate(),
+                )
                 HabitWithStats(
                     habit = habit,
-                    currentStreak = StreakCalculator.currentStreak(records, today),
+                    currentStreak = StreakCalculator.currentStreak(records, today, schedule),
                     bestStreak = StreakCalculator.bestStreak(records),
-                    completionRate = StreakCalculator.completionRate(records, today),
+                    completionRate = StreakCalculator.completionRate(records, today, schedule),
                     isCompletedToday = todayLog?.completed == true,
                     last7Days = last7Days,
+                    isDueToday = schedule.isDue(today),
+                    last7DaysDue = (6 downTo 0).map { offset -> schedule.isDue(today.minusDays(offset.toLong())) },
                 )
             }
         }

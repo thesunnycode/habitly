@@ -4,12 +4,33 @@ import java.time.LocalDate
 
 object StreakCalculator {
 
-    fun currentStreak(records: List<CompletionRecord>, today: LocalDate): Int {
-        val byDate = records.associateBy { it.date }
-        var streak = 0
+    /**
+     * Consecutive days the habit was kept, counting back from [today] and skipping days the
+     * [schedule] never asked for.
+     *
+     * An unlogged today does not break the streak — the day is not over, and zeroing the number
+     * every midnight is the behaviour that makes people abandon a habit. An *explicitly* logged
+     * miss today does break it, because that is the user telling us the day is lost.
+     */
+    fun currentStreak(
+        records: List<CompletionRecord>,
+        today: LocalDate,
+        schedule: HabitSchedule = HabitSchedule.DAILY,
+    ): Int {
+        val byDate = records.associate { it.date to it.completed }
+        val earliest = records.minOfOrNull { it.date } ?: return 0
+
         var day = today
-        while (byDate[day]?.completed == true) {
-            streak++
+        if (schedule.isDue(today) && byDate[today] == null) {
+            // Today is still open: judge the streak as it stood yesterday.
+            day = today.minusDays(1)
+        }
+
+        var streak = 0
+        while (!day.isBefore(earliest)) {
+            if (schedule.isDue(day)) {
+                if (byDate[day] == true) streak++ else break
+            }
             day = day.minusDays(1)
         }
         return streak
@@ -39,17 +60,22 @@ object StreakCalculator {
     }
 
     /**
-     * Completion over every day that has elapsed since tracking began, not just the days that
-     * happen to have a record. A day the user never opened the app is a miss, which is what the
-     * calendar already shows them — dividing by record count instead reports 100% next to
-     * visible gaps.
+     * Completion measured over the days the habit was actually due, from the first record up to
+     * [today]. A day the user never opened the app still counts as a miss — that is what the
+     * calendar already shows them — but a day the habit was never scheduled for does not, and a
+     * bonus completion on an unscheduled day cannot push the result past 100%.
      */
-    fun completionRate(records: List<CompletionRecord>, today: LocalDate): Float {
+    fun completionRate(
+        records: List<CompletionRecord>,
+        today: LocalDate,
+        schedule: HabitSchedule = HabitSchedule.DAILY,
+    ): Float {
         val relevant = records.filterNot { it.date.isAfter(today) }
         if (relevant.isEmpty()) return 0f
         val firstDay = relevant.minOf { it.date }
-        val elapsedDays = java.time.temporal.ChronoUnit.DAYS.between(firstDay, today) + 1
-        if (elapsedDays <= 0) return 0f
-        return relevant.count { it.completed }.toFloat() / elapsedDays
+        val dueDays = schedule.dueDaysBetween(firstDay, today)
+        if (dueDays <= 0) return 0f
+        val keptDueDays = relevant.count { it.completed && schedule.isDue(it.date) }
+        return (keptDueDays.toFloat() / dueDays).coerceAtMost(1f)
     }
 }

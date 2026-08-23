@@ -10,4 +10,8 @@ data class HabitWithStats(
     val isCompletedToday: Boolean,
     /** Completion flag for each of the last 7 days, oldest first, ending today. */
     val last7Days: List<Boolean> = emptyList(),
+    /** Whether the habit's own frequency actually asks for it today. */
+    val isDueToday: Boolean = true,
+    /** Whether each of the last 7 days was a scheduled day, oldest first, ending today. */
+    val last7DaysDue: List<Boolean> = emptyList(),
 )
