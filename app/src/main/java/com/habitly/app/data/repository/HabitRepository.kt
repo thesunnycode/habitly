@@ -9,6 +9,7 @@ import com.habitly.app.data.local.HabitLogEntity
 import com.habitly.app.domain.AchievementEvaluator
 import com.habitly.app.domain.AchievementType
 import com.habitly.app.domain.CompletionRecord
+import com.habitly.app.domain.CompletionStatus
 import com.habitly.app.domain.HabitSchedule
 import com.habitly.app.domain.StreakCalculator
 import kotlinx.coroutines.flow.Flow
@@ -33,10 +34,11 @@ class HabitRepository(
             val logsByHabit = allLogs.groupBy { it.habitId }
             habits.map { habit ->
                 val records = (logsByHabit[habit.id] ?: emptyList()).map {
-                    CompletionRecord(LocalDate.parse(it.date, ISO), it.completed)
+                    CompletionRecord(LocalDate.parse(it.date, ISO), it.status)
                 }
                 val todayLog = logsByHabit[habit.id]?.find { it.date == today.format(ISO) }
                 val completedByDate = records.filter { it.completed }.map { it.date }.toSet()
+                val statusByDate = records.associate { it.date to it.status }
                 val last7Days = (6 downTo 0).map { offset -> today.minusDays(offset.toLong()) in completedByDate }
                 val schedule = HabitSchedule.parse(
                     type = habit.frequencyType,
@@ -50,10 +52,13 @@ class HabitRepository(
                     currentStreak = StreakCalculator.currentStreak(records, today, schedule),
                     bestStreak = StreakCalculator.bestStreak(records),
                     completionRate = StreakCalculator.completionRate(records, today, schedule),
-                    isCompletedToday = todayLog?.completed == true,
+                    isCompletedToday = todayLog?.status == CompletionStatus.DONE,
+                    todayStatus = todayLog?.status,
                     last7Days = last7Days,
                     isDueToday = schedule.isDue(today),
                     last7DaysDue = (6 downTo 0).map { offset -> schedule.isDue(today.minusDays(offset.toLong())) },
+                    last7DaysStatus = (6 downTo 0).map { offset -> statusByDate[today.minusDays(offset.toLong())] },
+                    lastBrokenDueDay = StreakCalculator.lastBrokenDueDay(records, today, schedule),
                 )
             }
         }
@@ -68,32 +73,50 @@ class HabitRepository(
 
     override fun observeRecordsForHabit(habitId: Long): Flow<List<CompletionRecord>> =
         logDao.observeLogsForHabit(habitId).map { logs ->
-            logs.map { CompletionRecord(LocalDate.parse(it.date, ISO), it.completed) }
+            logs.map { CompletionRecord(LocalDate.parse(it.date, ISO), it.status) }
         }
 
     override suspend fun toggleCompletion(habitId: Long, date: LocalDate, note: String?): Set<AchievementType> {
+        val existing = logDao.getLog(habitId, date.format(ISO))
+        // Un-ticking clears the day rather than recording a miss — see setStatus.
+        val target = if (existing?.status == CompletionStatus.DONE) null else CompletionStatus.DONE
+        return setStatus(habitId, date, target, note)
+    }
+
+    override suspend fun setStatus(
+        habitId: Long,
+        date: LocalDate,
+        status: CompletionStatus?,
+        note: String?,
+    ): Set<AchievementType> {
         val dateStr = date.format(ISO)
         val existing = logDao.getLog(habitId, dateStr)
-        val nowCompleted = existing?.completed != true
+
+        if (status == null) {
+            logDao.deleteLog(habitId, dateStr)
+            return emptySet()
+        }
+
         logDao.upsert(
             HabitLogEntity(
                 id = existing?.id ?: 0,
                 habitId = habitId,
                 date = dateStr,
-                completed = nowCompleted,
-                completedAt = if (nowCompleted) System.currentTimeMillis() else null,
+                status = status,
+                completedAt = if (status == CompletionStatus.DONE) System.currentTimeMillis() else null,
                 note = note,
             )
         )
 
-        if (!nowCompleted) return emptySet()
+        if (status != CompletionStatus.DONE) return emptySet()
 
         val allHabitsBefore = habitDao.observeAllHabits().first()
         val isFirstHabitEver = allHabitsBefore.size <= 1 &&
-            logDao.observeLogsForHabit(habitId).first().count { it.completed } == 1
+            logDao.observeLogsForHabit(habitId).first()
+                .count { it.status == CompletionStatus.DONE } == 1
 
         val records = logDao.observeLogsForHabit(habitId).first().map {
-            CompletionRecord(LocalDate.parse(it.date, ISO), it.completed)
+            CompletionRecord(LocalDate.parse(it.date, ISO), it.status)
         }
         val bestStreak = StreakCalculator.bestStreak(records)
         val alreadyUnlocked = achievementDao.observeAll().first()

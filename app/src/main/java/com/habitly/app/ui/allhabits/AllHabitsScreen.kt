@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.habitly.app.data.repository.HabitWithStats
+import com.habitly.app.domain.CompletionStatus
 import com.habitly.app.ui.components.HabitCard
 import com.habitly.app.ui.components.ScreenHeader
 
@@ -51,6 +52,7 @@ fun AllHabitsScreen(
     onToggleHabit: (Long) -> Unit,
     onHabitClick: (Long) -> Unit,
     onAddHabit: () -> Unit = {},
+    onSetStatus: (Long, CompletionStatus?) -> Unit = { _, _ -> },
 ) {
     Scaffold(
         floatingActionButton = {
@@ -92,12 +94,12 @@ fun AllHabitsScreen(
 
             if (uiState.todoHabits.isNotEmpty()) {
                 item { SectionLabel("TO DO", uiState.todoHabits.size) }
-                habitItems(uiState.todoHabits, onToggleHabit, onHabitClick)
+                habitItems(uiState.todoHabits, onToggleHabit, onHabitClick, onSetStatus)
             }
 
             if (uiState.completedHabits.isNotEmpty()) {
                 item { SectionLabel("DONE", uiState.completedHabits.size) }
-                habitItems(uiState.completedHabits, onToggleHabit, onHabitClick)
+                habitItems(uiState.completedHabits, onToggleHabit, onHabitClick, onSetStatus)
             }
         }
     }
@@ -107,12 +109,14 @@ private fun androidx.compose.foundation.lazy.LazyListScope.habitItems(
     habits: List<HabitWithStats>,
     onToggleHabit: (Long) -> Unit,
     onHabitClick: (Long) -> Unit,
+    onSetStatus: (Long, CompletionStatus?) -> Unit,
 ) {
     items(habits, key = { it.habit.id }) { habit ->
         HabitCard(
             habit = habit,
             onToggle = { onToggleHabit(habit.habit.id) },
             onClick = { onHabitClick(habit.habit.id) },
+            onSetStatus = { status -> onSetStatus(habit.habit.id, status) },
         )
     }
 }

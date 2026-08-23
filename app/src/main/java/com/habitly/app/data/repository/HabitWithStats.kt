@@ -1,6 +1,7 @@
 package com.habitly.app.data.repository
 
 import com.habitly.app.data.local.HabitEntity
+import com.habitly.app.domain.CompletionStatus
 
 data class HabitWithStats(
     val habit: HabitEntity,
@@ -14,4 +15,10 @@ data class HabitWithStats(
     val isDueToday: Boolean = true,
     /** Whether each of the last 7 days was a scheduled day, oldest first, ending today. */
     val last7DaysDue: List<Boolean> = emptyList(),
+    /** Today's recorded status, or null if the day has not been judged yet. */
+    val todayStatus: CompletionStatus? = null,
+    /** Recorded status for each of the last 7 days, oldest first; null where nothing was logged. */
+    val last7DaysStatus: List<CompletionStatus?> = emptyList(),
+    /** The scheduled day that ended the streak, if it is broken — the day worth offering to rest. */
+    val lastBrokenDueDay: java.time.LocalDate? = null,
 )

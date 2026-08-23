@@ -10,14 +10,15 @@ object StreakCalculator {
      *
      * An unlogged today does not break the streak — the day is not over, and zeroing the number
      * every midnight is the behaviour that makes people abandon a habit. An *explicitly* logged
-     * miss today does break it, because that is the user telling us the day is lost.
+     * miss today does break it, because that is the user telling us the day is lost. A day the user
+     * marked as skipped is neutral — it neither extends the streak nor ends it.
      */
     fun currentStreak(
         records: List<CompletionRecord>,
         today: LocalDate,
         schedule: HabitSchedule = HabitSchedule.DAILY,
     ): Int {
-        val byDate = records.associate { it.date to it.completed }
+        val byDate = records.associate { it.date to it.status }
         val earliest = records.minOfOrNull { it.date } ?: return 0
 
         var day = today
@@ -29,11 +30,44 @@ object StreakCalculator {
         var streak = 0
         while (!day.isBefore(earliest)) {
             if (schedule.isDue(day)) {
-                if (byDate[day] == true) streak++ else break
+                when (byDate[day]) {
+                    CompletionStatus.DONE -> streak++
+                    // A declared rest day is neutral: it neither extends nor ends the run.
+                    CompletionStatus.SKIPPED -> Unit
+                    else -> break
+                }
             }
             day = day.minusDays(1)
         }
         return streak
+    }
+
+    /**
+     * The most recent scheduled day that ended a streak — an explicit miss, or a due day that was
+     * never logged. Null while the streak is intact. This is what lets the UI offer to turn that day
+     * into a rest day instead of just reporting a zero.
+     */
+    fun lastBrokenDueDay(
+        records: List<CompletionRecord>,
+        today: LocalDate,
+        schedule: HabitSchedule = HabitSchedule.DAILY,
+    ): LocalDate? {
+        val byDate = records.associate { it.date to it.status }
+        val earliest = records.minOfOrNull { it.date } ?: return null
+
+        var day = today
+        if (schedule.isDue(today) && byDate[today] == null) day = today.minusDays(1)
+
+        while (!day.isBefore(earliest)) {
+            if (schedule.isDue(day)) {
+                when (byDate[day]) {
+                    CompletionStatus.DONE, CompletionStatus.SKIPPED -> Unit
+                    else -> return day
+                }
+            }
+            day = day.minusDays(1)
+        }
+        return null
     }
 
     fun bestStreak(records: List<CompletionRecord>): Int {
@@ -73,7 +107,11 @@ object StreakCalculator {
         val relevant = records.filterNot { it.date.isAfter(today) }
         if (relevant.isEmpty()) return 0f
         val firstDay = relevant.minOf { it.date }
-        val dueDays = schedule.dueDaysBetween(firstDay, today)
+        // Declared rest days leave the rate unchanged, so they come out of the denominator.
+        val skippedDueDays = relevant.count {
+            it.status == CompletionStatus.SKIPPED && schedule.isDue(it.date)
+        }
+        val dueDays = schedule.dueDaysBetween(firstDay, today) - skippedDueDays
         if (dueDays <= 0) return 0f
         val keptDueDays = relevant.count { it.completed && schedule.isDue(it.date) }
         return (keptDueDays.toFloat() / dueDays).coerceAtMost(1f)

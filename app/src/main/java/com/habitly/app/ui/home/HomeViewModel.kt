@@ -3,6 +3,7 @@ package com.habitly.app.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.habitly.app.data.repository.HabitDataSource
+import com.habitly.app.domain.CompletionStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,6 +34,13 @@ class HomeViewModel(
     fun onToggleHabit(habitId: Long) {
         viewModelScope.launch {
             repository.toggleCompletion(habitId, today(), null)
+        }
+    }
+
+    /** Records an explicit status for today, or clears it when [status] is null. */
+    fun onSetStatus(habitId: Long, status: CompletionStatus?) {
+        viewModelScope.launch {
+            repository.setStatus(habitId, today(), status)
         }
     }
 }

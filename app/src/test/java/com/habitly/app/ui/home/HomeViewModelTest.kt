@@ -18,6 +18,7 @@ import org.junit.Test
 import java.time.LocalDate
 
 private class FakeHabitDataSource : HabitDataSource {
+    var lastSetStatus: Pair<Long, com.habitly.app.domain.CompletionStatus?>? = null
     val habits = MutableStateFlow<List<HabitWithStats>>(emptyList())
     var lastToggledId: Long? = null
 
@@ -27,6 +28,15 @@ private class FakeHabitDataSource : HabitDataSource {
     override suspend fun deleteHabit(habit: HabitEntity) {}
     override suspend fun toggleCompletion(habitId: Long, date: LocalDate, note: String?): Set<AchievementType> {
         lastToggledId = habitId
+        return emptySet()
+    }
+    override suspend fun setStatus(
+        habitId: Long,
+        date: LocalDate,
+        status: com.habitly.app.domain.CompletionStatus?,
+        note: String?,
+    ): Set<AchievementType> {
+        lastSetStatus = habitId to status
         return emptySet()
     }
     override fun observeAchievements(): Flow<List<AchievementEntity>> = MutableStateFlow(emptyList())

@@ -24,12 +24,22 @@ private fun habit(id: Long, name: String, rate: Float, last7Days: List<Boolean> 
 )
 
 private class FakeHabitDataSource(habits: List<HabitWithStats>) : HabitDataSource {
+    var lastSetStatus: Pair<Long, com.habitly.app.domain.CompletionStatus?>? = null
     private val flow = MutableStateFlow(habits)
     override fun observeHabitsWithStats(today: LocalDate) = flow.asStateFlow()
     override suspend fun addHabit(habit: HabitEntity) = 1L
     override suspend fun updateHabit(habit: HabitEntity) {}
     override suspend fun deleteHabit(habit: HabitEntity) {}
     override suspend fun toggleCompletion(habitId: Long, date: LocalDate, note: String?) = emptySet<AchievementType>()
+    override suspend fun setStatus(
+        habitId: Long,
+        date: LocalDate,
+        status: com.habitly.app.domain.CompletionStatus?,
+        note: String?,
+    ): Set<AchievementType> {
+        lastSetStatus = habitId to status
+        return emptySet()
+    }
     override fun observeAchievements(): Flow<List<AchievementEntity>> = MutableStateFlow(emptyList())
     override fun observeRecordsForHabit(habitId: Long): Flow<List<CompletionRecord>> = MutableStateFlow(emptyList())
 }

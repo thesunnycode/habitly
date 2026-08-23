@@ -2,6 +2,7 @@ package com.habitly.app.data.local
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.habitly.app.domain.CompletionStatus
 import com.habitly.app.domain.FrequencyType
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -43,10 +44,10 @@ class HabitLogDaoTest {
 
     @Test
     fun upsertThenGetLogReturnsTheLogForThatDate() = runBlocking {
-        logDao.upsert(HabitLogEntity(0, habitId, "2026-08-20", true, 123L, null))
+        logDao.upsert(HabitLogEntity(0, habitId, "2026-08-20", CompletionStatus.DONE, 123L, null))
         val log = logDao.getLog(habitId, "2026-08-20")
         assertNotNull(log)
-        assertEquals(true, log!!.completed)
+        assertEquals(CompletionStatus.DONE, log!!.status)
     }
 
     @Test
@@ -56,8 +57,8 @@ class HabitLogDaoTest {
 
     @Test
     fun upsertWithSameHabitIdAndDateReplacesThePreviousLog() = runBlocking {
-        logDao.upsert(HabitLogEntity(0, habitId, "2026-08-20", false, null, null))
-        logDao.upsert(HabitLogEntity(0, habitId, "2026-08-20", true, 456L, "felt great"))
+        logDao.upsert(HabitLogEntity(0, habitId, "2026-08-20", CompletionStatus.MISSED, null, null))
+        logDao.upsert(HabitLogEntity(0, habitId, "2026-08-20", CompletionStatus.DONE, 456L, "felt great"))
         val logs = logDao.observeLogsForHabit(habitId).first()
         assertEquals(1, logs.size)
         assertEquals("felt great", logs.first().note)
@@ -65,7 +66,7 @@ class HabitLogDaoTest {
 
     @Test
     fun deletingTheParentHabitCascadesToItsLogs() = runBlocking {
-        logDao.upsert(HabitLogEntity(0, habitId, "2026-08-20", true, 1L, null))
+        logDao.upsert(HabitLogEntity(0, habitId, "2026-08-20", CompletionStatus.DONE, 1L, null))
         habitDao.delete(habitDao.getById(habitId)!!)
         assertEquals(0, logDao.observeLogsForHabit(habitId).first().size)
     }

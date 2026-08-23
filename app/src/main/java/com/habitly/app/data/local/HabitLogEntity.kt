@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.habitly.app.domain.CompletionStatus
 
 @Entity(
     tableName = "habit_logs",
@@ -21,7 +22,7 @@ data class HabitLogEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val habitId: Long,
     val date: String,
-    val completed: Boolean,
+    val status: CompletionStatus,
     val completedAt: Long?,
     val note: String?,
 )

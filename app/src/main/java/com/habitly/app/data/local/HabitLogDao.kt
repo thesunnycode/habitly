@@ -22,4 +22,11 @@ interface HabitLogDao {
 
     @Query("SELECT * FROM habit_logs")
     fun observeAllLogs(): Flow<List<HabitLogEntity>>
+
+    /**
+     * Clearing a day removes the row entirely rather than storing a miss: an unlogged day has not
+     * been judged yet, whereas a stored MISSED would break the streak.
+     */
+    @Query("DELETE FROM habit_logs WHERE habitId = :habitId AND date = :date")
+    suspend fun deleteLog(habitId: Long, date: String)
 }

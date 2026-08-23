@@ -4,6 +4,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.habitly.app.data.local.AppDatabase
 import com.habitly.app.domain.AchievementType
+import com.habitly.app.domain.CompletionStatus
 import com.habitly.app.domain.FrequencyType
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -87,5 +88,47 @@ class HabitRepositoryTest {
             day = day.plusDays(1)
         }
         assertTrue(AchievementType.STREAK_7 in unlocked)
+    }
+
+    @Test
+    fun unTogglingADayClearsTheRecordInsteadOfStoringAMiss() = runBlocking {
+        // A stored MISSED would break the streak; an accidental double tap must not do that.
+        val id = repo.addHabit(newHabit())
+        val today = LocalDate.of(2026, 8, 22)
+        repo.toggleCompletion(id, today, null)
+        repo.toggleCompletion(id, today, null)
+        assertEquals(0, db.habitLogDao().observeLogsForHabit(id).first().size)
+    }
+
+    @Test
+    fun setStatusRecordsASkippedDayThatLeavesTheStreakIntact() = runBlocking {
+        val id = repo.addHabit(newHabit())
+        repo.toggleCompletion(id, LocalDate.of(2026, 8, 20), null)
+        repo.setStatus(id, LocalDate.of(2026, 8, 21), CompletionStatus.SKIPPED, null)
+        repo.toggleCompletion(id, LocalDate.of(2026, 8, 22), null)
+
+        val stats = repo.observeHabitsWithStats(LocalDate.of(2026, 8, 22)).first().first()
+        assertEquals(CompletionStatus.SKIPPED, stats.last7DaysStatus[5])
+        assertEquals(2, stats.currentStreak)
+    }
+
+    @Test
+    fun setStatusWithNullClearsTheDay() = runBlocking {
+        val id = repo.addHabit(newHabit())
+        val day = LocalDate.of(2026, 8, 21)
+        repo.setStatus(id, day, CompletionStatus.MISSED, null)
+        repo.setStatus(id, day, null, null)
+        assertEquals(0, db.habitLogDao().observeLogsForHabit(id).first().size)
+    }
+
+    @Test
+    fun aMissedScheduledDayIsReportedAsTheStreakBreakPoint() = runBlocking {
+        val id = repo.addHabit(newHabit())
+        repo.toggleCompletion(id, LocalDate.of(2026, 8, 20), null)
+        repo.setStatus(id, LocalDate.of(2026, 8, 21), CompletionStatus.MISSED, null)
+        repo.toggleCompletion(id, LocalDate.of(2026, 8, 22), null)
+
+        val stats = repo.observeHabitsWithStats(LocalDate.of(2026, 8, 22)).first().first()
+        assertEquals(LocalDate.of(2026, 8, 21), stats.lastBrokenDueDay)
     }
 }

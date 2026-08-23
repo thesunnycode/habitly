@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.habitly.app.domain.CompletionStatus
 import com.habitly.app.ui.components.HabitCard
 import com.habitly.app.ui.components.ProgressRing
 import java.time.LocalDate
@@ -45,6 +46,7 @@ fun HomeScreen(
     onAddHabit: () -> Unit,
     onHabitClick: (Long) -> Unit,
     onSeeAllClick: () -> Unit = {},
+    onSetStatus: (Long, CompletionStatus?) -> Unit = { _, _ -> },
     windowWidthSizeClass: WindowWidthSizeClass = WindowWidthSizeClass.Compact,
     now: LocalTime = LocalTime.now(),
     today: LocalDate = LocalDate.now(),
@@ -73,7 +75,7 @@ fun HomeScreen(
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     item { SectionHeader(uiState.habits.size, onSeeAllClick) }
-                    habitList(uiState, onToggleHabit, onHabitClick)
+                    habitList(uiState, onToggleHabit, onHabitClick, onSetStatus)
                 }
             }
         } else {
@@ -85,7 +87,7 @@ fun HomeScreen(
                 item { Greeting(now, today) }
                 item { TodaySummaryCard(doneCount, uiState.habits.size, uiState.completionPercent) }
                 item { SectionHeader(uiState.habits.size, onSeeAllClick) }
-                habitList(uiState, onToggleHabit, onHabitClick)
+                habitList(uiState, onToggleHabit, onHabitClick, onSetStatus)
             }
         }
     }
@@ -95,6 +97,7 @@ private fun LazyListScope.habitList(
     uiState: HomeUiState,
     onToggleHabit: (Long) -> Unit,
     onHabitClick: (Long) -> Unit,
+    onSetStatus: (Long, CompletionStatus?) -> Unit,
 ) {
     if (uiState.habits.isEmpty() && !uiState.isLoading) {
         item {
@@ -111,6 +114,7 @@ private fun LazyListScope.habitList(
                 habit = habit,
                 onToggle = { onToggleHabit(habit.habit.id) },
                 onClick = { onHabitClick(habit.habit.id) },
+                onSetStatus = { status -> onSetStatus(habit.habit.id, status) },
             )
         }
     }

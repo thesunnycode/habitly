@@ -47,6 +47,7 @@ fun HabitlyNavHost(
             com.habitly.app.ui.home.HomeScreen(
                 uiState = uiState,
                 onToggleHabit = viewModel::onToggleHabit,
+                onSetStatus = viewModel::onSetStatus,
                 onAddHabit = { navController.navigate(Destination.AddEditHabit.createRoute()) },
                 onHabitClick = { id -> navController.navigate(Destination.HabitDetail.createRoute(id)) },
                 onSeeAllClick = { navController.navigate(Destination.AllHabits.route) },
@@ -73,6 +74,7 @@ fun HabitlyNavHost(
                 onSearchQueryChange = viewModel::onSearchQueryChange,
                 onCategorySelect = viewModel::onCategorySelect,
                 onToggleHabit = viewModel::onToggleHabit,
+                onSetStatus = viewModel::onSetStatus,
                 onHabitClick = { id -> navController.navigate(Destination.HabitDetail.createRoute(id)) },
                 onAddHabit = { navController.navigate(Destination.AddEditHabit.createRoute()) },
             )
