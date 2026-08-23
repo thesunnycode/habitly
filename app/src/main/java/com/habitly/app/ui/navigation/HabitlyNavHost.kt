@@ -53,7 +53,36 @@ fun HabitlyNavHost(navController: NavHostController, startDestination: String) {
         composable(
             route = Destination.AddEditHabit.route,
             arguments = listOf(navArgument("habitId") { type = NavType.LongType; defaultValue = -1L }),
-        ) { Text("TODO AddEditHabit") }
+        ) { backStackEntry ->
+            val rawId = backStackEntry.arguments?.getLong("habitId") ?: -1L
+            val habitId = rawId.takeIf { it != -1L }
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val repository = remember {
+                val db = com.habitly.app.data.local.AppDatabase.getInstance(context)
+                com.habitly.app.data.repository.HabitRepository(db.habitDao(), db.habitLogDao(), db.achievementDao())
+            }
+            val viewModel: com.habitly.app.ui.addedit.AddEditHabitViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                        @Suppress("UNCHECKED_CAST")
+                        return com.habitly.app.ui.addedit.AddEditHabitViewModel(repository, habitId) as T
+                    }
+                },
+            )
+            val uiState by viewModel.uiState.collectAsState()
+            if (uiState.isSaved) {
+                androidx.compose.runtime.LaunchedEffect(Unit) { navController.popBackStack() }
+            }
+            com.habitly.app.ui.addedit.AddEditHabitScreen(
+                uiState = uiState,
+                onNameChange = viewModel::onNameChange,
+                onFrequencyTypeChange = viewModel::onFrequencyTypeChange,
+                onSpecificDaysChange = viewModel::onSpecificDaysChange,
+                onIntervalDaysChange = viewModel::onIntervalDaysChange,
+                onSave = viewModel::onSave,
+                onCancel = { navController.popBackStack() },
+            )
+        }
         composable(
             route = Destination.HabitDetail.route,
             arguments = listOf(navArgument("habitId") { type = NavType.LongType }),
