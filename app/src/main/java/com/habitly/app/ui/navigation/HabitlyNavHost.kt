@@ -86,8 +86,40 @@ fun HabitlyNavHost(navController: NavHostController, startDestination: String) {
             val uiState by viewModel.uiState.collectAsState()
             com.habitly.app.ui.stats.StatsScreen(uiState = uiState)
         }
-        composable(Destination.Calendar.route) { Text("TODO Calendar") }
-        composable(Destination.Achievements.route) { Text("TODO Achievements") }
+        composable(Destination.Calendar.route) {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val repository = remember {
+                val db = com.habitly.app.data.local.AppDatabase.getInstance(context)
+                com.habitly.app.data.repository.HabitRepository(db.habitDao(), db.habitLogDao(), db.achievementDao())
+            }
+            val viewModel: com.habitly.app.ui.calendar.CalendarViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                        @Suppress("UNCHECKED_CAST")
+                        return com.habitly.app.ui.calendar.CalendarViewModel(repository) as T
+                    }
+                },
+            )
+            val uiState by viewModel.uiState.collectAsState()
+            com.habitly.app.ui.calendar.CalendarScreen(uiState = uiState, onMonthChange = viewModel::onMonthChange)
+        }
+        composable(Destination.Achievements.route) {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val repository = remember {
+                val db = com.habitly.app.data.local.AppDatabase.getInstance(context)
+                com.habitly.app.data.repository.HabitRepository(db.habitDao(), db.habitLogDao(), db.achievementDao())
+            }
+            val viewModel: com.habitly.app.ui.achievements.AchievementsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                        @Suppress("UNCHECKED_CAST")
+                        return com.habitly.app.ui.achievements.AchievementsViewModel(repository) as T
+                    }
+                },
+            )
+            val uiState by viewModel.uiState.collectAsState()
+            com.habitly.app.ui.achievements.AchievementsScreen(uiState = uiState)
+        }
         composable(Destination.Settings.route) { Text("TODO Settings") }
         composable(
             route = Destination.AddEditHabit.route,
