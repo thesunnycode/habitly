@@ -22,9 +22,9 @@ class HabitRepository(
     private val habitDao: HabitDao,
     private val logDao: HabitLogDao,
     private val achievementDao: AchievementDao,
-) {
+) : HabitDataSource {
 
-    fun observeHabitsWithStats(today: LocalDate): Flow<List<HabitWithStats>> =
+    override fun observeHabitsWithStats(today: LocalDate): Flow<List<HabitWithStats>> =
         combine(habitDao.observeActiveHabits(), logDao.observeAllLogs()) { habits, allLogs ->
             val logsByHabit = allLogs.groupBy { it.habitId }
             habits.map { habit ->
@@ -42,15 +42,15 @@ class HabitRepository(
             }
         }
 
-    suspend fun addHabit(habit: HabitEntity): Long = habitDao.insert(habit)
+    override suspend fun addHabit(habit: HabitEntity): Long = habitDao.insert(habit)
 
-    suspend fun updateHabit(habit: HabitEntity) = habitDao.update(habit)
+    override suspend fun updateHabit(habit: HabitEntity) = habitDao.update(habit)
 
-    suspend fun deleteHabit(habit: HabitEntity) = habitDao.delete(habit)
+    override suspend fun deleteHabit(habit: HabitEntity) = habitDao.delete(habit)
 
-    fun observeAchievements(): Flow<List<AchievementEntity>> = achievementDao.observeAll()
+    override fun observeAchievements(): Flow<List<AchievementEntity>> = achievementDao.observeAll()
 
-    suspend fun toggleCompletion(habitId: Long, date: LocalDate, note: String?): Set<AchievementType> {
+    override suspend fun toggleCompletion(habitId: Long, date: LocalDate, note: String?): Set<AchievementType> {
         val dateStr = date.format(ISO)
         val existing = logDao.getLog(habitId, dateStr)
         val nowCompleted = existing?.completed != true
