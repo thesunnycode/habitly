@@ -12,10 +12,10 @@ object SeedDataProvider {
     private data class SeedHabit(val name: String, val icon: String, val colorHex: String, val category: String)
 
     private val SEED_HABITS = listOf(
-        SeedHabit("Drink Water", "water_drop", "#6B9080", "Health"),
-        SeedHabit("Read 20 Minutes", "menu_book", "#A4C3B2", "Learning"),
-        SeedHabit("Workout", "fitness_center", "#CCE3DE", "Fitness"),
-        SeedHabit("Meditate", "self_improvement", "#EAF4F4", "Wellness"),
+        SeedHabit("Drink Water", "water_drop", "#1098AD", "Health"),
+        SeedHabit("Read 20 Minutes", "menu_book", "#F08C00", "Learning"),
+        SeedHabit("Workout", "fitness_center", "#F76C5E", "Fitness"),
+        SeedHabit("Meditate", "self_improvement", "#AE3EC9", "Wellness"),
     )
 
     private fun shouldComplete(habitIndex: Int, dayOffset: Int): Boolean {
