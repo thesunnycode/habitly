@@ -20,15 +20,9 @@ fun HabitlyNavHost(
 ) {
     NavHost(navController = navController, startDestination = startDestination) {
         composable(Destination.Splash.route) {
-            val context = androidx.compose.ui.platform.LocalContext.current
             com.habitly.app.ui.splash.SplashScreen(onNavigate = { destination ->
                 navController.navigate(destination) { popUpTo(Destination.Splash.route) { inclusive = true } }
             })
-            androidx.compose.runtime.LaunchedEffect(Unit) {
-                val db = com.habitly.app.data.local.AppDatabase.getInstance(context)
-                val repository = com.habitly.app.data.repository.HabitRepository(db.habitDao(), db.habitLogDao(), db.achievementDao())
-                com.habitly.app.data.seed.SeedDataProvider.seedIfEmpty(repository, db.habitDao(), java.time.LocalDate.now())
-            }
         }
         composable(Destination.Onboarding.route) {
             com.habitly.app.ui.onboarding.OnboardingScreen(onFinished = {
