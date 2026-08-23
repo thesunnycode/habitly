@@ -23,8 +23,18 @@ class StatsViewModel(
                 val overall = if (habits.isEmpty()) 0f else habits.map { it.completionRate }.average().toFloat()
                 val best = habits.maxByOrNull { it.completionRate }?.habit?.name
                 val worst = habits.minByOrNull { it.completionRate }?.habit?.name
+                // Real per-day rate across all habits, not a repeated overall average: each
+                // habit's own last7Days (already tracked for its Home-card mini heatmap) tells
+                // us whether it was completed on that specific day.
+                val dailyRates = if (habits.isEmpty()) {
+                    List(7) { 0f }
+                } else {
+                    (0 until 7).map { dayIndex ->
+                        habits.count { it.last7Days.getOrElse(dayIndex) { false } }.toFloat() / habits.size
+                    }
+                }
                 _uiState.value = StatsUiState(
-                    weeklyCompletionByDay = List(7) { overall },
+                    weeklyCompletionByDay = dailyRates,
                     bestHabitName = best,
                     worstHabitName = worst,
                     overallCompletionRate = overall,

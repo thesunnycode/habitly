@@ -12,9 +12,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.habitly.app.ui.components.BarChart
 import com.habitly.app.ui.components.LineChart
+import java.time.LocalDate
+import java.time.format.TextStyle
+import java.util.Locale
 
 @Composable
 fun StatsScreen(uiState: StatsUiState) {
+    val today = LocalDate.now()
+    val dayLabels = (6 downTo 0).map { offset ->
+        today.minusDays(offset.toLong()).dayOfWeek.getDisplayName(TextStyle.NARROW, Locale.getDefault())
+    }
     Scaffold(topBar = { TopAppBar(title = { Text("Stats") }) }) { padding ->
         Column(modifier = Modifier.fillMaxWidth().padding(padding).padding(16.dp)) {
             Text("This week's completion trend", style = MaterialTheme.typography.titleMedium)
@@ -23,7 +30,7 @@ fun StatsScreen(uiState: StatsUiState) {
             Text("Completion by day", style = MaterialTheme.typography.titleMedium)
             BarChart(
                 values = uiState.weeklyCompletionByDay,
-                labels = listOf("M", "T", "W", "T", "F", "S", "S"),
+                labels = dayLabels,
                 modifier = Modifier.padding(top = 8.dp, bottom = 24.dp),
             )
 

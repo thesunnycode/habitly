@@ -18,9 +18,9 @@ import org.junit.Rule
 import org.junit.Test
 import java.time.LocalDate
 
-private fun habit(id: Long, name: String, rate: Float) = HabitWithStats(
+private fun habit(id: Long, name: String, rate: Float, last7Days: List<Boolean> = List(7) { false }) = HabitWithStats(
     habit = HabitEntity(id, name, "star", "#000", "General", FrequencyType.DAILY, null, null, null, 0L, false),
-    currentStreak = 0, bestStreak = 0, completionRate = rate, isCompletedToday = false,
+    currentStreak = 0, bestStreak = 0, completionRate = rate, isCompletedToday = false, last7Days = last7Days,
 )
 
 private class FakeHabitDataSource(habits: List<HabitWithStats>) : HabitDataSource {
@@ -61,5 +61,22 @@ class StatsViewModelTest {
         advanceUntilIdle()
         assertEquals(null, viewModel.uiState.value.bestHabitName)
         assertEquals(null, viewModel.uiState.value.worstHabitName)
+    }
+
+    @Test
+    fun weeklyCompletionByDayReflectsTheRealPerDayCompletionRateAcrossHabits() = runTest {
+        // Day index 0 = both habits done (rate 1.0), day index 3 = only one of two done (rate 0.5)
+        val fake = FakeHabitDataSource(
+            listOf(
+                habit(1, "A", 0.5f, last7Days = List(7) { it == 0 || it == 3 }),
+                habit(2, "B", 0.5f, last7Days = List(7) { it == 0 }),
+            )
+        )
+        val viewModel = StatsViewModel(fake, today = { LocalDate.of(2026, 8, 22) })
+        advanceUntilIdle()
+        val daily = viewModel.uiState.value.weeklyCompletionByDay
+        assertEquals(1.0f, daily[0], 0.001f)
+        assertEquals(0.5f, daily[3], 0.001f)
+        assertEquals(0.0f, daily[1], 0.001f)
     }
 }
