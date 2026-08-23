@@ -44,6 +44,29 @@ fun HabitlyNavHost(navController: NavHostController, startDestination: String) {
                 onToggleHabit = viewModel::onToggleHabit,
                 onAddHabit = { navController.navigate(Destination.AddEditHabit.createRoute()) },
                 onHabitClick = { id -> navController.navigate(Destination.HabitDetail.createRoute(id)) },
+                onSeeAllClick = { navController.navigate(Destination.AllHabits.route) },
+            )
+        }
+        composable(Destination.AllHabits.route) {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val repository = remember {
+                val db = com.habitly.app.data.local.AppDatabase.getInstance(context)
+                com.habitly.app.data.repository.HabitRepository(db.habitDao(), db.habitLogDao(), db.achievementDao())
+            }
+            val viewModel: com.habitly.app.ui.allhabits.AllHabitsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
+                factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                        @Suppress("UNCHECKED_CAST")
+                        return com.habitly.app.ui.allhabits.AllHabitsViewModel(repository) as T
+                    }
+                },
+            )
+            val uiState by viewModel.uiState.collectAsState()
+            com.habitly.app.ui.allhabits.AllHabitsScreen(
+                uiState = uiState,
+                onSearchQueryChange = viewModel::onSearchQueryChange,
+                onCategorySelect = viewModel::onCategorySelect,
+                onHabitClick = { id -> navController.navigate(Destination.HabitDetail.createRoute(id)) },
             )
         }
         composable(Destination.Stats.route) { Text("TODO Stats") }

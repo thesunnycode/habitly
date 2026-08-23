@@ -8,6 +8,7 @@ sealed class Destination(val route: String) {
     data object Calendar : Destination("calendar")
     data object Achievements : Destination("achievements")
     data object Settings : Destination("settings")
+    data object AllHabits : Destination("all_habits")
     data object AddEditHabit : Destination("add_edit_habit?habitId={habitId}") {
         fun createRoute(habitId: Long? = null) = "add_edit_habit?habitId=${habitId ?: -1L}"
     }
