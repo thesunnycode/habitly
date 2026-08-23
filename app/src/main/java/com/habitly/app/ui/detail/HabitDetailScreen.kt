@@ -32,7 +32,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.habitly.app.domain.ContributionLevels
 import com.habitly.app.ui.components.CalendarHeatmap
+import com.habitly.app.ui.components.ContributionGrid
+import com.habitly.app.ui.components.ContributionLegend
 import com.habitly.app.ui.components.ConfirmDialog
 import com.habitly.app.ui.components.ScreenHeader
 import com.habitly.app.ui.components.SectionCard
@@ -133,6 +136,16 @@ fun HabitDetailScreen(
                     modifier = Modifier.weight(1f),
                     accent = habitColor,
                 )
+            }
+        }
+
+        item {
+            SectionCard(title = "Consistency", subtitle = "Every day since you started") {
+                ContributionGrid(
+                    levels = ContributionLevels.forHabit(uiState.records),
+                    color = habitColor,
+                )
+                ContributionLegend(modifier = Modifier.padding(top = 12.dp), color = habitColor)
             }
         }
 

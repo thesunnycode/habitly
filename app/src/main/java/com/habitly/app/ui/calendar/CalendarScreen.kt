@@ -26,7 +26,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.habitly.app.domain.ContributionLevels
 import com.habitly.app.ui.components.CalendarHeatmap
+import com.habitly.app.ui.components.ContributionGrid
+import com.habitly.app.ui.components.ContributionLegend
 import com.habitly.app.ui.components.ScreenHeader
 import com.habitly.app.ui.components.SectionCard
 import com.habitly.app.ui.components.StatTile
@@ -75,6 +78,19 @@ fun CalendarScreen(
                     modifier = Modifier.weight(1f),
                     accent = MaterialTheme.colorScheme.tertiary,
                 )
+            }
+        }
+
+        item {
+            SectionCard(
+                title = "Activity",
+                subtitle = "Every day of the last six months",
+            ) {
+                ContributionGrid(
+                    levels = ContributionLevels.forAllHabits(uiState.completionsByDate, uiState.habitCount),
+                    endDate = today,
+                )
+                ContributionLegend(modifier = Modifier.padding(top = 12.dp))
             }
         }
 

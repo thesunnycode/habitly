@@ -24,16 +24,25 @@ class CalendarViewModel(private val repository: HabitDataSource) : ViewModel() {
             repository.observeHabitsWithStats(LocalDate.now())
                 .flatMapLatest { habits ->
                     if (habits.isEmpty()) {
-                        flowOf(emptyList())
+                        flowOf(emptyList<CompletionRecord>() to 0)
                     } else {
                         combine(habits.map { repository.observeRecordsForHabit(it.habit.id) }) { perHabit ->
-                            perHabit.toList().flatten()
-                                .groupBy { it.date }
-                                .map { (date, records) -> CompletionRecord(date, records.any { it.completed }) }
+                            perHabit.toList().flatten() to habits.size
                         }
                     }
                 }
-                .collect { merged -> _uiState.value = _uiState.value.copy(mergedRecords = merged) }
+                .collect { (allRecords, habitCount) ->
+                    val byDate = allRecords.groupBy { it.date }
+                    _uiState.value = _uiState.value.copy(
+                        mergedRecords = byDate.map { (date, records) ->
+                            CompletionRecord(date, records.any { it.completed })
+                        },
+                        completionsByDate = byDate.mapValues { (_, records) ->
+                            records.count { it.completed }
+                        },
+                        habitCount = habitCount,
+                    )
+                }
         }
     }
 
