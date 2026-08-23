@@ -4,16 +4,21 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +33,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.habitly.app.ui.components.HabitCard
+import com.habitly.app.ui.components.ProgressRing
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun HomeScreen(
@@ -37,7 +46,11 @@ fun HomeScreen(
     onHabitClick: (Long) -> Unit,
     onSeeAllClick: () -> Unit = {},
     windowWidthSizeClass: WindowWidthSizeClass = WindowWidthSizeClass.Compact,
+    now: LocalTime = LocalTime.now(),
+    today: LocalDate = LocalDate.now(),
 ) {
+    val doneCount = uiState.habits.count { it.isCompletedToday }
+
     Scaffold(
         floatingActionButton = {
             FloatingActionButton(onClick = onAddHabit) {
@@ -45,40 +58,128 @@ fun HomeScreen(
             }
         },
     ) { padding ->
+        // Bottom inset only — MainActivity already applied the status-bar inset once.
+        val outerPadding = Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding())
+
         if (windowWidthSizeClass == WindowWidthSizeClass.Expanded) {
-            Row(modifier = Modifier.fillMaxSize().padding(padding)) {
-                Column(modifier = Modifier.weight(1f).padding(24.dp)) {
-                    ScreenTitle()
+            Row(modifier = outerPadding.padding(horizontal = 20.dp)) {
+                Column(modifier = Modifier.weight(1f).padding(end = 20.dp)) {
+                    Greeting(now, today)
+                    TodaySummaryCard(doneCount, uiState.habits.size, uiState.completionPercent)
                 }
-                Column(modifier = Modifier.weight(2f).padding(24.dp)) {
-                    TodaySectionHeader(count = uiState.habits.size, onSeeAllClick = onSeeAllClick)
-                    HabitListContent(uiState, onToggleHabit, onHabitClick, Modifier.fillMaxWidth())
+                LazyColumn(
+                    modifier = Modifier.weight(2f),
+                    contentPadding = PaddingValues(bottom = 96.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    item { SectionHeader(uiState.habits.size, onSeeAllClick) }
+                    habitList(uiState, onToggleHabit, onHabitClick)
                 }
             }
         } else {
-            Column(modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp)) {
-                ScreenTitle()
-                TodaySectionHeader(count = uiState.habits.size, onSeeAllClick = onSeeAllClick)
-                HabitListContent(uiState, onToggleHabit, onHabitClick, Modifier.fillMaxWidth())
+            LazyColumn(
+                modifier = outerPadding,
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 110.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                item { Greeting(now, today) }
+                item { TodaySummaryCard(doneCount, uiState.habits.size, uiState.completionPercent) }
+                item { SectionHeader(uiState.habits.size, onSeeAllClick) }
+                habitList(uiState, onToggleHabit, onHabitClick)
             }
         }
     }
 }
 
-@Composable
-private fun ScreenTitle() {
-    Text(
-        text = "Habits",
-        style = MaterialTheme.typography.headlineMedium,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
-    )
+private fun LazyListScope.habitList(
+    uiState: HomeUiState,
+    onToggleHabit: (Long) -> Unit,
+    onHabitClick: (Long) -> Unit,
+) {
+    if (uiState.habits.isEmpty() && !uiState.isLoading) {
+        item {
+            Text(
+                text = "No habits yet — tap + to add your first one.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+            )
+        }
+    } else {
+        items(uiState.habits, key = { it.habit.id }) { habit ->
+            HabitCard(
+                habit = habit,
+                onToggle = { onToggleHabit(habit.habit.id) },
+                onClick = { onHabitClick(habit.habit.id) },
+            )
+        }
+    }
 }
 
 @Composable
-private fun TodaySectionHeader(count: Int, onSeeAllClick: () -> Unit) {
+private fun Greeting(now: LocalTime, today: LocalDate) {
+    val greeting = when {
+        now.hour < 12 -> "Good morning"
+        now.hour < 17 -> "Good afternoon"
+        else -> "Good evening"
+    }
+    Column(modifier = Modifier.padding(top = 16.dp)) {
+        Text(
+            text = greeting,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            text = today.format(DateTimeFormatter.ofPattern("EEEE, d MMMM")),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** The day's score in one glance: ring, count, and what's left to do. */
+@Composable
+private fun TodaySummaryCard(done: Int, total: Int, percent: Float) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Today's progress",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+                Text(
+                    text = "$done of $total done",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+                Text(
+                    text = when {
+                        total == 0 -> "Add a habit to get started."
+                        done == total -> "Every habit done — enjoy the streak."
+                        else -> "${total - done} left to keep your streaks alive."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+            }
+            ProgressRing(progress = percent)
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(count: Int, onSeeAllClick: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -97,35 +198,9 @@ private fun TodaySectionHeader(count: Int, onSeeAllClick: () -> Unit) {
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(text = "$count", style = MaterialTheme.typography.labelLarge)
+                Text(text = "$count", style = MaterialTheme.typography.labelSmall)
             }
         }
         TextButton(onClick = onSeeAllClick) { Text("See all") }
-    }
-}
-
-@Composable
-private fun HabitListContent(
-    uiState: HomeUiState,
-    onToggleHabit: (Long) -> Unit,
-    onHabitClick: (Long) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    if (uiState.habits.isEmpty() && !uiState.isLoading) {
-        Text(
-            text = "No habits yet — tap + to add your first one.",
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = modifier.padding(top = 24.dp),
-        )
-    } else {
-        LazyColumn(modifier = modifier, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            items(uiState.habits, key = { it.habit.id }) { habit ->
-                HabitCard(
-                    habit = habit,
-                    onToggle = { onToggleHabit(habit.habit.id) },
-                    onClick = { onHabitClick(habit.habit.id) },
-                )
-            }
-        }
     }
 }

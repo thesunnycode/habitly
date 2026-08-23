@@ -41,6 +41,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.habitly.app.data.repository.HabitWithStats
 import com.habitly.app.ui.components.HabitCard
+import com.habitly.app.ui.components.ScreenHeader
 
 @Composable
 fun AllHabitsScreen(
@@ -118,18 +119,10 @@ private fun androidx.compose.foundation.lazy.LazyListScope.habitItems(
 
 @Composable
 private fun AllHabitsHeader(uiState: AllHabitsUiState) {
-    Column(modifier = Modifier.padding(top = 16.dp)) {
-        Text(
-            text = "All Habits",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            text = "${uiState.totalToday} habits  •  ${uiState.doneToday} done today",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+    ScreenHeader(
+        title = "All Habits",
+        subtitle = "${uiState.totalToday} habits  •  ${uiState.doneToday} done today",
+    )
 }
 
 /** The one number that drives a return visit: how much of today is left. */

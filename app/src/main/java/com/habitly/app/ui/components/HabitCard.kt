@@ -27,10 +27,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -64,10 +64,16 @@ fun HabitCard(
     modifier: Modifier = Modifier,
     today: LocalDate = LocalDate.now(),
 ) {
-    val cardColor = parseHabitColor(habit.habit.colorHex)
-    val contentColor = contentColorFor(cardColor)
     val haptics = LocalHapticFeedback.current
     val done = habit.isCompletedToday
+    // A completed card recedes by blending toward the page, not by going translucent: alpha on the
+    // whole card would also fade the text and day pills, which reads as muddy on a dark theme.
+    val cardColor = lerp(
+        parseHabitColor(habit.habit.colorHex),
+        MaterialTheme.colorScheme.surface,
+        if (done) 0.55f else 0f,
+    )
+    val contentColor = contentColorFor(cardColor)
 
     val checkFill by animateColorAsState(
         targetValue = if (done) contentColor else Color.Transparent,
@@ -78,7 +84,6 @@ fun HabitCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .alpha(if (done) 0.62f else 1f)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = cardColor),

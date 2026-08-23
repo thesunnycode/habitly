@@ -52,4 +52,24 @@ class StreakCalculatorTest {
     fun `completion rate is zero for empty history`() {
         assertEquals(0f, StreakCalculator.completionRate(emptyList()), 0.001f)
     }
+
+    @Test
+    fun `completion rate counts days with no record at all as missed`() {
+        // Logged the 1st and 4th only; the 2nd and 3rd were never opened, but they still elapsed.
+        val records = listOf(record(1, true), record(4, true))
+        val rate = StreakCalculator.completionRate(records, today = LocalDate.of(2026, 8, 4))
+        assertEquals(0.5f, rate, 0.001f)
+    }
+
+    @Test
+    fun `completion rate over elapsed days ignores records after today`() {
+        val records = listOf(record(1, true), record(2, true), record(9, true))
+        val rate = StreakCalculator.completionRate(records, today = LocalDate.of(2026, 8, 2))
+        assertEquals(1f, rate, 0.001f)
+    }
+
+    @Test
+    fun `completion rate over elapsed days is zero for empty history`() {
+        assertEquals(0f, StreakCalculator.completionRate(emptyList(), LocalDate.of(2026, 8, 4)), 0.001f)
+    }
 }

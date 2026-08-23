@@ -37,4 +37,19 @@ object StreakCalculator {
         if (records.isEmpty()) return 0f
         return records.count { it.completed }.toFloat() / records.size
     }
+
+    /**
+     * Completion over every day that has elapsed since tracking began, not just the days that
+     * happen to have a record. A day the user never opened the app is a miss, which is what the
+     * calendar already shows them — dividing by record count instead reports 100% next to
+     * visible gaps.
+     */
+    fun completionRate(records: List<CompletionRecord>, today: LocalDate): Float {
+        val relevant = records.filterNot { it.date.isAfter(today) }
+        if (relevant.isEmpty()) return 0f
+        val firstDay = relevant.minOf { it.date }
+        val elapsedDays = java.time.temporal.ChronoUnit.DAYS.between(firstDay, today) + 1
+        if (elapsedDays <= 0) return 0f
+        return relevant.count { it.completed }.toFloat() / elapsedDays
+    }
 }

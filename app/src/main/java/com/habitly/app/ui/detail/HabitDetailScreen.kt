@@ -1,81 +1,166 @@
 package com.habitly.app.ui.detail
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.habitly.app.ui.components.CalendarHeatmap
 import com.habitly.app.ui.components.ConfirmDialog
+import com.habitly.app.ui.components.ScreenHeader
+import com.habitly.app.ui.components.SectionCard
+import com.habitly.app.ui.components.StatTile
+import com.habitly.app.ui.components.habitIconFor
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
+private val MONTH_FORMAT = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
 
 @Composable
 fun HabitDetailScreen(
     uiState: HabitDetailUiState,
     onArchive: () -> Unit,
     onDelete: () -> Unit,
-    onMonthChange: (java.time.YearMonth) -> Unit,
+    onMonthChange: (YearMonth) -> Unit,
     onBack: () -> Unit,
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    val habitColor = uiState.habit?.colorHex?.let { hex ->
+        runCatching { Color(android.graphics.Color.parseColor(hex)) }.getOrNull()
+    } ?: MaterialTheme.colorScheme.primary
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(uiState.habit?.name ?: "") },
-                navigationIcon = { TextButton(onClick = onBack) { Text("Back") } },
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        item {
+            ScreenHeader(
+                title = uiState.habit?.name ?: "",
+                subtitle = uiState.habit?.let { habit ->
+                    listOfNotNull(habit.category, habit.reminderTime).joinToString("  •  ")
+                },
+                onBack = onBack,
                 actions = {
-                    TextButton(onClick = onArchive) { Text("Archive") }
-                    TextButton(onClick = { showDeleteConfirm = true }) { Text("Delete") }
+                    IconButton(onClick = onArchive) {
+                        Icon(Icons.Filled.Archive, contentDescription = "Archive habit")
+                    }
+                    IconButton(onClick = { showDeleteConfirm = true }) {
+                        Icon(
+                            imageVector = Icons.Filled.DeleteOutline,
+                            contentDescription = "Delete habit",
+                            tint = MaterialTheme.colorScheme.error,
+                        )
+                    }
                 },
             )
-        },
-    ) { padding ->
-        Column(modifier = Modifier.fillMaxWidth().padding(padding).padding(16.dp)) {
-            Row(modifier = Modifier.fillMaxWidth()) {
-                Card(modifier = Modifier.padding(end = 8.dp)) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text("Current streak", style = MaterialTheme.typography.bodyMedium)
-                        Text("${uiState.currentStreak}", style = MaterialTheme.typography.titleLarge)
-                    }
+        }
+
+        item {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(CircleShape)
+                        .background(habitColor.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = habitIconFor(uiState.habit?.icon ?: "star"),
+                        contentDescription = null,
+                        tint = habitColor,
+                    )
                 }
-                Card(modifier = Modifier.padding(end = 8.dp)) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text("Best streak", style = MaterialTheme.typography.bodyMedium)
-                        Text("${uiState.bestStreak}", style = MaterialTheme.typography.titleLarge)
-                    }
-                }
-                Card {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text("Completion", style = MaterialTheme.typography.bodyMedium)
-                        Text("${(uiState.completionRate * 100).toInt()}%", style = MaterialTheme.typography.titleLarge)
-                    }
-                }
+                Text(
+                    text = if (uiState.currentStreak > 0) {
+                        "🔥 ${uiState.currentStreak}-day streak going"
+                    } else {
+                        "No active streak — today is a good day to start"
+                    },
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(start = 14.dp),
+                )
             }
-            Text(
-                text = uiState.month.toString(),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
-            )
-            val habitColor = uiState.habit?.colorHex?.let { hex ->
-                runCatching { androidx.compose.ui.graphics.Color(android.graphics.Color.parseColor(hex)) }.getOrNull()
+        }
+
+        item {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                StatTile(
+                    label = "Current streak",
+                    value = "${uiState.currentStreak}",
+                    modifier = Modifier.weight(1f),
+                    accent = habitColor,
+                )
+                StatTile(
+                    label = "Best streak",
+                    value = "${uiState.bestStreak}",
+                    modifier = Modifier.weight(1f),
+                    accent = habitColor,
+                )
+                StatTile(
+                    label = "Completion",
+                    value = "${(uiState.completionRate * 100).toInt()}%",
+                    modifier = Modifier.weight(1f),
+                    accent = habitColor,
+                )
             }
-            CalendarHeatmap(
-                records = uiState.records,
-                month = uiState.month,
-                color = habitColor ?: MaterialTheme.colorScheme.primary,
-            )
+        }
+
+        item {
+            SectionCard(title = "History") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = { onMonthChange(uiState.month.minusMonths(1)) }) {
+                        Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous month")
+                    }
+                    Text(
+                        text = uiState.month.atDay(1).format(MONTH_FORMAT),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    IconButton(onClick = { onMonthChange(uiState.month.plusMonths(1)) }) {
+                        Icon(Icons.Filled.ChevronRight, contentDescription = "Next month")
+                    }
+                }
+                CalendarHeatmap(
+                    records = uiState.records,
+                    month = uiState.month,
+                    color = habitColor,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+            }
         }
     }
 

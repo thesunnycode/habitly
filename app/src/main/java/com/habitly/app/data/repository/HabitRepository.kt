@@ -39,7 +39,7 @@ class HabitRepository(
                     habit = habit,
                     currentStreak = StreakCalculator.currentStreak(records, today),
                     bestStreak = StreakCalculator.bestStreak(records),
-                    completionRate = StreakCalculator.completionRate(records),
+                    completionRate = StreakCalculator.completionRate(records, today),
                     isCompletedToday = todayLog?.completed == true,
                     last7Days = last7Days,
                 )
