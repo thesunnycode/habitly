@@ -11,8 +11,16 @@ import androidx.navigation.navArgument
 @Composable
 fun HabitlyNavHost(navController: NavHostController, startDestination: String) {
     NavHost(navController = navController, startDestination = startDestination) {
-        composable(Destination.Splash.route) { Text("TODO Splash") }
-        composable(Destination.Onboarding.route) { Text("TODO Onboarding") }
+        composable(Destination.Splash.route) {
+            com.habitly.app.ui.splash.SplashScreen(onNavigate = { destination ->
+                navController.navigate(destination) { popUpTo(Destination.Splash.route) { inclusive = true } }
+            })
+        }
+        composable(Destination.Onboarding.route) {
+            com.habitly.app.ui.onboarding.OnboardingScreen(onFinished = {
+                navController.navigate(Destination.Home.route) { popUpTo(Destination.Onboarding.route) { inclusive = true } }
+            })
+        }
         composable(Destination.Home.route) { Text("TODO Home") }
         composable(Destination.Stats.route) { Text("TODO Stats") }
         composable(Destination.Calendar.route) { Text("TODO Calendar") }
