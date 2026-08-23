@@ -15,7 +15,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -119,14 +118,13 @@ private fun HabitListContent(
             modifier = modifier.padding(top = 24.dp),
         )
     } else {
-        LazyColumn(modifier = modifier) {
+        LazyColumn(modifier = modifier, verticalArrangement = Arrangement.spacedBy(14.dp)) {
             items(uiState.habits, key = { it.habit.id }) { habit ->
                 HabitCard(
                     habit = habit,
                     onToggle = { onToggleHabit(habit.habit.id) },
                     onClick = { onHabitClick(habit.habit.id) },
                 )
-                HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
             }
         }
     }
