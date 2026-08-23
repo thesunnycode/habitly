@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -330,7 +331,12 @@ private fun DayPill(
             )
             else -> Text(
                 text = label,
-                fontSize = 11.sp,
+                // Expressed in dp-derived sp on purpose: these one-letter markers sit inside a fixed
+                // 26dp pill, and letting them follow a 200% font scale clipped them to unreadable
+                // fragments. The strip is decorative — semantics are cleared and a text summary is
+                // provided on the row — so the information is not carried by these glyphs.
+                fontSize = with(LocalDensity.current) { 11.dp.toSp() },
+                lineHeight = with(LocalDensity.current) { 14.dp.toSp() },
                 fontWeight = if (isToday) FontWeight.Bold else FontWeight.Medium,
                 color = if (status == CompletionStatus.DONE) {
                     cardColor

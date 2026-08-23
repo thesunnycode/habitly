@@ -12,6 +12,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -65,6 +66,7 @@ private fun DayChip(
 
     Column(
         modifier = Modifier
+            .minimumInteractiveComponentSize()
             .clip(RoundedCornerShape(16.dp))
             .selectable(selected = isSelected, onClick = onClick)
             .padding(horizontal = 6.dp, vertical = 6.dp)

@@ -16,6 +16,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -93,31 +95,47 @@ private fun DayCell(
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(8.dp)
-    // The empty state must not be surfaceVariant: these grids sit on a surfaceVariant card,
-    // where that colour makes unfilled days disappear entirely.
+    // The empty state must not be surfaceVariant: these grids sit on a surfaceVariant card, where
+    // that colour makes unfilled days disappear entirely. Nor can it be a whisper of alpha — a fill
+    // at 7% lands near 1.2:1 against the card, well under the 3:1 a meaningful graphic needs.
     val background = when {
         date == null -> Color.Transparent
         completed -> color
         isFuture -> Color.Transparent
-        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)
+        else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.16f)
+    }
+    // Filled versus outlined is a shape difference, so a kept day and a missed day stay tellable
+    // apart without relying on colour at all.
+    val outline = when {
+        date == null || completed -> null
+        isFuture -> MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
+        else -> MaterialTheme.colorScheme.outline
     }
     Box(
         modifier = modifier
             .aspectRatio(1f)
             .background(background, shape)
             .then(
-                if (isToday && !completed) Modifier.border(1.5.dp, color, shape) else Modifier
+                when {
+                    isToday && !completed -> Modifier.border(2.dp, color, shape)
+                    outline != null -> Modifier.border(1.dp, outline, shape)
+                    else -> Modifier
+                }
             ),
         contentAlignment = Alignment.Center,
     ) {
         if (date != null) {
             Text(
                 text = "${date.dayOfMonth}",
-                fontSize = 11.sp,
+                // Fixed against font scale for the same reason as the card's day pills: the cell is
+                // a square in a seven-column grid and cannot grow with the text.
+                fontSize = with(LocalDensity.current) { 11.dp.toSp() },
+                lineHeight = with(LocalDensity.current) { 14.dp.toSp() },
                 fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
                 color = when {
-                    completed -> Color.White
-                    isFuture -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    // White is not automatically readable on a pastel habit colour.
+                    completed -> if (color.luminance() > 0.5f) Color(0xFF1B1F1D) else Color.White
+                    isFuture -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                     else -> MaterialTheme.colorScheme.onSurfaceVariant
                 },
             )

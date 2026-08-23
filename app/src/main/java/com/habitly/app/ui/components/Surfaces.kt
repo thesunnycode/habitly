@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.habitly.app.ui.theme.readableOn
 
 /** A titled rounded container — the standard block for everything that isn't a habit card. */
 @Composable
@@ -58,12 +59,14 @@ fun StatTile(
     modifier: Modifier = Modifier,
     accent: Color? = null,
 ) {
+    val base = accent ?: MaterialTheme.colorScheme.primary
+    // A habit's own colour is chosen from a palette and reused in both themes, so a cheerful pastel
+    // can land as unreadable label text. Nudge it only as far as legibility requires.
+    val legible = base.readableOn(MaterialTheme.colorScheme.surface)
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = (accent ?: MaterialTheme.colorScheme.primary).copy(alpha = 0.12f),
-        ),
+        colors = CardDefaults.cardColors(containerColor = base.copy(alpha = 0.12f)),
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp, horizontal = 12.dp),
@@ -73,7 +76,7 @@ fun StatTile(
                 text = value,
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
-                color = accent ?: MaterialTheme.colorScheme.primary,
+                color = legible,
             )
             Text(
                 text = label,

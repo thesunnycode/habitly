@@ -38,6 +38,7 @@ import com.habitly.app.ui.components.ScreenHeader
 import com.habitly.app.ui.components.SectionCard
 import com.habitly.app.ui.components.StatTile
 import com.habitly.app.ui.components.habitIconFor
+import com.habitly.app.ui.theme.readableOn
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -96,7 +97,7 @@ fun HabitDetailScreen(
                     Icon(
                         imageVector = habitIconFor(uiState.habit?.icon ?: "star"),
                         contentDescription = null,
-                        tint = habitColor,
+                        tint = habitColor.readableOn(MaterialTheme.colorScheme.surface, target = 3f),
                     )
                 }
                 Text(
