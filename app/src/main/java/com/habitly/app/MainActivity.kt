@@ -6,6 +6,8 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Surface
+import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
+import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -18,9 +20,11 @@ import com.habitly.app.ui.navigation.HabitlyScaffold
 import com.habitly.app.ui.theme.HabitlyTheme
 
 class MainActivity : ComponentActivity() {
+    @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
+            val windowSizeClass = calculateWindowSizeClass(this)
             val systemDark = isSystemInDarkTheme()
             val themeMode by remember { SettingsPrefs(this).themeMode }.collectAsState(initial = ThemeMode.SYSTEM)
             val darkTheme = when (themeMode) {
@@ -35,7 +39,11 @@ class MainActivity : ComponentActivity() {
                         androidx.compose.foundation.layout.Box(
                             modifier = androidx.compose.ui.Modifier.padding(padding),
                         ) {
-                            HabitlyNavHost(navController = navController, startDestination = Destination.Splash.route)
+                            HabitlyNavHost(
+                                navController = navController,
+                                startDestination = Destination.Splash.route,
+                                windowWidthSizeClass = windowSizeClass.widthSizeClass,
+                            )
                         }
                     }
                 }

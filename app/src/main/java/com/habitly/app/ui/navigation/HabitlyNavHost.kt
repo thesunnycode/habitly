@@ -12,12 +12,23 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 
 @Composable
-fun HabitlyNavHost(navController: NavHostController, startDestination: String) {
+fun HabitlyNavHost(
+    navController: NavHostController,
+    startDestination: String,
+    windowWidthSizeClass: androidx.compose.material3.windowsizeclass.WindowWidthSizeClass =
+        androidx.compose.material3.windowsizeclass.WindowWidthSizeClass.Compact,
+) {
     NavHost(navController = navController, startDestination = startDestination) {
         composable(Destination.Splash.route) {
+            val context = androidx.compose.ui.platform.LocalContext.current
             com.habitly.app.ui.splash.SplashScreen(onNavigate = { destination ->
                 navController.navigate(destination) { popUpTo(Destination.Splash.route) { inclusive = true } }
             })
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                val db = com.habitly.app.data.local.AppDatabase.getInstance(context)
+                val repository = com.habitly.app.data.repository.HabitRepository(db.habitDao(), db.habitLogDao(), db.achievementDao())
+                com.habitly.app.data.seed.SeedDataProvider.seedIfEmpty(repository, db.habitDao(), java.time.LocalDate.now())
+            }
         }
         composable(Destination.Onboarding.route) {
             com.habitly.app.ui.onboarding.OnboardingScreen(onFinished = {
@@ -45,6 +56,7 @@ fun HabitlyNavHost(navController: NavHostController, startDestination: String) {
                 onAddHabit = { navController.navigate(Destination.AddEditHabit.createRoute()) },
                 onHabitClick = { id -> navController.navigate(Destination.HabitDetail.createRoute(id)) },
                 onSeeAllClick = { navController.navigate(Destination.AllHabits.route) },
+                windowWidthSizeClass = windowWidthSizeClass,
             )
         }
         composable(Destination.AllHabits.route) {

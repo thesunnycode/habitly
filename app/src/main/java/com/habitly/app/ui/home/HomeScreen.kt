@@ -2,7 +2,9 @@ package com.habitly.app.ui.home
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,6 +31,7 @@ fun HomeScreen(
     onAddHabit: () -> Unit,
     onHabitClick: (Long) -> Unit,
     onSeeAllClick: () -> Unit = {},
+    windowWidthSizeClass: WindowWidthSizeClass = WindowWidthSizeClass.Compact,
 ) {
     Scaffold(
         floatingActionButton = {
@@ -36,32 +40,71 @@ fun HomeScreen(
             }
         },
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
-            Column(
-                modifier = Modifier.padding(bottom = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                ProgressRing(progress = uiState.completionPercent)
-                Text(text = "Today's progress", style = MaterialTheme.typography.bodyMedium)
-            }
-            TextButton(onClick = onSeeAllClick, modifier = Modifier.padding(bottom = 8.dp)) {
-                Text("See all")
-            }
-            if (uiState.habits.isEmpty() && !uiState.isLoading) {
-                Text(
-                    text = "No habits yet — tap + to add your first one.",
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-            } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(uiState.habits, key = { it.habit.id }) { habit ->
-                        HabitCard(
-                            habit = habit,
-                            onToggle = { onToggleHabit(habit.habit.id) },
-                            onClick = { onHabitClick(habit.habit.id) },
-                        )
-                    }
+        if (windowWidthSizeClass == WindowWidthSizeClass.Expanded) {
+            Row(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
+                Column(
+                    modifier = Modifier.weight(1f).padding(end = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    ProgressRing(progress = uiState.completionPercent)
+                    Text(text = "Today's progress", style = MaterialTheme.typography.bodyMedium)
                 }
+                Column(modifier = Modifier.weight(2f)) {
+                    TextButton(onClick = onSeeAllClick, modifier = Modifier.padding(bottom = 8.dp)) {
+                        Text("See all")
+                    }
+                    HabitListContent(
+                        uiState = uiState,
+                        onToggleHabit = onToggleHabit,
+                        onHabitClick = onHabitClick,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        } else {
+            Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
+                Column(
+                    modifier = Modifier.padding(bottom = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    ProgressRing(progress = uiState.completionPercent)
+                    Text(text = "Today's progress", style = MaterialTheme.typography.bodyMedium)
+                }
+                TextButton(onClick = onSeeAllClick, modifier = Modifier.padding(bottom = 8.dp)) {
+                    Text("See all")
+                }
+                HabitListContent(
+                    uiState = uiState,
+                    onToggleHabit = onToggleHabit,
+                    onHabitClick = onHabitClick,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HabitListContent(
+    uiState: HomeUiState,
+    onToggleHabit: (Long) -> Unit,
+    onHabitClick: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (uiState.habits.isEmpty() && !uiState.isLoading) {
+        Text(
+            text = "No habits yet — tap + to add your first one.",
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = modifier,
+        )
+    } else {
+        LazyColumn(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            items(uiState.habits, key = { it.habit.id }) { habit ->
+                HabitCard(
+                    habit = habit,
+                    onToggle = { onToggleHabit(habit.habit.id) },
+                    onClick = { onHabitClick(habit.habit.id) },
+                )
             }
         }
     }
