@@ -80,6 +80,32 @@ fun StatsScreen(uiState: StatsUiState, today: LocalDate = LocalDate.now()) {
         }
 
         item {
+            SectionCard(
+                title = "Which days you keep it up",
+                subtitle = uiState.weakestWeekday?.let { weakest ->
+                    "Weakest day: ${weakest.getDisplayName(TextStyle.FULL, Locale.getDefault())}"
+                } ?: "No history yet",
+            ) {
+                val weekdays = java.time.DayOfWeek.entries
+                val counts = weekdays.map { (uiState.completionsByWeekday[it] ?: 0).toFloat() }
+                val peak = counts.maxOrNull()?.takeIf { it > 0f } ?: 1f
+                BarChart(
+                    values = counts.map { it / peak },
+                    labels = weekdays.map {
+                        it.getDisplayName(TextStyle.SHORT, Locale.getDefault()).take(1)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    text = "${uiState.totalCompletions} completions in total",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+        }
+
+        item {
             SectionCard(title = "Highlights") {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     HighlightRow("Strongest habit", uiState.bestHabitName ?: "Not enough data yet")

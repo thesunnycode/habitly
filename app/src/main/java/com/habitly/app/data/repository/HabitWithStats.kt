@@ -23,4 +23,6 @@ data class HabitWithStats(
     val lastBrokenDueDay: java.time.LocalDate? = null,
     /** Units logged today, for habits carrying a numeric goal. */
     val todayProgress: Int = 0,
+    /** The habit's own schedule, so callers can reason about which days it was ever due. */
+    val schedule: com.habitly.app.domain.HabitSchedule = com.habitly.app.domain.HabitSchedule.DAILY,
 )

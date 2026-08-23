@@ -12,4 +12,12 @@ data class HabitDetailUiState(
     val completionRate: Float = 0f,
     val month: YearMonth = YearMonth.now(),
     val isDeleted: Boolean = false,
+    /** The scheduled day that ended the current streak, if it is broken. */
+    val lastBrokenDueDay: java.time.LocalDate? = null,
+    /**
+     * The streak that would be restored by turning [lastBrokenDueDay] into a rest day. Zero when
+     * repairing that one day would not actually reconnect a run — in which case offering the repair
+     * would be promising something it cannot deliver.
+     */
+    val streakIfRepaired: Int = 0,
 )

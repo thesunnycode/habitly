@@ -44,6 +44,9 @@ fun HabitlyNavHost(
                 },
             )
             val uiState by viewModel.uiState.collectAsState()
+            com.habitly.app.ui.components.NotificationPermissionPrompt(
+                hasLoggedSomething = uiState.habits.any { it.isCompletedToday },
+            )
             com.habitly.app.ui.home.HomeScreen(
                 uiState = uiState,
                 onToggleHabit = viewModel::onToggleHabit,
@@ -219,6 +222,7 @@ fun HabitlyNavHost(
                 onArchive = viewModel::onArchive,
                 onDelete = viewModel::onDelete,
                 onMonthChange = viewModel::onMonthChange,
+                onRepairStreak = viewModel::onRepairStreak,
                 onBack = { navController.popBackStack() },
             )
         }

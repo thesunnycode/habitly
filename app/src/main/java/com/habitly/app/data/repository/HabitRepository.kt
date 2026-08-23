@@ -60,6 +60,7 @@ class HabitRepository(
                     last7DaysStatus = (6 downTo 0).map { offset -> statusByDate[today.minusDays(offset.toLong())] },
                     lastBrokenDueDay = StreakCalculator.lastBrokenDueDay(records, today, schedule),
                     todayProgress = todayLog?.progress ?: 0,
+                    schedule = schedule,
                 )
             }
         }

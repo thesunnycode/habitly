@@ -38,23 +38,12 @@ fun OnboardingScreen(onFinished: () -> Unit) {
     val scope = rememberCoroutineScope()
     val pagerState = rememberPagerState(pageCount = { PAGES.size })
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) {
+    // The notification permission is asked for after the first check-in, not here — see
+    // OnboardingPrefs.hasShownNotificationPrompt.
+    fun finish() {
         scope.launch {
             OnboardingPrefs(context).setCompleted()
             onFinished()
-        }
-    }
-
-    fun finish() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        } else {
-            scope.launch {
-                OnboardingPrefs(context).setCompleted()
-                onFinished()
-            }
         }
     }
 

@@ -17,10 +17,14 @@ import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,6 +52,40 @@ import java.util.Locale
 
 private val MONTH_FORMAT = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.getDefault())
 
+private val REPAIR_DAY_FORMAT = DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.getDefault())
+
+@Composable
+private fun StreakRepairCard(
+    brokenDay: java.time.LocalDate,
+    restoredStreak: Int,
+    accent: Color,
+    onRepair: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = accent.copy(alpha = 0.12f)),
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(18.dp)) {
+            Text(
+                text = "Streak ended on ${brokenDay.format(REPAIR_DAY_FORMAT)}",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "Was that a day off rather than a miss? Mark it as a rest day and your " +
+                    "$restoredStreak-day streak carries on.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            TextButton(onClick = onRepair, modifier = Modifier.padding(top = 6.dp)) {
+                Text("Make it a rest day")
+            }
+        }
+    }
+}
+
 @Composable
 fun HabitDetailScreen(
     uiState: HabitDetailUiState,
@@ -55,6 +93,7 @@ fun HabitDetailScreen(
     onDelete: () -> Unit,
     onMonthChange: (YearMonth) -> Unit,
     onBack: () -> Unit,
+    onRepairStreak: () -> Unit = {},
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val habitColor = uiState.habit?.colorHex?.let { hex ->
@@ -135,6 +174,18 @@ fun HabitDetailScreen(
                     value = "${(uiState.completionRate * 100).toInt()}%",
                     modifier = Modifier.weight(1f),
                     accent = habitColor,
+                )
+            }
+        }
+
+        // A zero streak is never shown without a way back from it.
+        if (uiState.currentStreak == 0 && uiState.lastBrokenDueDay != null && uiState.streakIfRepaired > 0) {
+            item {
+                StreakRepairCard(
+                    brokenDay = uiState.lastBrokenDueDay,
+                    restoredStreak = uiState.streakIfRepaired,
+                    accent = habitColor,
+                    onRepair = onRepairStreak,
                 )
             }
         }

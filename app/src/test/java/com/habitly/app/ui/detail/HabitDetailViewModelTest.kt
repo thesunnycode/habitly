@@ -23,7 +23,11 @@ private fun habitWithStats(id: Long, streak: Int) = HabitWithStats(
     currentStreak = streak, bestStreak = streak, completionRate = 0.8f, isCompletedToday = true,
 )
 
-private class FakeHabitDataSource(private val habits: List<HabitWithStats>) : HabitDataSource {
+private class FakeHabitDataSource(
+    private val habits: List<HabitWithStats>,
+    private val records: List<CompletionRecord> = emptyList(),
+) : HabitDataSource {
+    var lastSetStatusDate: LocalDate? = null
     var lastIncremented: Pair<Long, LocalDate>? = null
     var lastSetStatus: Pair<Long, com.habitly.app.domain.CompletionStatus?>? = null
     var archivedId: Long? = null
@@ -47,10 +51,11 @@ private class FakeHabitDataSource(private val habits: List<HabitWithStats>) : Ha
         note: String?,
     ): Set<AchievementType> {
         lastSetStatus = habitId to status
+        lastSetStatusDate = date
         return emptySet()
     }
     override fun observeAchievements(): Flow<List<AchievementEntity>> = MutableStateFlow(emptyList())
-    override fun observeRecordsForHabit(habitId: Long): Flow<List<CompletionRecord>> = MutableStateFlow(emptyList())
+    override fun observeRecordsForHabit(habitId: Long): Flow<List<CompletionRecord>> = MutableStateFlow(records)
 }
 
 class HabitDetailViewModelTest {
@@ -94,5 +99,63 @@ class HabitDetailViewModelTest {
         val target = java.time.YearMonth.of(2026, 7)
         viewModel.onMonthChange(target)
         assertEquals(target, viewModel.uiState.value.month)
+    }
+
+    @Test
+    fun anIsolatedMissOffersARepairNamingTheStreakItWouldRestore() = runTest {
+        val today = LocalDate.of(2026, 8, 24)
+        // Kept the 20th to 22nd, missed the 23rd, nothing yet today.
+        val records = (20..22).map {
+            CompletionRecord(LocalDate.of(2026, 8, it), com.habitly.app.domain.CompletionStatus.DONE)
+        } + CompletionRecord(LocalDate.of(2026, 8, 23), com.habitly.app.domain.CompletionStatus.MISSED)
+
+        val stats = habitWithStats(1L, streak = 0).copy(
+            lastBrokenDueDay = LocalDate.of(2026, 8, 23),
+        )
+        val viewModel = HabitDetailViewModel(
+            FakeHabitDataSource(listOf(stats), records), habitId = 1L, today = { today },
+        )
+        advanceUntilIdle()
+
+        assertEquals(LocalDate.of(2026, 8, 23), viewModel.uiState.value.lastBrokenDueDay)
+        assertEquals(3, viewModel.uiState.value.streakIfRepaired)
+    }
+
+    @Test
+    fun twoMissesInARowOfferNoRepair() = runTest {
+        val today = LocalDate.of(2026, 8, 24)
+        // The 22nd and 23rd were both missed, so mending the 23rd reconnects nothing.
+        val records = listOf(
+            CompletionRecord(LocalDate.of(2026, 8, 21), com.habitly.app.domain.CompletionStatus.DONE),
+            CompletionRecord(LocalDate.of(2026, 8, 22), com.habitly.app.domain.CompletionStatus.MISSED),
+            CompletionRecord(LocalDate.of(2026, 8, 23), com.habitly.app.domain.CompletionStatus.MISSED),
+        )
+        val stats = habitWithStats(1L, streak = 0).copy(
+            lastBrokenDueDay = LocalDate.of(2026, 8, 23),
+        )
+        val viewModel = HabitDetailViewModel(
+            FakeHabitDataSource(listOf(stats), records), habitId = 1L, today = { today },
+        )
+        advanceUntilIdle()
+
+        assertEquals(0, viewModel.uiState.value.streakIfRepaired)
+    }
+
+    @Test
+    fun repairingWritesARestDayToTheDayThatBrokeTheStreak() = runTest {
+        val today = LocalDate.of(2026, 8, 24)
+        val broken = LocalDate.of(2026, 8, 23)
+        val fake = FakeHabitDataSource(
+            listOf(habitWithStats(1L, streak = 0).copy(lastBrokenDueDay = broken)),
+            listOf(CompletionRecord(broken, com.habitly.app.domain.CompletionStatus.MISSED)),
+        )
+        val viewModel = HabitDetailViewModel(fake, habitId = 1L, today = { today })
+        advanceUntilIdle()
+
+        viewModel.onRepairStreak()
+        advanceUntilIdle()
+
+        assertEquals(com.habitly.app.domain.CompletionStatus.SKIPPED, fake.lastSetStatus?.second)
+        assertEquals(broken, fake.lastSetStatusDate)
     }
 }
