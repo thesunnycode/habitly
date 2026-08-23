@@ -33,12 +33,15 @@ class HabitRepository(
                     CompletionRecord(LocalDate.parse(it.date, ISO), it.completed)
                 }
                 val todayLog = logsByHabit[habit.id]?.find { it.date == today.format(ISO) }
+                val completedByDate = records.filter { it.completed }.map { it.date }.toSet()
+                val last7Days = (6 downTo 0).map { offset -> today.minusDays(offset.toLong()) in completedByDate }
                 HabitWithStats(
                     habit = habit,
                     currentStreak = StreakCalculator.currentStreak(records, today),
                     bestStreak = StreakCalculator.bestStreak(records),
                     completionRate = StreakCalculator.completionRate(records),
                     isCompletedToday = todayLog?.completed == true,
+                    last7Days = last7Days,
                 )
             }
         }

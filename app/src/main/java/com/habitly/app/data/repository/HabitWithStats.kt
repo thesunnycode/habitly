@@ -8,4 +8,6 @@ data class HabitWithStats(
     val bestStreak: Int,
     val completionRate: Float,
     val isCompletedToday: Boolean,
+    /** Completion flag for each of the last 7 days, oldest first, ending today. */
+    val last7Days: List<Boolean> = emptyList(),
 )

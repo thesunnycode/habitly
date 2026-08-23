@@ -68,7 +68,14 @@ fun HabitDetailScreen(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(top = 24.dp, bottom = 8.dp),
             )
-            CalendarHeatmap(records = uiState.records, month = uiState.month)
+            val habitColor = uiState.habit?.colorHex?.let { hex ->
+                runCatching { androidx.compose.ui.graphics.Color(android.graphics.Color.parseColor(hex)) }.getOrNull()
+            }
+            CalendarHeatmap(
+                records = uiState.records,
+                month = uiState.month,
+                color = habitColor ?: MaterialTheme.colorScheme.primary,
+            )
         }
     }
 

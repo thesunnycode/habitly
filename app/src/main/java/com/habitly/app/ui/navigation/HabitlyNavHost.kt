@@ -181,6 +181,8 @@ fun HabitlyNavHost(
             com.habitly.app.ui.addedit.AddEditHabitScreen(
                 uiState = uiState,
                 onNameChange = viewModel::onNameChange,
+                onIconChange = viewModel::onIconChange,
+                onColorChange = viewModel::onColorChange,
                 onFrequencyTypeChange = viewModel::onFrequencyTypeChange,
                 onSpecificDaysChange = viewModel::onSpecificDaysChange,
                 onIntervalDaysChange = viewModel::onIntervalDaysChange,

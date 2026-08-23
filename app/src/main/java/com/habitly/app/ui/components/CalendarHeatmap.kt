@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.habitly.app.domain.CompletionRecord
 import java.time.YearMonth
@@ -18,6 +19,7 @@ fun CalendarHeatmap(
     records: List<CompletionRecord>,
     month: YearMonth,
     modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.primary,
 ) {
     val completedDates = records.filter { it.completed }.map { it.date }.toSet()
     val firstDay = month.atDay(1)
@@ -29,7 +31,7 @@ fun CalendarHeatmap(
         for (day in 1..daysInMonth) add(month.atDay(day))
     }
 
-    val activeColor = MaterialTheme.colorScheme.primary
+    val activeColor = color
     val inactiveColor = MaterialTheme.colorScheme.surfaceVariant
 
     Column(modifier = modifier) {
