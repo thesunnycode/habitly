@@ -84,10 +84,14 @@ fun HabitCard(
 
     // A completed card recedes by blending toward the page, not by going translucent: alpha on the
     // whole card would also fade the text and day pills, which reads as muddy on a dark theme.
+    //
+    // The blend is deliberately slight. Pushing it further lifted the card's luminance past the
+    // point where the readable text colour flips from white to near-black, which on a day where
+    // most habits are already done turned the whole screen pale with black pills on it.
     val cardColor = lerp(
         parseHabitColor(habit.habit.colorHex),
         MaterialTheme.colorScheme.surface,
-        if (done) 0.55f else 0f,
+        if (done) 0.18f else 0f,
     )
     val contentColor = contentColorFor(cardColor)
 

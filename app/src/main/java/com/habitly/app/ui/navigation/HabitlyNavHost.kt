@@ -51,6 +51,7 @@ fun HabitlyNavHost(
                 onAddHabit = { navController.navigate(Destination.AddEditHabit.createRoute()) },
                 onHabitClick = { id -> navController.navigate(Destination.HabitDetail.createRoute(id)) },
                 onSeeAllClick = { navController.navigate(Destination.AllHabits.route) },
+                onSelectDate = viewModel::onSelectDate,
                 windowWidthSizeClass = windowWidthSizeClass,
             )
         }

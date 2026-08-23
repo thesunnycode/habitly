@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.habitly.app.domain.CompletionStatus
 import com.habitly.app.ui.components.HabitCard
+import com.habitly.app.ui.components.WeekStrip
 import com.habitly.app.ui.components.ProgressRing
 import java.time.LocalDate
 import java.time.LocalTime
@@ -47,6 +48,7 @@ fun HomeScreen(
     onHabitClick: (Long) -> Unit,
     onSeeAllClick: () -> Unit = {},
     onSetStatus: (Long, CompletionStatus?) -> Unit = { _, _ -> },
+    onSelectDate: (LocalDate) -> Unit = {},
     windowWidthSizeClass: WindowWidthSizeClass = WindowWidthSizeClass.Compact,
     now: LocalTime = LocalTime.now(),
     today: LocalDate = LocalDate.now(),
@@ -67,14 +69,30 @@ fun HomeScreen(
             Row(modifier = outerPadding.padding(horizontal = 20.dp)) {
                 Column(modifier = Modifier.weight(1f).padding(end = 20.dp)) {
                     Greeting(now, today)
-                    TodaySummaryCard(doneCount, uiState.habits.size, uiState.completionPercent)
+                    WeekStrip(
+                        days = uiState.weekDays,
+                        selected = uiState.selectedDate,
+                        onSelect = onSelectDate,
+                        today = today,
+                        modifier = Modifier.padding(vertical = 12.dp),
+                    )
+                    TodaySummaryCard(
+                        doneCount, uiState.habits.size, uiState.completionPercent, uiState.isViewingToday,
+                    )
                 }
                 LazyColumn(
                     modifier = Modifier.weight(2f),
                     contentPadding = PaddingValues(bottom = 96.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    item { SectionHeader(uiState.habits.size, onSeeAllClick) }
+                    item {
+                        SectionHeader(
+                            count = uiState.habits.size,
+                            selectedDate = uiState.selectedDate,
+                            isViewingToday = uiState.isViewingToday,
+                            onSeeAllClick = onSeeAllClick,
+                        )
+                    }
                     habitList(uiState, onToggleHabit, onHabitClick, onSetStatus)
                 }
             }
@@ -85,8 +103,27 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 item { Greeting(now, today) }
-                item { TodaySummaryCard(doneCount, uiState.habits.size, uiState.completionPercent) }
-                item { SectionHeader(uiState.habits.size, onSeeAllClick) }
+                item {
+                    WeekStrip(
+                        days = uiState.weekDays,
+                        selected = uiState.selectedDate,
+                        onSelect = onSelectDate,
+                        today = today,
+                    )
+                }
+                item {
+                    TodaySummaryCard(
+                        doneCount, uiState.habits.size, uiState.completionPercent, uiState.isViewingToday,
+                    )
+                }
+                item {
+                    SectionHeader(
+                        count = uiState.habits.size,
+                        selectedDate = uiState.selectedDate,
+                        isViewingToday = uiState.isViewingToday,
+                        onSeeAllClick = onSeeAllClick,
+                    )
+                }
                 habitList(uiState, onToggleHabit, onHabitClick, onSetStatus)
             }
         }
@@ -143,7 +180,7 @@ private fun Greeting(now: LocalTime, today: LocalDate) {
 
 /** The day's score in one glance: ring, count, and what's left to do. */
 @Composable
-private fun TodaySummaryCard(done: Int, total: Int, percent: Float) {
+private fun TodaySummaryCard(done: Int, total: Int, percent: Float, isViewingToday: Boolean) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -155,7 +192,7 @@ private fun TodaySummaryCard(done: Int, total: Int, percent: Float) {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Today's progress",
+                    text = if (isViewingToday) "Today's progress" else "That day's progress",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                 )
@@ -169,6 +206,7 @@ private fun TodaySummaryCard(done: Int, total: Int, percent: Float) {
                     text = when {
                         total == 0 -> "Add a habit to get started."
                         done == total -> "Every habit done — enjoy the streak."
+                        !isViewingToday -> "${total - done} unrecorded on that day."
                         else -> "${total - done} left to keep your streaks alive."
                     },
                     style = MaterialTheme.typography.bodySmall,
@@ -181,7 +219,12 @@ private fun TodaySummaryCard(done: Int, total: Int, percent: Float) {
 }
 
 @Composable
-private fun SectionHeader(count: Int, onSeeAllClick: () -> Unit) {
+private fun SectionHeader(
+    count: Int,
+    selectedDate: LocalDate,
+    isViewingToday: Boolean,
+    onSeeAllClick: () -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -189,7 +232,11 @@ private fun SectionHeader(count: Int, onSeeAllClick: () -> Unit) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "TODAY",
+                text = if (isViewingToday) {
+                    "TODAY"
+                } else {
+                    selectedDate.format(DateTimeFormatter.ofPattern("EEE d MMM")).uppercase()
+                },
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
