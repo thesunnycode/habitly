@@ -9,6 +9,14 @@ val CoralAccent = Color(0xFFF6BD60)
 val StreakFlame = Color(0xFFF76C5E)
 val ErrorRed = Color(0xFFBA1A1A)
 
+/**
+ * The Stats hero block. Deliberately much darker than the page so the screen has one clear focal
+ * point instead of a stack of equally weighted cards, and dark enough that it reads the same way in
+ * either theme.
+ */
+val HeroDeep = Color(0xFF2E4A3C)
+val HeroMid = Color(0xFF4A7561)
+
 val LightBackground = Color(0xFFFBFBF9)
 val LightSurface = Color(0xFFFFFFFF)
 val LightOnSurface = Color(0xFF1B1F1D)

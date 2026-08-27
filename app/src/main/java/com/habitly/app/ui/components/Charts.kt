@@ -61,7 +61,7 @@ fun MiniBars(
     height: androidx.compose.ui.unit.Dp = 132.dp,
 ) {
     val peak = values.maxOrNull()?.takeIf { it > 0f } ?: 1f
-    val trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
+    val trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.045f)
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
@@ -166,6 +166,10 @@ fun DayPills(
     modifier: Modifier = Modifier,
     todayIndex: Int? = null,
     color: Color = MaterialTheme.colorScheme.primary,
+    /** Ink for empty slots, labels and the today ring — set this when drawing on a dark surface. */
+    onSurface: Color = MaterialTheme.colorScheme.onSurface,
+    checkColor: Color = MaterialTheme.colorScheme.surface,
+    size: androidx.compose.ui.unit.Dp = 38.dp,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -179,23 +183,19 @@ fun DayPills(
                 val fill = when (status) {
                     CompletionStatus.DONE -> color
                     CompletionStatus.PARTIAL -> color.copy(alpha = 0.45f)
-                    CompletionStatus.SKIPPED -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)
-                    else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)
+                    CompletionStatus.SKIPPED -> onSurface.copy(alpha = 0.22f)
+                    else -> onSurface.copy(alpha = 0.12f)
                 }
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
+                        .size(size)
                         .clip(CircleShape)
                         .background(fill)
                         .then(
                             // Today gets an outline, so the row can be read as a position in time
                             // rather than seven interchangeable circles.
                             if (index == todayIndex) {
-                                Modifier.border(
-                                    2.dp,
-                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
-                                    CircleShape,
-                                )
+                                Modifier.border(2.dp, onSurface.copy(alpha = 0.55f), CircleShape)
                             } else {
                                 Modifier
                             }
@@ -206,14 +206,14 @@ fun DayPills(
                         CompletionStatus.DONE -> Icon(
                             imageVector = Icons.Filled.Check,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.surface,
-                            modifier = Modifier.size(20.dp),
+                            tint = checkColor,
+                            modifier = Modifier.size(size * 0.5f),
                         )
                         CompletionStatus.SKIPPED -> Icon(
                             imageVector = Icons.Filled.Remove,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp),
+                            tint = onSurface.copy(alpha = 0.7f),
+                            modifier = Modifier.size(size * 0.45f),
                         )
                         else -> Unit
                     }
@@ -222,7 +222,7 @@ fun DayPills(
                     text = labels.getOrElse(index) { "" },
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = if (index == todayIndex) FontWeight.Bold else FontWeight.Normal,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = onSurface.copy(alpha = 0.75f),
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }
@@ -293,4 +293,50 @@ fun HeroPercent(
         color = color,
         modifier = modifier,
     )
+}
+
+/**
+ * A thick open arc with a rounded cap, used as the hero's shape.
+ *
+ * Drawn rather than composed so the sweep can animate from zero on arrival — a ring that grows is
+ * most of what separates a screen that feels alive from one that merely displays a number.
+ */
+@Composable
+fun ProgressArc(
+    progress: Float,
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.primary,
+    trackColor: Color = color.copy(alpha = 0.25f),
+    strokeWidth: androidx.compose.ui.unit.Dp = 9.dp,
+) {
+    val swept by animateFloatAsState(
+        targetValue = progress.coerceIn(0f, 1f),
+        animationSpec = spring(stiffness = Spring.StiffnessVeryLow),
+        label = "arc",
+    )
+    Canvas(modifier = modifier) {
+        val stroke = Stroke(width = strokeWidth.toPx(), cap = StrokeCap.Round)
+        val inset = strokeWidth.toPx() / 2f
+        val arcSize = Size(size.width - strokeWidth.toPx(), size.height - strokeWidth.toPx())
+        drawArc(
+            color = trackColor,
+            startAngle = -90f,
+            sweepAngle = 360f,
+            useCenter = false,
+            topLeft = Offset(inset, inset),
+            size = arcSize,
+            style = stroke,
+        )
+        if (swept > 0f) {
+            drawArc(
+                color = color,
+                startAngle = -90f,
+                sweepAngle = 360f * swept,
+                useCenter = false,
+                topLeft = Offset(inset, inset),
+                size = arcSize,
+                style = stroke,
+            )
+        }
+    }
 }
