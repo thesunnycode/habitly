@@ -11,7 +11,7 @@ import kotlinx.coroutines.Dispatchers
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class MainDispatcherRule(
-    private val dispatcher: TestDispatcher = StandardTestDispatcher(),
+    val dispatcher: TestDispatcher = StandardTestDispatcher(),
 ) : TestWatcher() {
     override fun starting(description: Description) = Dispatchers.setMain(dispatcher)
     override fun finished(description: Description) = Dispatchers.resetMain()

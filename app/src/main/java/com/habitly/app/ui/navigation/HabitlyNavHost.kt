@@ -98,7 +98,10 @@ fun HabitlyNavHost(
                 },
             )
             val uiState by viewModel.uiState.collectAsState()
-            com.habitly.app.ui.stats.StatsScreen(uiState = uiState)
+            com.habitly.app.ui.stats.StatsScreen(
+                uiState = uiState,
+                onPeriodChange = viewModel::onPeriodChange,
+            )
         }
         composable(Destination.Calendar.route) {
             val context = androidx.compose.ui.platform.LocalContext.current
