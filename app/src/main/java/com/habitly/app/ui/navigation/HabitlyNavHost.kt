@@ -45,6 +45,7 @@ import com.habitly.app.ui.settings.SettingsScreen
 import com.habitly.app.ui.settings.SettingsViewModel
 import com.habitly.app.ui.stats.StatsScreen
 import com.habitly.app.ui.stats.StatsViewModel
+import com.habitly.app.ui.theme.LocalReduceMotion
 import com.habitly.app.ui.today.TodayScreen
 import com.habitly.app.ui.today.TodayViewModel
 import com.habitly.app.ui.you.YouScreen
@@ -65,7 +66,16 @@ fun HabitlyNavHost(
     // Today and Insights have their own side-by-side layout at expanded widths; don't squeeze it.
     val twoPane = windowWidthSizeClass == WindowWidthSizeClass.Expanded
 
-    NavHost(navController = navController, startDestination = startDestination) {
+    val transitions = NavTransitions(reduceMotion = LocalReduceMotion.current)
+
+    NavHost(
+        navController = navController,
+        startDestination = startDestination,
+        enterTransition = transitions.enter,
+        exitTransition = transitions.exit,
+        popEnterTransition = transitions.popEnter,
+        popExitTransition = transitions.popExit,
+    ) {
         composable(Destination.Onboarding.route) {
             val viewModel = habitlyViewModel {
                 val onboardingPrefs = OnboardingPrefs(appContext)
