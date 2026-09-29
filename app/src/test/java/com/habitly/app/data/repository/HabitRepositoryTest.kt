@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -202,5 +203,42 @@ class HabitRepositoryTest {
 
         val stats = repo.observeHabitsWithStats(LocalDate.of(2026, 8, 22)).first().first()
         assertEquals(1, stats.currentStreak)
+    }
+
+    @Test
+    fun archivedHabitsLeaveTheActiveListAndCanBeRestored() = runBlocking {
+        val id = repo.addHabit(newHabit("Read"))
+        repo.setArchived(id, true)
+        assertTrue(repo.observeHabitsWithStats(LocalDate.of(2026, 9, 29)).first().none { it.habit.id == id })
+        assertEquals(listOf(id), repo.observeArchivedHabits().first().map { it.id })
+        repo.setArchived(id, false)
+        assertTrue(repo.observeArchivedHabits().first().isEmpty())
+    }
+
+    @Test
+    fun reorderPersistsTheGivenOrder() = runBlocking {
+        val a = repo.addHabit(newHabit("A"))
+        val b = repo.addHabit(newHabit("B"))
+        val c = repo.addHabit(newHabit("C"))
+        repo.reorder(listOf(c, a, b))
+        val names = repo.observeHabitsWithStats(LocalDate.of(2026, 9, 29)).first().map { it.habit.name }
+        assertEquals(listOf("C", "A", "B"), names)
+    }
+
+    @Test
+    fun newHabitsAreAppendedToTheEnd() = runBlocking {
+        repo.addHabit(newHabit("A"))
+        repo.addHabit(newHabit("B"))
+        val orders = repo.observeHabitsWithStats(LocalDate.of(2026, 9, 29)).first().map { it.habit.sortOrder }
+        assertEquals(listOf(1, 2), orders)
+    }
+
+    @Test
+    fun setReminderUpdatesOnlyTheTime() = runBlocking {
+        val id = repo.addHabit(newHabit("Read"))
+        repo.setReminder(id, "21:30")
+        assertEquals("21:30", repo.getHabit(id)?.reminderTime)
+        repo.setReminder(id, null)
+        assertNull(repo.getHabit(id)?.reminderTime)
     }
 }

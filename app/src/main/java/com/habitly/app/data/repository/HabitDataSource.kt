@@ -28,6 +28,11 @@ interface HabitDataSource {
         status: CompletionStatus?,
         note: String? = null,
     ): Set<AchievementType>
+    fun observeArchivedHabits(): Flow<List<HabitEntity>>
+    suspend fun setArchived(habitId: Long, archived: Boolean)
+    suspend fun reorder(orderedIds: List<Long>)
+    suspend fun setReminder(habitId: Long, time: String?)
+    suspend fun getHabit(habitId: Long): HabitEntity?
     fun observeAchievements(): Flow<List<AchievementEntity>>
     fun observeRecordsForHabit(habitId: Long): Flow<List<CompletionRecord>>
 }

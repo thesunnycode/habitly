@@ -21,8 +21,17 @@ interface HabitDao {
     @Query("SELECT * FROM habits WHERE id = :id")
     suspend fun getById(id: Long): HabitEntity?
 
-    @Query("SELECT * FROM habits WHERE isArchived = 0 ORDER BY createdAt ASC")
+    @Query("SELECT * FROM habits WHERE isArchived = 0 ORDER BY sortOrder ASC, createdAt ASC")
     fun observeActiveHabits(): Flow<List<HabitEntity>>
+
+    @Query("SELECT * FROM habits WHERE isArchived = 1 ORDER BY name COLLATE NOCASE ASC")
+    fun observeArchivedHabits(): Flow<List<HabitEntity>>
+
+    @Query("UPDATE habits SET sortOrder = :sortOrder WHERE id = :id")
+    suspend fun updateSortOrder(id: Long, sortOrder: Int)
+
+    @Query("SELECT MAX(sortOrder) FROM habits")
+    suspend fun maxSortOrder(): Int?
 
     @Query("SELECT * FROM habits ORDER BY createdAt ASC")
     fun observeAllHabits(): Flow<List<HabitEntity>>

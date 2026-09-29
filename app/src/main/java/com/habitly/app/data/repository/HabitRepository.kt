@@ -65,7 +65,25 @@ class HabitRepository(
             }
         }
 
-    override suspend fun addHabit(habit: HabitEntity): Long = habitDao.insert(habit)
+    override suspend fun addHabit(habit: HabitEntity): Long {
+        val order = if (habit.sortOrder != 0) habit.sortOrder else (habitDao.maxSortOrder() ?: 0) + 1
+        return habitDao.insert(habit.copy(sortOrder = order))
+    }
+
+    override fun observeArchivedHabits(): Flow<List<HabitEntity>> = habitDao.observeArchivedHabits()
+
+    override suspend fun setArchived(habitId: Long, archived: Boolean) = habitDao.setArchived(habitId, archived)
+
+    override suspend fun reorder(orderedIds: List<Long>) {
+        orderedIds.forEachIndexed { index, id -> habitDao.updateSortOrder(id, index + 1) }
+    }
+
+    override suspend fun setReminder(habitId: Long, time: String?) {
+        val habit = habitDao.getById(habitId) ?: return
+        habitDao.update(habit.copy(reminderTime = time))
+    }
+
+    override suspend fun getHabit(habitId: Long): HabitEntity? = habitDao.getById(habitId)
 
     override suspend fun updateHabit(habit: HabitEntity) = habitDao.update(habit)
 

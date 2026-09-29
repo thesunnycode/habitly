@@ -41,6 +41,11 @@ private class FakeHabitDataSource(unlocked: List<AchievementEntity>) : HabitData
         lastSetStatus = habitId to status
         return emptySet()
     }
+    override fun observeArchivedHabits(): Flow<List<HabitEntity>> = MutableStateFlow(emptyList())
+    override suspend fun setArchived(habitId: Long, archived: Boolean) {}
+    override suspend fun reorder(orderedIds: List<Long>) {}
+    override suspend fun setReminder(habitId: Long, time: String?) {}
+    override suspend fun getHabit(habitId: Long): HabitEntity? = null
     override fun observeAchievements(): Flow<List<AchievementEntity>> = flow.asStateFlow()
     override fun observeRecordsForHabit(habitId: Long): Flow<List<CompletionRecord>> = MutableStateFlow(emptyList())
 }
