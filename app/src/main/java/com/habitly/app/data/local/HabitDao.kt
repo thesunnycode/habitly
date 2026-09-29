@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
@@ -29,6 +30,15 @@ interface HabitDao {
 
     @Query("UPDATE habits SET sortOrder = :sortOrder WHERE id = :id")
     suspend fun updateSortOrder(id: Long, sortOrder: Int)
+
+    /**
+     * Numbers the habits 1..n in the given order in one transaction, so observers see the new
+     * order once instead of every intermediate step.
+     */
+    @Transaction
+    suspend fun updateSortOrders(orderedIds: List<Long>) {
+        orderedIds.forEachIndexed { index, id -> updateSortOrder(id, index + 1) }
+    }
 
     @Query("SELECT MAX(sortOrder) FROM habits")
     suspend fun maxSortOrder(): Int?

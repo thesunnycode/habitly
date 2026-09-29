@@ -82,9 +82,7 @@ class HabitRepository(
 
     override suspend fun setArchived(habitId: Long, archived: Boolean) = habitDao.setArchived(habitId, archived)
 
-    override suspend fun reorder(orderedIds: List<Long>) {
-        orderedIds.forEachIndexed { index, id -> habitDao.updateSortOrder(id, index + 1) }
-    }
+    override suspend fun reorder(orderedIds: List<Long>) = habitDao.updateSortOrders(orderedIds)
 
     override suspend fun setReminder(habitId: Long, time: String?) {
         val habit = habitDao.getById(habitId) ?: return

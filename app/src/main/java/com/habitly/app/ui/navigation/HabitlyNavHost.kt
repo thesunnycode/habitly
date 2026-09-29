@@ -21,13 +21,14 @@ import com.habitly.app.ui.achievements.AchievementsScreen
 import com.habitly.app.ui.achievements.AchievementsViewModel
 import com.habitly.app.ui.addedit.AddEditHabitScreen
 import com.habitly.app.ui.addedit.AddEditHabitViewModel
-import com.habitly.app.ui.allhabits.AllHabitsScreen
-import com.habitly.app.ui.allhabits.AllHabitsViewModel
 import com.habitly.app.ui.calendar.CalendarScreen
 import com.habitly.app.ui.calendar.CalendarViewModel
 import com.habitly.app.ui.components.NotificationPermissionPrompt
 import com.habitly.app.ui.detail.HabitDetailScreen
 import com.habitly.app.ui.detail.HabitDetailViewModel
+import com.habitly.app.ui.habits.HabitsScreen
+import com.habitly.app.ui.habits.HabitsSegment
+import com.habitly.app.ui.habits.HabitsViewModel
 import com.habitly.app.ui.insights.InsightsScreen
 import com.habitly.app.ui.onboarding.OnboardingScreen
 import com.habitly.app.ui.reminders.RemindersScreen
@@ -88,16 +89,25 @@ fun HabitlyNavHost(
             arguments = listOf(navArgument("segment") { type = NavType.StringType; defaultValue = "active" }),
         ) { backStackEntry ->
             ArchivedUndoEffect(backStackEntry.savedStateHandle, repository)
-            val viewModel = habitlyViewModel { AllHabitsViewModel(repository) }
+            val segment = backStackEntry.arguments?.getString("segment") ?: "active"
+            val initialSegment = if (segment == "archived") HabitsSegment.ARCHIVED else HabitsSegment.ACTIVE
+            val viewModel = habitlyViewModel(key = "habits-$segment") { HabitsViewModel(repository, initialSegment) }
             val uiState by viewModel.uiState.collectAsState()
-            AllHabitsScreen(
+            HabitsScreen(
                 uiState = uiState,
-                onSearchQueryChange = viewModel::onSearchQueryChange,
+                onSegmentChange = viewModel::onSegmentChange,
+                onQueryChange = viewModel::onQueryChange,
                 onCategorySelect = viewModel::onCategorySelect,
-                onToggleHabit = viewModel::onToggleHabit,
-                onSetStatus = viewModel::onSetStatus,
+                onSortChange = viewModel::onSortChange,
+                onClearFilters = viewModel::onClearFilters,
+                onArchive = viewModel::onArchive,
+                onRestore = viewModel::onRestore,
+                onDeleteForever = viewModel::onDeleteForever,
+                onMove = viewModel::onMove,
                 onHabitClick = { id -> navController.navigate(Destination.HabitDetail.createRoute(id)) },
-                onAddHabit = { navController.navigate(Destination.AddEditHabit.createRoute()) },
+                onAddHabit = { template ->
+                    navController.navigate(Destination.AddEditHabit.createRoute(template = template?.key))
+                },
             )
         }
         composable(
