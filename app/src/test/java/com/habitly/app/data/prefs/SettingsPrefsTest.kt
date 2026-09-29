@@ -32,8 +32,8 @@ class SettingsPrefsTest {
     @Test
     fun setThemeModePersistsTheChoice() = runBlocking {
         val prefs = SettingsPrefs(ApplicationProvider.getApplicationContext())
-        prefs.setThemeMode(ThemeMode.DARK)
-        assertEquals(ThemeMode.DARK, prefs.themeMode.first())
+        prefs.setThemeMode(ThemeMode.LIGHT)
+        assertEquals(ThemeMode.LIGHT, prefs.themeMode.first())
     }
 
     @Test
