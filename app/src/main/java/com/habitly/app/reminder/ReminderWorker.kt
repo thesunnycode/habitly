@@ -6,6 +6,7 @@ import androidx.work.WorkerParameters
 import com.habitly.app.data.local.AppDatabase
 import com.habitly.app.data.prefs.SettingsPrefs
 import com.habitly.app.data.repository.HabitRepository
+import com.habitly.app.domain.CompletionStatus
 import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 import java.time.LocalTime
@@ -43,6 +44,7 @@ class ReminderWorker(context: Context, params: WorkerParameters) : CoroutineWork
                     streak = habitWithStats.currentStreak,
                     doneToday = habitWithStats.isCompletedToday,
                     dueToday = habitWithStats.isDueToday,
+                    restedToday = habitWithStats.todayStatus == CompletionStatus.SKIPPED,
                 )
             ) {
                 notificationHelper.notifyStreakAtRisk(habit.id, habit.name, habitWithStats.currentStreak)

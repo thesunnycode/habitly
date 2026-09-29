@@ -52,4 +52,14 @@ class ReminderDueCheckerTest {
         // 23:40 + 30 min is 00:10 tomorrow, when "today" and its streak are a different day.
         assertFalse(ReminderDueChecker.isStreakNudgeDue(LocalTime.of(23, 40), LocalTime.of(0, 15), 5, false, true))
     }
+
+    @Test
+    fun streakNudgeStaysQuietOnADeclaredRestDay() {
+        // A rest day keeps the streak intact, so there is nothing at risk to nudge about.
+        assertFalse(
+            ReminderDueChecker.isStreakNudgeDue(
+                LocalTime.of(18, 0), LocalTime.of(18, 35), streak = 3, doneToday = false, dueToday = true, restedToday = true,
+            ),
+        )
+    }
 }
