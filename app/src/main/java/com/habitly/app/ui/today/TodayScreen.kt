@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -58,6 +59,7 @@ import com.habitly.app.ui.components.Celebration
 import com.habitly.app.ui.components.CheckState
 import com.habitly.app.ui.components.EmptyState
 import com.habitly.app.ui.components.HabitGridCard
+import com.habitly.app.ui.components.snackbarLift
 import com.habitly.app.ui.components.HabitRow
 import com.habitly.app.ui.components.HabitStatusSheet
 import com.habitly.app.ui.components.ProgressRing
@@ -143,7 +145,7 @@ fun TodayScreen(
 
         ExtendedFloatingActionButton(
             onClick = { showTemplates = true },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp).offset(y = -snackbarLift()),
             containerColor = LocalHabitlyColors.current.primaryButton,
             contentColor = LocalHabitlyColors.current.onPrimaryButton,
             shape = CircleShape,

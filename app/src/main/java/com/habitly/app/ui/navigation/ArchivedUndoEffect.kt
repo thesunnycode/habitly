@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.SavedStateHandle
 import com.habitly.app.data.repository.HabitDataSource
+import com.habitly.app.ui.components.LocalSnackbarHostState
 import kotlinx.coroutines.flow.filterNotNull
 
 /** Set on the previous back-stack entry by Habit detail when it archives a habit; the value is the habit id. */

@@ -31,8 +31,11 @@ import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.EmojiEvents
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Percent
+import androidx.compose.material.icons.rounded.TaskAlt
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -332,24 +335,41 @@ private fun GridLegend(tones: HabitTones, modifier: Modifier = Modifier) {
 @Composable
 private fun StatGrid(uiState: HabitDetailUiState, tones: HabitTones) {
     val accent = tones.full.readableOn(MaterialTheme.colorScheme.surface, 3f)
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    // Every tile carries an icon, and each row is sized to its tallest tile, so the grid stays even.
+    val tile = Modifier.fillMaxHeight()
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             StatTile(
                 value = "${uiState.currentStreak}",
                 label = "Current streak",
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).then(tile),
                 valueColor = accent,
                 icon = Icons.Rounded.LocalFireDepartment,
             )
-            StatTile(value = "${uiState.bestStreak}", label = "Best streak", modifier = Modifier.weight(1f))
+            StatTile(
+                value = "${uiState.bestStreak}",
+                label = "Best streak",
+                modifier = Modifier.weight(1f).then(tile),
+                icon = Icons.Rounded.EmojiEvents,
+                iconTint = muted,
+            )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             StatTile(
                 value = "${(uiState.completionRate * 100).toInt()}%",
                 label = "Rate",
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).then(tile),
+                icon = Icons.Rounded.Percent,
+                iconTint = muted,
             )
-            StatTile(value = "${uiState.totalDays}", label = "Total days", modifier = Modifier.weight(1f))
+            StatTile(
+                value = "${uiState.totalDays}",
+                label = "Total days",
+                modifier = Modifier.weight(1f).then(tile),
+                icon = Icons.Rounded.TaskAlt,
+                iconTint = muted,
+            )
         }
     }
 }

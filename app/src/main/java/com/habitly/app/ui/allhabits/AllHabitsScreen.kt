@@ -2,6 +2,7 @@ package com.habitly.app.ui.allhabits
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,6 +45,7 @@ import com.habitly.app.data.repository.HabitWithStats
 import com.habitly.app.domain.CompletionStatus
 import com.habitly.app.ui.components.HabitCard
 import com.habitly.app.ui.components.ScreenHeader
+import com.habitly.app.ui.components.snackbarLift
 
 @Composable
 fun AllHabitsScreen(
@@ -59,6 +61,7 @@ fun AllHabitsScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onAddHabit,
+                modifier = Modifier.offset(y = -snackbarLift()),
                 icon = { Icon(Icons.Filled.Add, contentDescription = null) },
                 text = { Text("New habit") },
             )

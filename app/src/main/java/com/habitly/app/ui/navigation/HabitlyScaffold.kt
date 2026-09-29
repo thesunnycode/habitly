@@ -22,12 +22,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.habitly.app.ui.components.HabitlyNavBar
+import com.habitly.app.ui.components.LocalSnackbarHostState
 import com.habitly.app.ui.components.NavItem
 
 private val NAV_ITEMS = listOf(
@@ -41,11 +41,6 @@ private fun concreteRoute(item: NavItem): String = when (item.route) {
     Destination.Habits.route -> Destination.Habits.createRoute()
     Destination.Insights.route -> Destination.Insights.createRoute()
     else -> item.route
-}
-
-/** The app-wide snackbar host, so any screen can show a message above the nav bar. */
-val LocalSnackbarHostState = staticCompositionLocalOf<SnackbarHostState> {
-    error("LocalSnackbarHostState is provided by HabitlyScaffold")
 }
 
 @Composable
