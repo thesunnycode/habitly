@@ -49,7 +49,7 @@ private fun requirementFor(type: AchievementType) = when (type) {
 }
 
 @Composable
-fun AchievementsScreen(uiState: AchievementsUiState) {
+fun AchievementsScreen(uiState: AchievementsUiState, onBack: () -> Unit = {}) {
     val unlocked = uiState.items.count { it.unlocked }
 
     LazyVerticalGrid(
@@ -63,6 +63,7 @@ fun AchievementsScreen(uiState: AchievementsUiState) {
             ScreenHeader(
                 title = "Awards",
                 subtitle = "$unlocked of ${uiState.items.size} unlocked",
+                onBack = onBack,
             )
         }
         items(uiState.items) { item -> AchievementTile(item) }

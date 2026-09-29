@@ -1,74 +1,76 @@
 package com.habitly.app.ui.navigation
 
-import androidx.compose.material3.Text
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.habitly.app.data.prefs.SettingsPrefs
+import com.habitly.app.ui.achievements.AchievementsScreen
+import com.habitly.app.ui.achievements.AchievementsViewModel
+import com.habitly.app.ui.addedit.AddEditHabitScreen
+import com.habitly.app.ui.addedit.AddEditHabitViewModel
+import com.habitly.app.ui.allhabits.AllHabitsScreen
+import com.habitly.app.ui.allhabits.AllHabitsViewModel
+import com.habitly.app.ui.calendar.CalendarScreen
+import com.habitly.app.ui.calendar.CalendarViewModel
+import com.habitly.app.ui.components.NotificationPermissionPrompt
+import com.habitly.app.ui.detail.HabitDetailScreen
+import com.habitly.app.ui.detail.HabitDetailViewModel
+import com.habitly.app.ui.home.HomeScreen
+import com.habitly.app.ui.home.HomeViewModel
+import com.habitly.app.ui.insights.InsightsScreen
+import com.habitly.app.ui.onboarding.OnboardingScreen
+import com.habitly.app.ui.reminders.RemindersScreen
+import com.habitly.app.ui.settings.SettingsScreen
+import com.habitly.app.ui.settings.SettingsViewModel
+import com.habitly.app.ui.stats.StatsScreen
+import com.habitly.app.ui.stats.StatsViewModel
+import com.habitly.app.ui.you.YouScreen
 
 @Composable
 fun HabitlyNavHost(
     navController: NavHostController,
     startDestination: String,
-    windowWidthSizeClass: androidx.compose.material3.windowsizeclass.WindowWidthSizeClass =
-        androidx.compose.material3.windowsizeclass.WindowWidthSizeClass.Compact,
+    windowWidthSizeClass: WindowWidthSizeClass = WindowWidthSizeClass.Compact,
 ) {
+    val repository = rememberHabitRepository()
+
     NavHost(navController = navController, startDestination = startDestination) {
         composable(Destination.Onboarding.route) {
-            com.habitly.app.ui.onboarding.OnboardingScreen(onFinished = {
-                navController.navigate(Destination.Home.route) { popUpTo(Destination.Onboarding.route) { inclusive = true } }
+            OnboardingScreen(onFinished = {
+                navController.navigate(Destination.Today.route) { popUpTo(Destination.Onboarding.route) { inclusive = true } }
             })
         }
-        composable(Destination.Home.route) {
-            val context = androidx.compose.ui.platform.LocalContext.current
-            val repository = remember {
-                val db = com.habitly.app.data.local.AppDatabase.getInstance(context)
-                com.habitly.app.data.repository.HabitRepository(db.habitDao(), db.habitLogDao(), db.achievementDao())
-            }
-            val viewModel: com.habitly.app.ui.home.HomeViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                factory = object : androidx.lifecycle.ViewModelProvider.Factory {
-                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                        @Suppress("UNCHECKED_CAST")
-                        return com.habitly.app.ui.home.HomeViewModel(repository) as T
-                    }
-                },
-            )
+        composable(Destination.Today.route) {
+            val viewModel = habitlyViewModel { HomeViewModel(repository) }
             val uiState by viewModel.uiState.collectAsState()
-            com.habitly.app.ui.components.NotificationPermissionPrompt(
-                hasLoggedSomething = uiState.habits.any { it.isCompletedToday },
-            )
-            com.habitly.app.ui.home.HomeScreen(
+            NotificationPermissionPrompt(hasLoggedSomething = uiState.habits.any { it.isCompletedToday })
+            HomeScreen(
                 uiState = uiState,
                 onToggleHabit = viewModel::onToggleHabit,
                 onSetStatus = viewModel::onSetStatus,
                 onAddHabit = { navController.navigate(Destination.AddEditHabit.createRoute()) },
                 onHabitClick = { id -> navController.navigate(Destination.HabitDetail.createRoute(id)) },
-                onSeeAllClick = { navController.navigate(Destination.AllHabits.route) },
+                onSeeAllClick = { navController.navigate(Destination.Habits.createRoute()) },
                 onSelectDate = viewModel::onSelectDate,
                 windowWidthSizeClass = windowWidthSizeClass,
             )
         }
-        composable(Destination.AllHabits.route) {
-            val context = androidx.compose.ui.platform.LocalContext.current
-            val repository = remember {
-                val db = com.habitly.app.data.local.AppDatabase.getInstance(context)
-                com.habitly.app.data.repository.HabitRepository(db.habitDao(), db.habitLogDao(), db.achievementDao())
-            }
-            val viewModel: com.habitly.app.ui.allhabits.AllHabitsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                factory = object : androidx.lifecycle.ViewModelProvider.Factory {
-                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                        @Suppress("UNCHECKED_CAST")
-                        return com.habitly.app.ui.allhabits.AllHabitsViewModel(repository) as T
-                    }
-                },
-            )
+        composable(
+            route = Destination.Habits.route,
+            arguments = listOf(navArgument("segment") { type = NavType.StringType; defaultValue = "active" }),
+        ) {
+            val viewModel = habitlyViewModel { AllHabitsViewModel(repository) }
             val uiState by viewModel.uiState.collectAsState()
-            com.habitly.app.ui.allhabits.AllHabitsScreen(
+            AllHabitsScreen(
                 uiState = uiState,
                 onSearchQueryChange = viewModel::onSearchQueryChange,
                 onCategorySelect = viewModel::onCategorySelect,
@@ -78,107 +80,74 @@ fun HabitlyNavHost(
                 onAddHabit = { navController.navigate(Destination.AddEditHabit.createRoute()) },
             )
         }
-        composable(Destination.Stats.route) {
-            val context = androidx.compose.ui.platform.LocalContext.current
-            val repository = remember {
-                val db = com.habitly.app.data.local.AppDatabase.getInstance(context)
-                com.habitly.app.data.repository.HabitRepository(db.habitDao(), db.habitLogDao(), db.achievementDao())
-            }
-            val viewModel: com.habitly.app.ui.stats.StatsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                factory = object : androidx.lifecycle.ViewModelProvider.Factory {
-                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                        @Suppress("UNCHECKED_CAST")
-                        return com.habitly.app.ui.stats.StatsViewModel(repository) as T
+        composable(
+            route = Destination.Insights.route,
+            arguments = listOf(navArgument("tab") { type = NavType.StringType; defaultValue = "stats" }),
+        ) { backStackEntry ->
+            val tab = backStackEntry.arguments?.getString("tab") ?: "stats"
+            InsightsScreen(
+                tab = tab,
+                onTabChange = { next ->
+                    navController.navigate(Destination.Insights.createRoute(next)) {
+                        popUpTo(Destination.Today.route) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
                     }
                 },
-            )
-            val uiState by viewModel.uiState.collectAsState()
-            com.habitly.app.ui.stats.StatsScreen(
-                uiState = uiState,
-                onPeriodChange = viewModel::onPeriodChange,
+                statsContent = {
+                    val viewModel = habitlyViewModel { StatsViewModel(repository) }
+                    val uiState by viewModel.uiState.collectAsState()
+                    StatsScreen(uiState = uiState, onPeriodChange = viewModel::onPeriodChange)
+                },
+                calendarContent = {
+                    val viewModel = habitlyViewModel { CalendarViewModel(repository) }
+                    val uiState by viewModel.uiState.collectAsState()
+                    CalendarScreen(uiState = uiState, onMonthChange = viewModel::onMonthChange)
+                },
             )
         }
-        composable(Destination.Calendar.route) {
-            val context = androidx.compose.ui.platform.LocalContext.current
-            val repository = remember {
-                val db = com.habitly.app.data.local.AppDatabase.getInstance(context)
-                com.habitly.app.data.repository.HabitRepository(db.habitDao(), db.habitLogDao(), db.achievementDao())
-            }
-            val viewModel: com.habitly.app.ui.calendar.CalendarViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                factory = object : androidx.lifecycle.ViewModelProvider.Factory {
-                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                        @Suppress("UNCHECKED_CAST")
-                        return com.habitly.app.ui.calendar.CalendarViewModel(repository) as T
-                    }
-                },
+        composable(Destination.You.route) {
+            YouScreen(
+                onAwards = { navController.navigate(Destination.Awards.route) },
+                onArchived = { navController.navigate(Destination.Habits.createRoute("archived")) },
+                onSettings = { navController.navigate(Destination.Settings.route) },
             )
-            val uiState by viewModel.uiState.collectAsState()
-            com.habitly.app.ui.calendar.CalendarScreen(uiState = uiState, onMonthChange = viewModel::onMonthChange)
         }
-        composable(Destination.Achievements.route) {
-            val context = androidx.compose.ui.platform.LocalContext.current
-            val repository = remember {
-                val db = com.habitly.app.data.local.AppDatabase.getInstance(context)
-                com.habitly.app.data.repository.HabitRepository(db.habitDao(), db.habitLogDao(), db.achievementDao())
-            }
-            val viewModel: com.habitly.app.ui.achievements.AchievementsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                factory = object : androidx.lifecycle.ViewModelProvider.Factory {
-                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                        @Suppress("UNCHECKED_CAST")
-                        return com.habitly.app.ui.achievements.AchievementsViewModel(repository) as T
-                    }
-                },
-            )
+        composable(Destination.Awards.route) {
+            val viewModel = habitlyViewModel { AchievementsViewModel(repository) }
             val uiState by viewModel.uiState.collectAsState()
-            com.habitly.app.ui.achievements.AchievementsScreen(uiState = uiState)
+            AchievementsScreen(uiState = uiState, onBack = { navController.popBackStack() })
         }
         composable(Destination.Settings.route) {
-            val context = androidx.compose.ui.platform.LocalContext.current
-            val repository = remember {
-                val db = com.habitly.app.data.local.AppDatabase.getInstance(context)
-                com.habitly.app.data.repository.HabitRepository(db.habitDao(), db.habitLogDao(), db.achievementDao())
-            }
-            val prefs = remember { com.habitly.app.data.prefs.SettingsPrefs(context) }
-            val viewModel: com.habitly.app.ui.settings.SettingsViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                factory = object : androidx.lifecycle.ViewModelProvider.Factory {
-                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                        @Suppress("UNCHECKED_CAST")
-                        return com.habitly.app.ui.settings.SettingsViewModel(prefs, repository) as T
-                    }
-                },
-            )
+            val context = LocalContext.current
+            val prefs = remember { SettingsPrefs(context) }
+            val viewModel = habitlyViewModel { SettingsViewModel(prefs, repository) }
             val uiState by viewModel.uiState.collectAsState()
-            com.habitly.app.ui.settings.SettingsScreen(
+            SettingsScreen(
                 uiState = uiState,
                 onThemeModeChange = viewModel::onThemeModeChange,
                 onNotificationsToggle = viewModel::onNotificationsToggle,
                 onResetAllData = viewModel::onResetAllData,
+                onBack = { navController.popBackStack() },
             )
+        }
+        composable(Destination.Reminders.route) {
+            RemindersScreen(onBack = { navController.popBackStack() })
         }
         composable(
             route = Destination.AddEditHabit.route,
-            arguments = listOf(navArgument("habitId") { type = NavType.LongType; defaultValue = -1L }),
+            arguments = listOf(
+                navArgument("habitId") { type = NavType.LongType; defaultValue = -1L },
+                navArgument("template") { type = NavType.StringType; defaultValue = "" },
+            ),
         ) { backStackEntry ->
-            val rawId = backStackEntry.arguments?.getLong("habitId") ?: -1L
-            val habitId = rawId.takeIf { it != -1L }
-            val context = androidx.compose.ui.platform.LocalContext.current
-            val repository = remember {
-                val db = com.habitly.app.data.local.AppDatabase.getInstance(context)
-                com.habitly.app.data.repository.HabitRepository(db.habitDao(), db.habitLogDao(), db.achievementDao())
-            }
-            val viewModel: com.habitly.app.ui.addedit.AddEditHabitViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                factory = object : androidx.lifecycle.ViewModelProvider.Factory {
-                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                        @Suppress("UNCHECKED_CAST")
-                        return com.habitly.app.ui.addedit.AddEditHabitViewModel(repository, habitId) as T
-                    }
-                },
-            )
+            val habitId = (backStackEntry.arguments?.getLong("habitId") ?: -1L).takeIf { it != -1L }
+            val viewModel = habitlyViewModel { AddEditHabitViewModel(repository, habitId) }
             val uiState by viewModel.uiState.collectAsState()
             if (uiState.isSaved) {
-                androidx.compose.runtime.LaunchedEffect(Unit) { navController.popBackStack() }
+                LaunchedEffect(Unit) { navController.popBackStack() }
             }
-            com.habitly.app.ui.addedit.AddEditHabitScreen(
+            AddEditHabitScreen(
                 uiState = uiState,
                 onNameChange = viewModel::onNameChange,
                 onIconChange = viewModel::onIconChange,
@@ -198,24 +167,12 @@ fun HabitlyNavHost(
             arguments = listOf(navArgument("habitId") { type = NavType.LongType }),
         ) { backStackEntry ->
             val habitId = backStackEntry.arguments?.getLong("habitId") ?: return@composable
-            val context = androidx.compose.ui.platform.LocalContext.current
-            val repository = remember {
-                val db = com.habitly.app.data.local.AppDatabase.getInstance(context)
-                com.habitly.app.data.repository.HabitRepository(db.habitDao(), db.habitLogDao(), db.achievementDao())
-            }
-            val viewModel: com.habitly.app.ui.detail.HabitDetailViewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                factory = object : androidx.lifecycle.ViewModelProvider.Factory {
-                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                        @Suppress("UNCHECKED_CAST")
-                        return com.habitly.app.ui.detail.HabitDetailViewModel(repository, habitId) as T
-                    }
-                },
-            )
+            val viewModel = habitlyViewModel { HabitDetailViewModel(repository, habitId) }
             val uiState by viewModel.uiState.collectAsState()
             if (uiState.isDeleted) {
-                androidx.compose.runtime.LaunchedEffect(Unit) { navController.popBackStack() }
+                LaunchedEffect(Unit) { navController.popBackStack() }
             }
-            com.habitly.app.ui.detail.HabitDetailScreen(
+            HabitDetailScreen(
                 uiState = uiState,
                 onArchive = viewModel::onArchive,
                 onDelete = viewModel::onDelete,

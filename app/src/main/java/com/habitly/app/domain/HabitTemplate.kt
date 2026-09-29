@@ -16,11 +16,18 @@ data class HabitTemplate(
     val targetCount: Int? = null,
     val unit: String? = null,
     val reminderTime: String? = null,
-)
+) {
+    /** Stable navigation key: lower-cased name, each run of non-alphanumerics collapsed to one underscore. */
+    val key: String
+        get() = name.lowercase().replace(Regex("[^a-z0-9]+"), "_").trim('_')
+}
 
 data class HabitTemplateGroup(val title: String, val templates: List<HabitTemplate>)
 
 object HabitTemplates {
+
+    fun byKey(key: String): HabitTemplate? =
+        groups.asSequence().flatMap { it.templates.asSequence() }.firstOrNull { it.key == key }
 
     val groups: List<HabitTemplateGroup> = listOf(
         HabitTemplateGroup(

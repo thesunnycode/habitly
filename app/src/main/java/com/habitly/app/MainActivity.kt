@@ -39,7 +39,7 @@ class MainActivity : ComponentActivity() {
         splash.setKeepOnScreenCondition { startRoute == null }
         lifecycleScope.launch {
             val done = OnboardingPrefs(this@MainActivity).hasCompletedOnboarding.first()
-            startRoute = if (done) Destination.Home.route else Destination.Onboarding.route
+            startRoute = if (done) Destination.Today.route else Destination.Onboarding.route
         }
         enableEdgeToEdge()
         setContent {

@@ -40,6 +40,7 @@ fun SettingsScreen(
     onThemeModeChange: (ThemeMode) -> Unit,
     onNotificationsToggle: (Boolean) -> Unit,
     onResetAllData: () -> Unit,
+    onBack: () -> Unit = {},
 ) {
     var showResetConfirm by remember { mutableStateOf(false) }
 
@@ -48,7 +49,7 @@ fun SettingsScreen(
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        item { ScreenHeader(title = "Settings", subtitle = "Habitly preferences") }
+        item { ScreenHeader(title = "Settings", subtitle = "Habitly preferences", onBack = onBack) }
 
         item {
             SectionCard(title = "Appearance", subtitle = "Choose how Habitly looks") {

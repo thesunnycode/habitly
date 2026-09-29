@@ -1,43 +1,35 @@
 package com.habitly.app.ui.navigation
 
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.ShowChart
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
+import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Insights
+import androidx.compose.material.icons.outlined.ViewAgenda
+import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Insights
+import androidx.compose.material.icons.rounded.ViewAgenda
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
+import com.habitly.app.ui.components.HabitlyNavBar
+import com.habitly.app.ui.components.NavItem
 
-private fun iconFor(destination: Destination) = when (destination) {
-    Destination.Home -> Icons.Filled.Home
-    Destination.Stats -> Icons.Filled.ShowChart
-    Destination.Calendar -> Icons.Filled.CalendarMonth
-    Destination.Achievements -> Icons.Filled.EmojiEvents
-    Destination.Settings -> Icons.Filled.Settings
-    else -> Icons.Filled.Home
-}
+private val NAV_ITEMS = listOf(
+    NavItem(Destination.Today.route, "Today", Icons.Outlined.CheckCircle, Icons.Rounded.CheckCircle),
+    NavItem(Destination.Habits.route, "Habits", Icons.Outlined.ViewAgenda, Icons.Rounded.ViewAgenda),
+    NavItem(Destination.Insights.route, "Insights", Icons.Outlined.Insights, Icons.Rounded.Insights),
+    NavItem(Destination.You.route, "You", Icons.Outlined.AccountCircle, Icons.Rounded.AccountCircle),
+)
 
-private fun labelFor(destination: Destination) = when (destination) {
-    Destination.Home -> "Home"
-    Destination.Stats -> "Stats"
-    Destination.Calendar -> "Calendar"
-    Destination.Achievements -> "Awards"
-    Destination.Settings -> "Settings"
-    else -> ""
+private fun concreteRoute(item: NavItem): String = when (item.route) {
+    Destination.Habits.route -> Destination.Habits.createRoute()
+    Destination.Insights.route -> Destination.Insights.createRoute()
+    else -> item.route
 }
 
 @Composable
@@ -49,36 +41,20 @@ fun HabitlyScaffold(
     val currentRoute = backStackEntry?.destination?.route
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            if (BOTTOM_NAV_DESTINATIONS.any { it.route == currentRoute }) {
-                Column {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
-                    NavigationBar(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        tonalElevation = 0.dp,
-                    ) {
-                        BOTTOM_NAV_DESTINATIONS.forEach { destination ->
-                            NavigationBarItem(
-                                selected = currentRoute == destination.route,
-                                onClick = {
-                                    navController.navigate(destination.route) {
-                                        popUpTo(Destination.Home.route) { inclusive = false }
-                                        launchSingleTop = true
-                                    }
-                                },
-                                icon = { Icon(iconFor(destination), contentDescription = labelFor(destination)) },
-                                label = { Text(labelFor(destination)) },
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = MaterialTheme.colorScheme.primary,
-                                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                                    indicatorColor = MaterialTheme.colorScheme.surface,
-                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                ),
-                            )
+            if (isTabRoute(currentRoute)) {
+                HabitlyNavBar(
+                    items = NAV_ITEMS,
+                    selectedRoute = currentRoute,
+                    onSelect = { item ->
+                        navController.navigate(concreteRoute(item)) {
+                            popUpTo(Destination.Today.route) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
                         }
-                    }
-                }
+                    },
+                )
             }
         },
     ) { padding -> content(padding) }
