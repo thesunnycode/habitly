@@ -1,7 +1,6 @@
 package com.habitly.app.ui.navigation
 
 sealed class Destination(val route: String) {
-    data object Splash : Destination("splash")
     data object Onboarding : Destination("onboarding")
     data object Home : Destination("home")
     data object Stats : Destination("stats")

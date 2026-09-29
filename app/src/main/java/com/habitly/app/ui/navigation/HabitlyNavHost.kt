@@ -19,11 +19,6 @@ fun HabitlyNavHost(
         androidx.compose.material3.windowsizeclass.WindowWidthSizeClass.Compact,
 ) {
     NavHost(navController = navController, startDestination = startDestination) {
-        composable(Destination.Splash.route) {
-            com.habitly.app.ui.splash.SplashScreen(onNavigate = { destination ->
-                navController.navigate(destination) { popUpTo(Destination.Splash.route) { inclusive = true } }
-            })
-        }
         composable(Destination.Onboarding.route) {
             com.habitly.app.ui.onboarding.OnboardingScreen(onFinished = {
                 navController.navigate(Destination.Home.route) { popUpTo(Destination.Onboarding.route) { inclusive = true } }
