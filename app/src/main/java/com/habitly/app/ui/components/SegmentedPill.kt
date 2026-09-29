@@ -1,6 +1,8 @@
 package com.habitly.app.ui.components
 
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -17,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -29,6 +32,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.habitly.app.ui.theme.HabitlyTheme
 import com.habitly.app.ui.theme.LocalHabitlyColors
+import com.habitly.app.ui.theme.LocalReduceMotion
 
 /** Pill-shaped single-choice control with a sliding selected segment. */
 @Composable
@@ -51,9 +55,14 @@ fun <T> SegmentedPill(
             .padding(padding),
     ) {
         val segmentWidth = maxWidth / options.size.coerceAtLeast(1)
-        val offset by animateDpAsState(segmentWidth * selectedIndex, label = "segmentOffset")
+        val offset by animateDpAsState(
+            targetValue = segmentWidth * selectedIndex,
+            animationSpec = if (LocalReduceMotion.current) snap() else spring(),
+            label = "segmentOffset",
+        )
         Box(
             modifier = Modifier
+                .align(Alignment.CenterStart)
                 .offset(x = offset)
                 .width(segmentWidth)
                 .height(40.dp)
@@ -68,11 +77,12 @@ fun <T> SegmentedPill(
         Row {
             options.forEach { option ->
                 val isSelected = option == selected
+                // 48dp hit box around the 40dp visual segment.
                 Box(
                     modifier = Modifier
                         .width(segmentWidth)
                         .height(40.dp)
-                        .clip(CircleShape)
+                        .minimumInteractiveComponentSize()
                         .clickable(role = Role.Tab) { onSelect(option) }
                         .semantics { this.selected = isSelected },
                     contentAlignment = Alignment.Center,

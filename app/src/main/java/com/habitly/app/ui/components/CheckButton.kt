@@ -2,6 +2,7 @@ package com.habitly.app.ui.components
 
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -26,6 +27,8 @@ import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +44,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.habitly.app.ui.theme.HabitlyTheme
+import com.habitly.app.ui.theme.LocalReduceMotion
 import com.habitly.app.ui.theme.habitTones
 
 enum class CheckState { EMPTY, DONE, IN_PROGRESS, SKIPPED }
@@ -60,12 +64,18 @@ fun CheckButton(
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (pressed) 0.88f else 1f,
-        animationSpec = spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMedium),
+        animationSpec = if (LocalReduceMotion.current) snap()
+        else spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMedium),
         label = "checkPress",
     )
     val haptic = LocalHapticFeedback.current
+    // Haptic only on a real transition into DONE, never for a row that is already DONE when composed.
+    var previous by remember { mutableStateOf(state) }
     LaunchedEffect(state) {
-        if (state == CheckState.DONE) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        if (state == CheckState.DONE && previous != CheckState.DONE) {
+            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+        }
+        previous = state
     }
     val shape = RoundedCornerShape(12.dp)
     val stateText = when (state) {

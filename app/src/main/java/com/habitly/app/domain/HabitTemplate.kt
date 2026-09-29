@@ -46,7 +46,7 @@ object HabitTemplates {
                 HabitTemplate("Workout", "fitness_center", "#FF6B6B", "Fitness", reminderTime = "18:00"),
                 HabitTemplate("Morning run", "run", "#FF922B", "Fitness", reminderTime = "06:30"),
                 HabitTemplate("10k steps", "run", "#51CF66", "Fitness"),
-                HabitTemplate("Stretch", "self_improvement", "#94D82D", "Fitness", reminderTime = "07:00"),
+                HabitTemplate("Stretch", "self_improvement", "#51CF66", "Fitness", reminderTime = "07:00"),
             ),
         ),
         HabitTemplateGroup(
@@ -55,7 +55,7 @@ object HabitTemplates {
                 HabitTemplate("Meditate", "self_improvement", "#9775FA", "Wellness", reminderTime = "07:00"),
                 HabitTemplate("Journal", "menu_book", "#CED4DA", "Wellness", reminderTime = "21:00"),
                 HabitTemplate("No screens after 10pm", "sleep", "#748FFC", "Wellness", reminderTime = "22:00"),
-                HabitTemplate("Walk outside", "run", "#94D82D", "Wellness"),
+                HabitTemplate("Walk outside", "run", "#51CF66", "Wellness"),
             ),
         ),
         HabitTemplateGroup(

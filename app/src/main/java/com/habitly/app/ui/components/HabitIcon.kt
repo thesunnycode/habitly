@@ -84,11 +84,6 @@ private val ICONS: Map<String, ImageVector> by lazy {
 /** Maps a habit's stored icon key (chosen in Add/Edit) to a concrete Material icon. */
 fun habitIconFor(key: String): ImageVector = ICONS[key] ?: Icons.Rounded.Star
 
-val HABIT_ICON_KEYS: List<String> = listOf(
-    "star", "water_drop", "menu_book", "fitness_center", "self_improvement", "run", "sleep", "food",
-    "drink", "walk", "bike", "pool", "spa", "favorite", "psychology", "school", "code", "brush",
-    "music", "language", "edit", "savings", "work", "cleaning", "eco", "pets", "phone_off", "sunny",
-    "alarm", "medication", "smoke_free", "no_drinks", "coffee", "family", "call", "camera",
-)
+val HABIT_ICON_KEYS: List<String> = ICONS.keys.toList()
 
 val HABIT_COLOR_SWATCHES = HabitPalette.seeds

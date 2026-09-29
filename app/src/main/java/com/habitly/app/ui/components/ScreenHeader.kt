@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -36,13 +37,12 @@ fun ScreenHeader(
     eyebrow: String? = null,
     onBack: (() -> Unit)? = null,
     onClose: (() -> Unit)? = null,
-    actions: @Composable RowScope.() -> Unit = {},
+    actions: (@Composable RowScope.() -> Unit)? = null,
 ) {
     Column(modifier = modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp)) {
-        if (onBack != null || onClose != null) {
+        if (onBack != null || onClose != null || actions != null) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (onBack != null) {
@@ -54,7 +54,8 @@ fun ScreenHeader(
                         Icon(Icons.Rounded.Close, contentDescription = "Close")
                     }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, content = actions)
+                Spacer(Modifier.weight(1f))
+                if (actions != null) Row(verticalAlignment = Alignment.CenterVertically, content = actions)
             }
         }
         if (eyebrow != null) {
