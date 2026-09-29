@@ -130,7 +130,7 @@ fun HabitlyNavHost(
             ArchivedUndoEffect(backStackEntry.savedStateHandle, repository)
             val segment = backStackEntry.arguments?.getString("segment") ?: "active"
             val initialSegment = if (segment == "archived") HabitsSegment.ARCHIVED else HabitsSegment.ACTIVE
-            val viewModel = habitlyViewModel(key = "habits-$segment") { HabitsViewModel(repository, initialSegment) }
+            val viewModel = habitlyViewModel(key = "habits-$segment") { HabitsViewModel(repository, initialSegment, notifications = notifications) }
             val uiState by viewModel.uiState.collectAsState()
             CenteredContent {
                 HabitsScreen(
@@ -288,12 +288,12 @@ fun HabitlyNavHost(
             arguments = listOf(navArgument("habitId") { type = NavType.LongType }),
         ) { backStackEntry ->
             val habitId = backStackEntry.arguments?.getLong("habitId") ?: return@composable
-            val viewModel = habitlyViewModel { HabitDetailViewModel(repository, habitId, notifications = notifications) }
+            val viewModel = habitlyViewModel { HabitDetailViewModel(repository, habitId, notifications = notifications, weekStart = prefs.weekStart) }
             val uiState by viewModel.uiState.collectAsState()
             if (uiState.isDeleted) {
                 LaunchedEffect(Unit) { navController.popBackStack() }
             }
-            if (uiState.isArchived) {
+            if (uiState.justArchived) {
                 LaunchedEffect(Unit) {
                     navController.previousBackStackEntry?.savedStateHandle?.set(ARCHIVED_HABIT_KEY, habitId)
                     navController.popBackStack()
@@ -311,6 +311,7 @@ fun HabitlyNavHost(
                     onDayLongPress = viewModel::onSetDayStatus,
                     onToggleToday = viewModel::onToggleToday,
                     onRepairStreak = viewModel::onRepairStreak,
+                    onRestore = viewModel::onRestore,
                     windowWidthSizeClass = windowWidthSizeClass,
                 )
             }

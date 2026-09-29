@@ -135,11 +135,14 @@ class TodayViewModel(
         }
     }
 
-    /** Records an explicit status (and optional note) for the selected day, or clears it when [status] is null. */
+    /**
+     * Records an explicit status for the selected day, or clears it when [status] is null. The
+     * status sheet opens with the day's note, so [note] is the whole edited note: null or blank removes it.
+     */
     fun onSetStatus(habitId: Long, status: CompletionStatus?, note: String? = null) {
         val date = selectedDate.value
         viewModelScope.launch {
-            repository.setStatus(habitId, date, status, note?.trim()?.takeIf { it.isNotEmpty() })
+            repository.setStatus(habitId, date, status, note.orEmpty())
             if (status != null) clearNotificationsIfToday(habitId, date)
         }
     }

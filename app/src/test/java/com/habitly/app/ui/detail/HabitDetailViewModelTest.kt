@@ -12,9 +12,12 @@ import com.habitly.app.domain.FrequencyType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -27,11 +30,14 @@ private fun habitWithStats(id: Long, streak: Int) = HabitWithStats(
 )
 
 private class FakeHabitDataSource(
-    private val habits: List<HabitWithStats>,
+    habits: List<HabitWithStats>,
     records: List<CompletionRecord> = emptyList(),
 ) : HabitDataSource {
     private val records = MutableStateFlow(records)
     private val archived = mutableSetOf<Long>()
+    /** Every habit, archived ones included, as the single-habit query sees them. */
+    private val habits = MutableStateFlow(habits)
+    var lastNote: String? = null
 
     fun statusOn(habitId: Long, date: LocalDate): CompletionStatus? =
         records.value.find { it.date == date }?.status
@@ -50,7 +56,9 @@ private class FakeHabitDataSource(
     var deletedHabit: HabitEntity? = null
 
     override fun observeHabitsWithStats(today: LocalDate): Flow<List<HabitWithStats>> =
-        MutableStateFlow(habits).asStateFlow()
+        habits.map { list -> list.filterNot { it.habit.isArchived } }
+    override fun observeHabitWithStats(habitId: Long, today: LocalDate): Flow<HabitWithStats?> =
+        habits.map { list -> list.find { it.habit.id == habitId } }
     override suspend fun addHabit(habit: HabitEntity): Long = 1L
     override suspend fun updateHabit(habit: HabitEntity) { if (habit.isArchived) archivedId = habit.id }
     override suspend fun deleteHabit(habit: HabitEntity) { deletedHabit = habit }
@@ -71,11 +79,15 @@ private class FakeHabitDataSource(
     ): Set<AchievementType> {
         lastSetStatus = habitId to status
         lastSetStatusDate = date
+        lastNote = note
         write(date, status)
         return emptySet()
     }
     override fun observeArchivedHabits(): Flow<List<HabitEntity>> = MutableStateFlow(emptyList())
     override suspend fun setArchived(habitId: Long, archived: Boolean) {
+        habits.value = habits.value.map {
+            if (it.habit.id == habitId) it.copy(habit = it.habit.copy(isArchived = archived)) else it
+        }
         if (archived) {
             this.archived += habitId
             archivedId = habitId
@@ -89,7 +101,7 @@ private class FakeHabitDataSource(
     override fun observeAchievements(): Flow<List<AchievementEntity>> = MutableStateFlow(emptyList())
     override fun observeAchievementProgress(today: LocalDate): Flow<List<com.habitly.app.data.repository.AchievementProgress>> = MutableStateFlow(emptyList())
     override suspend fun reconcileAchievements() = emptySet<com.habitly.app.domain.AchievementType>()
-    override suspend fun clearAchievements() {}
+    override suspend fun resetAll() {}
     override fun observeAllHabits(): kotlinx.coroutines.flow.Flow<List<com.habitly.app.data.local.HabitEntity>> = kotlinx.coroutines.flow.flowOf(emptyList())
     override fun observeAllLogs(): kotlinx.coroutines.flow.Flow<List<com.habitly.app.data.local.HabitLogEntity>> = kotlinx.coroutines.flow.flowOf(emptyList())
     override fun observeRecordsForHabit(habitId: Long): Flow<List<CompletionRecord>> = records.asStateFlow()
@@ -147,8 +159,66 @@ class HabitDetailViewModelTest {
     @Test fun archivingFlagsTheScreenToClose() = runTest {
         val vm = detailVm(records = emptyList())
         vm.onArchive(); advanceUntilIdle()
-        assertTrue(vm.uiState.value.isArchived)
+        assertTrue(vm.uiState.value.justArchived)
         assertTrue(fake.isArchived(HABIT_ID))
+    }
+
+    @Test fun anArchivedHabitStillOpensWithItsStats() = runTest {
+        val archivedHabit = habitWithStats(HABIT_ID, streak = 4).let { it.copy(habit = it.habit.copy(isArchived = true)) }
+        fake = FakeHabitDataSource(listOf(archivedHabit), listOf(done(D)))
+        val vm = HabitDetailViewModel(fake, HABIT_ID, today = { D })
+        advanceUntilIdle()
+        assertEquals("Read", vm.uiState.value.habit?.name)
+        assertEquals(4, vm.uiState.value.currentStreak)
+        assertEquals(1, vm.uiState.value.totalDays)
+        assertTrue(vm.uiState.value.isHabitArchived)
+    }
+
+    @Test fun restoringAnArchivedHabitKeepsTheScreenOpen() = runTest {
+        val archivedHabit = habitWithStats(HABIT_ID, streak = 0).let { it.copy(habit = it.habit.copy(isArchived = true)) }
+        fake = FakeHabitDataSource(listOf(archivedHabit))
+        fake.setArchived(HABIT_ID, true)
+        val vm = HabitDetailViewModel(fake, HABIT_ID, today = { D })
+        advanceUntilIdle()
+
+        vm.onArchive(); advanceUntilIdle()
+        assertFalse("an archived habit is not archived again", vm.uiState.value.justArchived)
+
+        vm.onRestore(); advanceUntilIdle()
+        assertFalse(fake.isArchived(HABIT_ID))
+        assertFalse(vm.uiState.value.isHabitArchived)
+        assertFalse("restore stays on the screen", vm.uiState.value.justArchived)
+        assertEquals("Read", vm.uiState.value.habit?.name)
+    }
+
+    @Test fun archivingOrDeletingClearsTheHabitsNotifications() = runTest {
+        val cancelled = mutableListOf<Long>()
+        fake = FakeHabitDataSource(listOf(habitWithStats(HABIT_ID, streak = 0)))
+        val vm = HabitDetailViewModel(fake, HABIT_ID, today = { D }, notifications = { cancelled += it })
+        advanceUntilIdle()
+        vm.onArchive(); advanceUntilIdle()
+        assertEquals(listOf(HABIT_ID), cancelled)
+        vm.onDelete(); advanceUntilIdle()
+        assertEquals(listOf(HABIT_ID, HABIT_ID), cancelled)
+    }
+
+    @Test fun theDaysNotesReachTheStateAndTheSheetsNoteIsAuthoritative() = runTest {
+        val withNote = habitWithStats(HABIT_ID, streak = 0).copy(notes = mapOf(D to "ran 5k"))
+        fake = FakeHabitDataSource(listOf(withNote), listOf(done(D)))
+        val vm = HabitDetailViewModel(fake, HABIT_ID, today = { D })
+        advanceUntilIdle()
+        assertEquals("ran 5k", vm.uiState.value.notes[D])
+
+        // The sheet opened with the note and came back without one: the user cleared it.
+        vm.onSetDayStatus(D, CompletionStatus.SKIPPED, null); advanceUntilIdle()
+        assertEquals("", fake.lastNote)
+    }
+
+    @Test fun theWeekStartPreferenceReachesTheGrids() = runTest {
+        fake = FakeHabitDataSource(listOf(habitWithStats(HABIT_ID, streak = 0)))
+        val vm = HabitDetailViewModel(fake, HABIT_ID, today = { D }, weekStart = flowOf(java.time.DayOfWeek.SUNDAY))
+        advanceUntilIdle()
+        assertEquals(java.time.DayOfWeek.SUNDAY, vm.uiState.value.weekStart)
     }
 
     @Test

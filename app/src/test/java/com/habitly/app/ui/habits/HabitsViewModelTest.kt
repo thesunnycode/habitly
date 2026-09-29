@@ -65,7 +65,8 @@ private class FakeHabitsSource(
     override fun observeAchievements(): Flow<List<AchievementEntity>> = MutableStateFlow(emptyList())
     override fun observeAchievementProgress(today: LocalDate): Flow<List<com.habitly.app.data.repository.AchievementProgress>> = MutableStateFlow(emptyList())
     override suspend fun reconcileAchievements() = emptySet<com.habitly.app.domain.AchievementType>()
-    override suspend fun clearAchievements() {}
+    override fun observeHabitWithStats(habitId: Long, today: java.time.LocalDate): kotlinx.coroutines.flow.Flow<com.habitly.app.data.repository.HabitWithStats?> = kotlinx.coroutines.flow.flowOf(null)
+    override suspend fun resetAll() {}
     override fun observeAllHabits(): kotlinx.coroutines.flow.Flow<List<com.habitly.app.data.local.HabitEntity>> = kotlinx.coroutines.flow.flowOf(emptyList())
     override fun observeAllLogs(): kotlinx.coroutines.flow.Flow<List<com.habitly.app.data.local.HabitLogEntity>> = kotlinx.coroutines.flow.flowOf(emptyList())
     override fun observeRecordsForHabit(habitId: Long): Flow<List<CompletionRecord>> = MutableStateFlow(emptyList())
@@ -160,6 +161,16 @@ class HabitsViewModelTest {
         vm.onDeleteForever(5); advanceUntilIdle()
         assertEquals(5L, fake.lastDeleted?.id)
         assertEquals(0, vm.uiState.value.archivedCount)
+    }
+
+    @Test fun archivingOrDeletingClearsTheHabitsNotifications() = runTest {
+        val cancelled = mutableListOf<Long>()
+        val fake = FakeHabitsSource(active = listOf(h(1, "Read", "Mind"), h(2, "Run", "Body")))
+        val vm = HabitsViewModel(fake, HabitsSegment.ACTIVE, notifications = { cancelled += it })
+        advanceUntilIdle()
+        vm.onArchive(1); advanceUntilIdle()
+        vm.onDeleteForever(1); advanceUntilIdle()
+        assertEquals(listOf(1L, 1L), cancelled)
     }
 
     @Test fun movingAHabitReordersTheFullList() = runTest {

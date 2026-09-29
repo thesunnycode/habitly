@@ -9,6 +9,7 @@ import com.habitly.app.data.prefs.ThemeMode
 import com.habitly.app.data.repository.HabitDataSource
 import com.habitly.app.reminder.ReminderNotifications
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -70,16 +71,17 @@ class SettingsViewModel(
 
     fun onResetAllData() {
         viewModelScope.launch {
-            // Archived habits too: "everything" includes what is out of sight.
-            repository.observeAllHabits().first().forEach {
-                repository.deleteHabit(it)
+            // Leaving Settings mid-reset must not leave half the data behind, so it always finishes.
+            withContext(NonCancellable) {
+                // Archived habits too: "everything" includes what is out of sight.
+                val ids = repository.observeAllHabits().first().map { it.id }
+                repository.resetAll()
                 // A reminder for a habit that no longer exists would open to nothing.
-                notifications.cancelFor(it.id)
+                ids.forEach(notifications::cancelFor)
+                // A true fresh start: badges and the all-done moment celebrate again.
+                prefs.clearSeenBadges()
+                prefs.clearLastCelebratedDate()
             }
-            repository.clearAchievements()
-            // A true fresh start: badges and the all-done moment celebrate again.
-            prefs.clearSeenBadges()
-            prefs.clearLastCelebratedDate()
             _uiState.value = _uiState.value.copy(resetCompleted = true)
         }
     }

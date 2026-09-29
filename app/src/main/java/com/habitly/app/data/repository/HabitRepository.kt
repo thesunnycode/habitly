@@ -14,9 +14,11 @@ import com.habitly.app.domain.CompletionStatus
 import com.habitly.app.domain.ContributionLevels
 import com.habitly.app.domain.HabitSchedule
 import com.habitly.app.domain.StreakCalculator
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -37,47 +39,63 @@ class HabitRepository(
     private val habitDao: HabitDao,
     private val logDao: HabitLogDao,
     private val achievementDao: AchievementDao,
+    /** Where the stats maths runs; tests may pass their own dispatcher. */
+    private val computeDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : HabitDataSource {
 
     override fun observeHabitsWithStats(today: LocalDate): Flow<List<HabitWithStats>> =
         combine(habitDao.observeActiveHabits(), logDao.observeAllLogs()) { habits, allLogs ->
             val logsByHabit = allLogs.groupBy { it.habitId }
-            habits.map { habit ->
-                val records = (logsByHabit[habit.id] ?: emptyList()).map {
-                    CompletionRecord(LocalDate.parse(it.date, ISO), it.status)
-                }
-                val todayLog = logsByHabit[habit.id]?.find { it.date == today.format(ISO) }
-                val completedByDate = records.filter { it.completed }.map { it.date }.toSet()
-                val statusByDate = records.associate { it.date to it.status }
-                val last7Days = (6 downTo 0).map { offset -> today.minusDays(offset.toLong()) in completedByDate }
-                val schedule = HabitSchedule.parse(
-                    type = habit.frequencyType,
-                    frequencyDays = habit.frequencyDays,
-                    intervalDays = habit.intervalDays,
-                    startDate = Instant.ofEpochMilli(habit.createdAt)
-                        .atZone(ZoneId.systemDefault()).toLocalDate(),
-                )
-                HabitWithStats(
-                    habit = habit,
-                    currentStreak = StreakCalculator.currentStreak(records, today, schedule),
-                    bestStreak = StreakCalculator.bestStreak(records),
-                    completionRate = StreakCalculator.completionRate(records, today, schedule),
-                    isCompletedToday = todayLog?.status == CompletionStatus.DONE,
-                    todayStatus = todayLog?.status,
-                    last7Days = last7Days,
-                    isDueToday = schedule.isDue(today),
-                    last7DaysDue = (6 downTo 0).map { offset -> schedule.isDue(today.minusDays(offset.toLong())) },
-                    last7DaysStatus = (6 downTo 0).map { offset -> statusByDate[today.minusDays(offset.toLong())] },
-                    lastBrokenDueDay = StreakCalculator.lastBrokenDueDay(records, today, schedule),
-                    todayProgress = todayLog?.progress ?: 0,
-                    schedule = schedule,
-                    levels = ContributionLevels.forHabit(
-                        records.filter { it.date >= today.minusWeeks(LEVEL_WEEKS) },
-                    ),
-                    todayNote = todayLog?.note,
-                )
-            }
+            habits.map { habit -> buildStats(habit, logsByHabit[habit.id] ?: emptyList(), today) }
         }
+            // Parsing every log and walking streaks is too much for the main thread on each change.
+            .flowOn(computeDispatcher)
+            .distinctUntilChanged()
+
+    override fun observeHabitWithStats(habitId: Long, today: LocalDate): Flow<HabitWithStats?> =
+        combine(habitDao.observeById(habitId), logDao.observeLogsForHabit(habitId)) { habit, logs ->
+            habit?.let { buildStats(it, logs, today) }
+        }
+            .flowOn(computeDispatcher)
+            .distinctUntilChanged()
+
+    /** One habit's numbers from its own logs; archived or not makes no difference here. */
+    private fun buildStats(habit: HabitEntity, logs: List<HabitLogEntity>, today: LocalDate): HabitWithStats {
+        val records = logs.map { CompletionRecord(LocalDate.parse(it.date, ISO), it.status) }
+        val todayLog = logs.find { it.date == today.format(ISO) }
+        val completedByDate = records.filter { it.completed }.map { it.date }.toSet()
+        val statusByDate = records.associate { it.date to it.status }
+        val last7Days = (6 downTo 0).map { offset -> today.minusDays(offset.toLong()) in completedByDate }
+        val schedule = HabitSchedule.parse(
+            type = habit.frequencyType,
+            frequencyDays = habit.frequencyDays,
+            intervalDays = habit.intervalDays,
+            startDate = Instant.ofEpochMilli(habit.createdAt)
+                .atZone(ZoneId.systemDefault()).toLocalDate(),
+        )
+        return HabitWithStats(
+            habit = habit,
+            currentStreak = StreakCalculator.currentStreak(records, today, schedule),
+            bestStreak = StreakCalculator.bestStreak(records),
+            completionRate = StreakCalculator.completionRate(records, today, schedule),
+            isCompletedToday = todayLog?.status == CompletionStatus.DONE,
+            todayStatus = todayLog?.status,
+            last7Days = last7Days,
+            isDueToday = schedule.isDue(today),
+            last7DaysDue = (6 downTo 0).map { offset -> schedule.isDue(today.minusDays(offset.toLong())) },
+            last7DaysStatus = (6 downTo 0).map { offset -> statusByDate[today.minusDays(offset.toLong())] },
+            lastBrokenDueDay = StreakCalculator.lastBrokenDueDay(records, today, schedule),
+            todayProgress = todayLog?.progress ?: 0,
+            schedule = schedule,
+            levels = ContributionLevels.forHabit(
+                records.filter { it.date >= today.minusWeeks(LEVEL_WEEKS) },
+            ),
+            todayNote = todayLog?.note,
+            notes = logs.mapNotNull { log ->
+                log.note?.takeIf { it.isNotBlank() }?.let { LocalDate.parse(log.date, ISO) to it }
+            }.toMap(),
+        )
+    }
 
     override suspend fun addHabit(habit: HabitEntity): Long {
         val order = if (habit.sortOrder != 0) habit.sortOrder else (habitDao.maxSortOrder() ?: 0) + 1
@@ -181,7 +199,8 @@ class HabitRepository(
                 date = dateStr,
                 status = status,
                 completedAt = if (status == CompletionStatus.DONE) System.currentTimeMillis() else null,
-                note = note,
+                // Null leaves the note alone; blank is an explicit "remove it".
+                note = if (note == null) existing?.note else note.trim().takeIf { it.isNotEmpty() },
                 progress = when (status) {
                     // Marking a goal habit done fills its counter; anything else empties it.
                     CompletionStatus.DONE -> habitDao.getById(habitId)?.targetCount ?: 0
@@ -197,7 +216,8 @@ class HabitRepository(
 
     override suspend fun reconcileAchievements(): Set<AchievementType> = evaluateAchievements()
 
-    override suspend fun clearAchievements() = achievementLock.withLock { achievementDao.deleteAll() }
+    /** Habits (archived too), their logs and every badge, in one transaction so it never half-completes. */
+    override suspend fun resetAll() = achievementLock.withLock { habitDao.deleteEverything() }
 
     override fun observeAllHabits(): Flow<List<HabitEntity>> = habitDao.observeAllHabits()
 

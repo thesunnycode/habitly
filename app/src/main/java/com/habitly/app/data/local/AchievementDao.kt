@@ -12,7 +12,4 @@ interface AchievementDao {
 
     @Query("SELECT * FROM achievements")
     fun observeAll(): Flow<List<AchievementEntity>>
-
-    @Query("DELETE FROM achievements")
-    suspend fun deleteAll()
 }

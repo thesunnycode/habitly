@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.habitly.app.data.repository.HabitDataSource
 import com.habitly.app.data.repository.HabitWithStats
+import com.habitly.app.reminder.ReminderNotifications
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -26,6 +27,7 @@ class HabitsViewModel(
     private val repository: HabitDataSource,
     initialSegment: HabitsSegment,
     private val today: () -> LocalDate = { LocalDate.now() },
+    private val notifications: ReminderNotifications = ReminderNotifications.None,
 ) : ViewModel() {
 
     private val controls = MutableStateFlow(Controls(segment = initialSegment))
@@ -64,7 +66,11 @@ class HabitsViewModel(
     fun onClearFilters() = controls.update { it.copy(query = "", selectedCategory = null) }
 
     fun onArchive(id: Long) {
-        viewModelScope.launch { repository.setArchived(id, true) }
+        viewModelScope.launch {
+            repository.setArchived(id, true)
+            // A reminder for a habit that is out of sight would open to something the user put away.
+            notifications.cancelFor(id)
+        }
     }
 
     fun onRestore(id: Long) {
@@ -75,6 +81,7 @@ class HabitsViewModel(
         viewModelScope.launch {
             val habit = uiState.value.archived.firstOrNull { it.id == id } ?: repository.getHabit(id) ?: return@launch
             repository.deleteHabit(habit)
+            notifications.cancelFor(id)
         }
     }
 

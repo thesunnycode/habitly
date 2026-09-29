@@ -327,10 +327,74 @@ class HabitRepositoryTest {
     }
 
     @Test
-    fun clearAchievementsRemovesEveryUnlockedBadge() = runBlocking {
-        repo.addHabit(newHabit()) // unlocks FIRST_HABIT
+    fun resetAllClearsHabitsArchivedHabitsLogsAndAchievements() = runBlocking {
+        val a = repo.addHabit(newHabit("A")) // unlocks FIRST_HABIT
+        val b = repo.addHabit(newHabit("B"))
+        repo.setArchived(b, true)
+        repo.setStatus(a, LocalDate.of(2026, 9, 28), CompletionStatus.DONE)
+        repo.setStatus(b, LocalDate.of(2026, 9, 27), CompletionStatus.DONE)
         assertTrue(repo.observeAchievements().first().isNotEmpty())
-        repo.clearAchievements()
+
+        repo.resetAll()
+
+        assertTrue(repo.observeAllHabits().first().isEmpty())
+        assertTrue(repo.observeArchivedHabits().first().isEmpty())
+        assertTrue(repo.observeAllLogs().first().isEmpty())
         assertTrue(repo.observeAchievements().first().isEmpty())
+    }
+
+    @Test
+    fun anArchivedHabitStillHasItsStatsForItsOwnScreen() = runBlocking {
+        val id = repo.addHabit(newHabit("Read"))
+        val today = LocalDate.of(2026, 9, 29)
+        repo.setStatus(id, today.minusDays(1), CompletionStatus.DONE)
+        repo.setStatus(id, today, CompletionStatus.DONE, "felt good")
+        repo.setArchived(id, true)
+
+        assertTrue("archived habits leave the active list", repo.observeHabitsWithStats(today).first().isEmpty())
+        val stats = repo.observeHabitWithStats(id, today).first()
+        assertEquals("Read", stats?.habit?.name)
+        assertEquals(true, stats?.habit?.isArchived)
+        assertEquals(2, stats?.currentStreak)
+        assertEquals(mapOf(today to "felt good"), stats?.notes)
+        assertNull("an unknown id has no stats", repo.observeHabitWithStats(999L, today).first())
+    }
+
+    @Test
+    fun tickingADayKeepsTheNoteAlreadyOnIt() = runBlocking {
+        val id = repo.addHabit(newHabit())
+        val day = LocalDate.of(2026, 8, 22)
+        repo.setStatus(id, day, CompletionStatus.SKIPPED, "ill")
+        repo.toggleCompletion(id, day, null)
+        val log = db.habitLogDao().getLog(id, "2026-08-22")
+        assertEquals(CompletionStatus.DONE, log?.status)
+        assertEquals("ill", log?.note)
+    }
+
+    @Test
+    fun settingAStatusWithoutANoteKeepsTheExistingNote() = runBlocking {
+        val id = repo.addHabit(newHabit())
+        val day = LocalDate.of(2026, 8, 22)
+        repo.setStatus(id, day, CompletionStatus.DONE, "ran 5k")
+        repo.setStatus(id, day, CompletionStatus.SKIPPED)
+        assertEquals("ran 5k", db.habitLogDao().getLog(id, "2026-08-22")?.note)
+    }
+
+    @Test
+    fun aBlankNoteClearsTheExistingNote() = runBlocking {
+        val id = repo.addHabit(newHabit())
+        val day = LocalDate.of(2026, 8, 22)
+        repo.setStatus(id, day, CompletionStatus.DONE, "ran 5k")
+        repo.setStatus(id, day, CompletionStatus.DONE, "  ")
+        assertNull(db.habitLogDao().getLog(id, "2026-08-22")?.note)
+    }
+
+    @Test
+    fun anEditedNoteReplacesTheExistingNote() = runBlocking {
+        val id = repo.addHabit(newHabit())
+        val day = LocalDate.of(2026, 8, 22)
+        repo.setStatus(id, day, CompletionStatus.DONE, "ran 5k")
+        repo.setStatus(id, day, CompletionStatus.SKIPPED, " rest ")
+        assertEquals("rest", db.habitLogDao().getLog(id, "2026-08-22")?.note)
     }
 }

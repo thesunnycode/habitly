@@ -22,6 +22,9 @@ interface HabitDao {
     @Query("SELECT * FROM habits WHERE id = :id")
     suspend fun getById(id: Long): HabitEntity?
 
+    @Query("SELECT * FROM habits WHERE id = :id")
+    fun observeById(id: Long): Flow<HabitEntity?>
+
     @Query("SELECT * FROM habits WHERE isArchived = 0 ORDER BY sortOrder ASC, createdAt ASC")
     fun observeActiveHabits(): Flow<List<HabitEntity>>
 
@@ -48,4 +51,24 @@ interface HabitDao {
 
     @Query("UPDATE habits SET isArchived = :archived WHERE id = :id")
     suspend fun setArchived(id: Long, archived: Boolean)
+
+    @Query("DELETE FROM habit_logs")
+    suspend fun deleteAllLogs()
+
+    @Query("DELETE FROM habits")
+    suspend fun deleteAllHabits()
+
+    @Query("DELETE FROM achievements")
+    suspend fun deleteAllAchievements()
+
+    /**
+     * Wipes every habit (archived included), log and badge atomically. Logs cascade with their
+     * habits, but are deleted explicitly too so the reset does not lean on the foreign-key pragma.
+     */
+    @Transaction
+    suspend fun deleteEverything() {
+        deleteAllLogs()
+        deleteAllHabits()
+        deleteAllAchievements()
+    }
 }

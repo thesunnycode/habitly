@@ -10,10 +10,15 @@ import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
 
 interface HabitDataSource {
+    /** Active habits only, with their numbers. */
     fun observeHabitsWithStats(today: LocalDate): Flow<List<HabitWithStats>>
+
+    /** One habit with its numbers, archived or not; null once it no longer exists. */
+    fun observeHabitWithStats(habitId: Long, today: LocalDate): Flow<HabitWithStats?>
     suspend fun addHabit(habit: HabitEntity): Long
     suspend fun updateHabit(habit: HabitEntity)
     suspend fun deleteHabit(habit: HabitEntity)
+    /** Ticks or un-ticks a day; [note] follows [setStatus]'s rules, so null keeps the day's note. */
     suspend fun toggleCompletion(habitId: Long, date: LocalDate, note: String?): Set<AchievementType>
 
     /**
@@ -22,7 +27,12 @@ interface HabitDataSource {
      */
     suspend fun incrementProgress(habitId: Long, date: LocalDate): Set<AchievementType>
 
-    /** Records an explicit status for a day, or clears the day entirely when [status] is null. */
+    /**
+     * Records an explicit status for a day, or clears the day entirely when [status] is null.
+     *
+     * [note] edits the day's note: null keeps whatever note is already there, a blank string
+     * removes it, and anything else replaces it (trimmed).
+     */
     suspend fun setStatus(
         habitId: Long,
         date: LocalDate,
@@ -41,8 +51,8 @@ interface HabitDataSource {
 
     /** Stores every badge already earned but not yet unlocked, returning the ones it stored. */
     suspend fun reconcileAchievements(): Set<AchievementType>
-    /** Removes every unlocked badge, for a full reset. */
-    suspend fun clearAchievements()
+    /** Deletes every habit (archived too), every log and every unlocked badge, atomically. */
+    suspend fun resetAll()
     fun observeRecordsForHabit(habitId: Long): Flow<List<CompletionRecord>>
 
     /** Every habit, archived ones included. */

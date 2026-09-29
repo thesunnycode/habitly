@@ -53,7 +53,8 @@ private class FakeYouDataSource(
     override suspend fun getHabit(habitId: Long): HabitEntity? = null
     override fun observeAchievements(): Flow<List<AchievementEntity>> = flowOf(emptyList())
     override suspend fun reconcileAchievements() = emptySet<AchievementType>()
-    override suspend fun clearAchievements() {}
+    override fun observeHabitWithStats(habitId: Long, today: java.time.LocalDate): kotlinx.coroutines.flow.Flow<com.habitly.app.data.repository.HabitWithStats?> = kotlinx.coroutines.flow.flowOf(null)
+    override suspend fun resetAll() {}
     override fun observeRecordsForHabit(habitId: Long): Flow<List<CompletionRecord>> = flowOf(emptyList())
 }
 

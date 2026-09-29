@@ -29,4 +29,6 @@ data class HabitWithStats(
     val levels: Map<java.time.LocalDate, Int> = emptyMap(),
     /** The note recorded against today's status, if any. */
     val todayNote: String? = null,
+    /** Every non-blank note the habit carries, by day. */
+    val notes: Map<java.time.LocalDate, String> = emptyMap(),
 )

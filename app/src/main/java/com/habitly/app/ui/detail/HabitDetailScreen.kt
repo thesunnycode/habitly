@@ -36,6 +36,7 @@ import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Percent
 import androidx.compose.material.icons.rounded.TaskAlt
+import androidx.compose.material.icons.rounded.Unarchive
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -71,7 +72,6 @@ import com.habitly.app.ui.theme.HabitTones
 import com.habitly.app.ui.theme.LocalHabitlyColors
 import com.habitly.app.ui.theme.habitTones
 import com.habitly.app.ui.theme.readableOn
-import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -100,6 +100,7 @@ fun HabitDetailScreen(
     onDayLongPress: (LocalDate, CompletionStatus?, String?) -> Unit,
     onToggleToday: () -> Unit,
     onRepairStreak: () -> Unit,
+    onRestore: () -> Unit,
     windowWidthSizeClass: WindowWidthSizeClass = WindowWidthSizeClass.Compact,
 ) {
     val habit = uiState.habit
@@ -119,9 +120,11 @@ fun HabitDetailScreen(
         ) {
             item {
                 DetailTopBar(
+                    isArchived = uiState.isHabitArchived,
                     onBack = onBack,
                     onEdit = onEdit,
                     onArchive = onArchive,
+                    onRestore = onRestore,
                     onDelete = { showDeleteConfirm = true },
                 )
             }
@@ -156,8 +159,9 @@ fun HabitDetailScreen(
                             colorHex = colorHex,
                             weeks = weeks,
                             endDate = uiState.today,
+                            weekStart = uiState.weekStart,
                             summary = { shown ->
-                                val from = GridMath.weekColumns(uiState.today, shown, DayOfWeek.MONDAY).first()
+                                val from = GridMath.weekColumns(uiState.today, shown, uiState.weekStart).first()
                                 val done = uiState.levels.count { (date, level) ->
                                     level >= 4 && !date.isBefore(from) && !date.isAfter(uiState.today)
                                 }
@@ -196,7 +200,8 @@ fun HabitDetailScreen(
             }
         }
 
-        if (habit != null) {
+        // An archived habit is out of the daily routine, so it offers no check-in.
+        if (habit != null && !uiState.isHabitArchived) {
             val target = habit.targetCount
             val label = when {
                 uiState.todayStatus == CompletionStatus.DONE -> "Undo today"
@@ -235,6 +240,7 @@ fun HabitDetailScreen(
         HabitStatusSheet(
             habitName = title,
             current = statusByDate[openDate],
+            initialNote = uiState.notes[openDate],
             onSelect = { status, note ->
                 sheetDate = null
                 onDayLongPress(openDate, status, note)
@@ -256,9 +262,11 @@ fun HabitDetailScreen(
 
 @Composable
 private fun DetailTopBar(
+    isArchived: Boolean,
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onArchive: () -> Unit,
+    onRestore: () -> Unit,
     onDelete: () -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -285,11 +293,19 @@ private fun DetailTopBar(
                     leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
                     onClick = { menuOpen = false; onEdit() },
                 )
-                DropdownMenuItem(
-                    text = { Text("Archive") },
-                    leadingIcon = { Icon(Icons.Rounded.Archive, contentDescription = null) },
-                    onClick = { menuOpen = false; onArchive() },
-                )
+                if (isArchived) {
+                    DropdownMenuItem(
+                        text = { Text("Restore") },
+                        leadingIcon = { Icon(Icons.Rounded.Unarchive, contentDescription = null) },
+                        onClick = { menuOpen = false; onRestore() },
+                    )
+                } else {
+                    DropdownMenuItem(
+                        text = { Text("Archive") },
+                        leadingIcon = { Icon(Icons.Rounded.Archive, contentDescription = null) },
+                        onClick = { menuOpen = false; onArchive() },
+                    )
+                }
                 DropdownMenuItem(
                     text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
                     leadingIcon = {
@@ -446,6 +462,7 @@ private fun MonthCard(
         MonthGrid(
             month = uiState.month,
             today = uiState.today,
+            weekStart = uiState.weekStart,
             modifier = Modifier.padding(top = 8.dp),
             cellFill = { date ->
                 when (statusByDate[date]) {

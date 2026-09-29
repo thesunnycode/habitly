@@ -40,7 +40,9 @@ private class FakeHabitDataSource(
     private val archived: List<HabitEntity> = emptyList(),
     private val logs: List<HabitLogEntity> = emptyList(),
 ) : HabitDataSource {
-    var achievementsCleared = false
+    var resetCalled = false
+    /** When set, the reset waits here, standing in for a slow database. */
+    var resetGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
     var lastIncremented: Pair<Long, LocalDate>? = null
     var lastSetStatus: Pair<Long, com.habitly.app.domain.CompletionStatus?>? = null
     private val flow = MutableStateFlow(habits)
@@ -72,7 +74,8 @@ private class FakeHabitDataSource(
     override fun observeAchievements(): Flow<List<AchievementEntity>> = MutableStateFlow(emptyList())
     override fun observeAchievementProgress(today: LocalDate): Flow<List<com.habitly.app.data.repository.AchievementProgress>> = MutableStateFlow(emptyList())
     override suspend fun reconcileAchievements() = emptySet<com.habitly.app.domain.AchievementType>()
-    override suspend fun clearAchievements() { achievementsCleared = true }
+    override fun observeHabitWithStats(habitId: Long, today: java.time.LocalDate): kotlinx.coroutines.flow.Flow<com.habitly.app.data.repository.HabitWithStats?> = kotlinx.coroutines.flow.flowOf(null)
+    override suspend fun resetAll() { resetGate?.await(); resetCalled = true }
     override fun observeAllHabits(): Flow<List<HabitEntity>> = flowOf(flow.value.map { it.habit } + archived)
     override fun observeAllLogs(): Flow<List<HabitLogEntity>> = flowOf(logs)
     override fun observeRecordsForHabit(habitId: Long): Flow<List<CompletionRecord>> = MutableStateFlow(emptyList())
@@ -93,7 +96,7 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun onResetAllDataDeletesEveryHabitIncludingArchivedAndClearsAwards() = runTest {
+    fun onResetAllDataResetsTheDatabaseAndClearsEveryHabitsNotifications() = runTest {
         val prefs = SettingsPrefs(ApplicationProvider.getApplicationContext())
         val fake = FakeHabitDataSource(listOf(habit(1), habit(2)), archived = listOf(habit(3).habit.copy(isArchived = true)))
         prefs.markBadgesSeen(setOf("STREAK_7"))
@@ -104,12 +107,45 @@ class SettingsViewModelTest {
         viewModel.onResetAllData()
         // The prefs writes run on DataStore's own IO thread, so wait for the flag rather than idling.
         viewModel.uiState.first { it.resetCompleted }
-        assertEquals(setOf(1L, 2L, 3L), fake.deleted.toSet())
-        assertTrue(fake.achievementsCleared)
+        assertTrue("habits, archived ones, logs and badges go in one reset", fake.resetCalled)
         assertEquals("every deleted habit's notifications are cleared", setOf(1L, 2L, 3L), cancelled.toSet())
         assertTrue("a fresh start celebrates badges again", prefs.seenBadgeKeys.first().isEmpty())
         assertEquals(null, prefs.lastCelebratedDate.first())
         assertTrue(viewModel.uiState.value.resetCompleted)
+    }
+
+    @Test
+    fun leavingSettingsMidResetStillFinishesTheReset() = runTest {
+        val prefs = SettingsPrefs(ApplicationProvider.getApplicationContext())
+        prefs.markBadgesSeen(setOf("STREAK_7"))
+        prefs.setLastCelebratedDate("2026-09-29")
+        val fake = FakeHabitDataSource(listOf(habit(1)))
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        fake.resetGate = gate
+        val cancelled = mutableListOf<Long>()
+        val store = androidx.lifecycle.ViewModelStore()
+        val viewModel = androidx.lifecycle.ViewModelProvider(
+            store,
+            object : androidx.lifecycle.ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                    SettingsViewModel(prefs, fake, notifications = { cancelled += it }) as T
+            },
+        )[SettingsViewModel::class.java]
+        advanceUntilIdle()
+
+        viewModel.onResetAllData()
+        advanceUntilIdle()
+        store.clear() // the user left Settings; viewModelScope is cancelled
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(fake.resetCalled)
+        assertEquals(listOf(1L), cancelled)
+        // The prefs half ran too. Wait for its last write: DataStore runs each edit on the caller's
+        // dispatcher, so ending the test mid-edit would wedge the shared store for later tests.
+        prefs.seenBadgeKeys.first { it.isEmpty() }
+        prefs.lastCelebratedDate.first { it == null }
     }
 
     @Test
