@@ -4,6 +4,7 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -47,7 +48,7 @@ fun OnboardingScreen(onFinished: () -> Unit) {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+    Column(modifier = Modifier.fillMaxSize().systemBarsPadding().padding(24.dp)) { // Temporary until onboarding is rebuilt.
         HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { page ->
             Column(
                 modifier = Modifier.fillMaxSize(),

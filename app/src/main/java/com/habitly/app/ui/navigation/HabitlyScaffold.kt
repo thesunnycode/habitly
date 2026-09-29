@@ -1,6 +1,7 @@
 package com.habitly.app.ui.navigation
 
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.CheckCircle
@@ -42,6 +43,8 @@ fun HabitlyScaffold(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        // Content padding carries only the bottom bar's height; each screen owns its status-bar inset.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             if (isTabRoute(currentRoute)) {
                 HabitlyNavBar(

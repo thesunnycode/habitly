@@ -1,6 +1,7 @@
 package com.habitly.app.ui.allhabits
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -66,7 +67,7 @@ fun AllHabitsScreen(
         // Only the bottom inset is taken from this Scaffold: the outer HabitlyScaffold already
         // applied the status-bar inset, and consuming it twice leaves a dead band above the title.
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(bottom = padding.calculateBottomPadding()),
+            modifier = Modifier.fillMaxSize().statusBarsPadding().padding(bottom = padding.calculateBottomPadding()), // Temporary until the Habits rebuild.
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 0.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {

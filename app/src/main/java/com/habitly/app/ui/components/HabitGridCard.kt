@@ -27,6 +27,7 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.habitly.app.ui.theme.HabitlyTheme
 import com.habitly.app.ui.theme.LocalHabitlyColors
@@ -48,7 +49,9 @@ fun HabitGridCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
-    weeks: Int = 16,
+    /** A fixed week count stretched to the card width; null (the default) packs [cellSize] cells instead. */
+    weeks: Int? = null,
+    cellSize: Dp = 10.dp,
     endDate: LocalDate = LocalDate.now(),
     weekStart: DayOfWeek = DayOfWeek.MONDAY,
     streakDays: Int = 0,
@@ -111,10 +114,16 @@ fun HabitGridCard(
             HabitGrid(
                 levels = levels,
                 colorHex = colorHex,
-                weeks = weeks,
+                weeks = weeks ?: 16,
+                cellSize = if (weeks == null) cellSize else null,
+                cellGap = 3.dp,
                 endDate = endDate,
                 weekStart = weekStart,
-                summary = "$name: ${levels.count { it.value >= 4 }} days done in the last $weeks weeks",
+                summary = { shown ->
+                    val from = GridMath.weekColumns(endDate, shown, weekStart).first()
+                    val doneDays = levels.count { (date, level) -> level >= 4 && !date.isBefore(from) && !date.isAfter(endDate) }
+                    "$name: $doneDays days done in the last $shown weeks"
+                },
             )
         }
     }

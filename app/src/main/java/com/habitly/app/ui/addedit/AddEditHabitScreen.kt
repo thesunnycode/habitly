@@ -3,6 +3,7 @@ package com.habitly.app.ui.addedit
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -78,7 +79,7 @@ fun AddEditHabitScreen(
     val selectedColor = parseColor(uiState.colorHex)
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().systemBarsPadding(), // Temporary until this screen is rebuilt: the shell no longer pads for system bars.
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {

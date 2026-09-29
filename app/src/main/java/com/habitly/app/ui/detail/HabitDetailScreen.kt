@@ -1,6 +1,7 @@
 package com.habitly.app.ui.detail
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -101,7 +102,7 @@ fun HabitDetailScreen(
     } ?: MaterialTheme.colorScheme.primary
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().systemBarsPadding(), // Temporary until this screen is rebuilt: the shell no longer pads for system bars.
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {

@@ -30,6 +30,7 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.temporal.TemporalAdjusters
+import kotlin.math.floor
 
 /** Pure calendar arithmetic for the grid components, kept out of composables so it can be unit tested. */
 object GridMath {
@@ -38,6 +39,14 @@ object GridMath {
         val lastStart = endDate.with(TemporalAdjusters.previousOrSame(weekStart))
         return (weeks - 1 downTo 0).map { lastStart.minusWeeks(it.toLong()) }
     }
+
+    /**
+     * How many week columns of [cellSize] fit in [availableWidth] with [gap] between them (all in the
+     * same unit): n cells need n * cell + (n - 1) * gap. Never less than one.
+     */
+    fun weeksThatFit(availableWidth: Float, cellSize: Float, gap: Float): Int =
+        // The small epsilon keeps an exact fit from flooring one short through float rounding.
+        maxOf(1, floor((availableWidth + gap) / (cellSize + gap) + 1e-4f).toInt())
 
     /** Leading nulls, every day of [month], trailing nulls up to a multiple of 7. */
     fun monthCells(month: YearMonth, weekStart: DayOfWeek): List<LocalDate?> {
@@ -51,9 +60,12 @@ object GridMath {
 }
 
 /**
- * Contribution grid: 7 rows (days of the week) by [weeks] columns, sized to fill the available width
- * and painted on one Canvas so a screen full of cards stays cheap.
- * A null [colorHex] uses the brand tones.
+ * Contribution grid: 7 rows (days of the week) by N week columns ending at [endDate], painted on one
+ * Canvas so a screen full of cards stays cheap. A null [colorHex] uses the brand tones.
+ *
+ * With [cellSize] set, cells are drawn at exactly that size and as many weeks as fit the width are
+ * shown, right-aligned so the newest week sits at the right edge. With [cellSize] null, [weeks]
+ * columns are stretched to fill the width. [summary] receives the number of weeks actually shown.
  */
 @Composable
 fun HabitGrid(
@@ -61,10 +73,11 @@ fun HabitGrid(
     colorHex: String?,
     modifier: Modifier = Modifier,
     weeks: Int = 16,
+    cellSize: Dp? = null,
     endDate: LocalDate = LocalDate.now(),
     weekStart: DayOfWeek = DayOfWeek.MONDAY,
     cellGap: Dp = 3.dp,
-    summary: String,
+    summary: (weeksShown: Int) -> String,
 ) {
     val extras = LocalHabitlyColors.current
     val scheme = MaterialTheme.colorScheme
@@ -81,29 +94,38 @@ fun HabitGrid(
     val palette = remember(tones, extras.gridEmpty) {
         listOf(extras.gridEmpty, tones.low, tones.mid, lerp(tones.mid, tones.full, 0.5f), tones.full)
     }
-    val columns = remember(endDate, weeks, weekStart) { GridMath.weekColumns(endDate, weeks, weekStart) }
     val todayBorder = scheme.onSurface
 
     BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
-        val cell = (maxWidth - cellGap * (weeks - 1)) / weeks
+        val shownWeeks = if (cellSize != null) {
+            GridMath.weeksThatFit(maxWidth.value, cellSize.value, cellGap.value)
+        } else {
+            weeks
+        }
+        val cell = cellSize ?: ((maxWidth - cellGap * (shownWeeks - 1)) / shownWeeks)
+        val gridWidth = cell * shownWeeks + cellGap * (shownWeeks - 1)
         val gridHeight = cell * 7 + cellGap * 6
+        val columns = remember(endDate, shownWeeks, weekStart) { GridMath.weekColumns(endDate, shownWeeks, weekStart) }
+        val description = summary(shownWeeks)
         Canvas(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(gridHeight)
-                .clearAndSetSemantics { contentDescription = summary },
+                .clearAndSetSemantics { contentDescription = description },
         ) {
             val cellPx = cell.toPx()
             val gapPx = cellGap.toPx()
+            // Right-align: any width left over after whole cells goes on the left edge.
+            val startX = (size.width - gridWidth.toPx()).coerceAtLeast(0f)
             val radius = CornerRadius(3.dp.toPx())
-            val size = Size(cellPx, cellPx)
+            val cellRect = Size(cellPx, cellPx)
             columns.forEachIndexed { c, weekFirst ->
                 for (r in 0 until 7) {
                     val date = weekFirst.plusDays(r.toLong())
                     if (date.isAfter(endDate)) continue
-                    val topLeft = Offset(c * (cellPx + gapPx), r * (cellPx + gapPx))
+                    val topLeft = Offset(startX + c * (cellPx + gapPx), r * (cellPx + gapPx))
                     val level = (levels[date] ?: 0).coerceIn(0, 4)
-                    drawRoundRect(palette[level], topLeft, size, radius)
+                    drawRoundRect(palette[level], topLeft, cellRect, radius)
                     if (date == endDate) {
                         val stroke = 1.dp.toPx()
                         drawRoundRect(
@@ -126,8 +148,8 @@ private fun HabitGridPreviewContent() {
     val levels = (0 until 112).associate { end.minusDays(it.toLong()) to (it * 7 % 5) }
     Surface(color = MaterialTheme.colorScheme.background) {
         Column(Modifier.padding(16.dp)) {
-            HabitGrid(levels, "#51CF66", endDate = end, summary = "Sample")
-            HabitGrid(levels, null, endDate = end, summary = "Brand", modifier = Modifier.padding(top = 12.dp))
+            HabitGrid(levels, "#51CF66", endDate = end, summary = { "Sample" })
+            HabitGrid(levels, null, endDate = end, cellSize = 10.dp, summary = { "Brand" }, modifier = Modifier.padding(top = 12.dp))
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.habitly.app.ui.achievements
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,7 +55,7 @@ fun AchievementsScreen(uiState: AchievementsUiState, onBack: () -> Unit = {}) {
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().systemBarsPadding(), // Temporary until this screen is rebuilt: the shell no longer pads for system bars.
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
