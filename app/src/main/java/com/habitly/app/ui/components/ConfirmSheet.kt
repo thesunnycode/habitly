@@ -2,6 +2,8 @@ package com.habitly.app.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,7 +19,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.habitly.app.ui.theme.HabitlyTheme
 import com.habitly.app.ui.theme.LocalHabitlyColors
 
 /** Confirmation as a bottom sheet: icon, explanation, a stacked confirm and cancel. */
@@ -31,9 +35,25 @@ fun ConfirmSheet(
     icon: ImageVector = Icons.Rounded.DeleteOutline,
     destructive: Boolean = true,
 ) {
+    HabitlySheet(onDismiss = onDismiss) {
+        ConfirmSheetContent(title, message, confirmLabel, onConfirm, onDismiss, icon, destructive)
+    }
+}
+
+/** The body of [ConfirmSheet]; separate so it can be previewed. */
+@Composable
+internal fun ConfirmSheetContent(
+    title: String,
+    message: String,
+    confirmLabel: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+    icon: ImageVector,
+    destructive: Boolean,
+) {
     val extras = LocalHabitlyColors.current
     val accent = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-    HabitlySheet(onDismiss = onDismiss) {
+    Column {
         Box(
             modifier = Modifier
                 .size(48.dp)
@@ -63,3 +83,21 @@ fun ConfirmSheet(
         SecondaryButton(text = "Cancel", onClick = onDismiss, modifier = Modifier.fillMaxWidth())
     }
 }
+
+@Composable
+private fun ConfirmSheetPreviewContent(destructive: Boolean) {
+    Box(Modifier.background(LocalHabitlyColors.current.surfaceRaised).padding(20.dp)) {
+        ConfirmSheetContent(
+            title = "Delete habit?",
+            message = "This removes the habit and its history.",
+            confirmLabel = "Delete",
+            onConfirm = {},
+            onDismiss = {},
+            icon = Icons.Rounded.DeleteOutline,
+            destructive = destructive,
+        )
+    }
+}
+
+@Preview @Composable private fun ConfirmSheetDarkPreview() = HabitlyTheme(darkTheme = true) { ConfirmSheetPreviewContent(true) }
+@Preview @Composable private fun ConfirmSheetLightPreview() = HabitlyTheme(darkTheme = false) { ConfirmSheetPreviewContent(true) }

@@ -4,7 +4,9 @@ import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,7 +16,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.ui.tooling.preview.Preview
+import com.habitly.app.ui.theme.HabitlyTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -180,3 +187,16 @@ fun MiniStatTile(
         )
     }
 }
+
+@Composable
+private fun StatTilePreviewContent() {
+    Surface(color = MaterialTheme.colorScheme.background) {
+        Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatTile("12", "Current streak", Modifier.weight(1f), icon = Icons.Rounded.LocalFireDepartment)
+            StatTile("87%", "Completion", Modifier.weight(1f), valueColor = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+@Preview @Composable private fun StatTileDarkPreview() = HabitlyTheme(darkTheme = true) { StatTilePreviewContent() }
+@Preview @Composable private fun StatTileLightPreview() = HabitlyTheme(darkTheme = false) { StatTilePreviewContent() }

@@ -36,7 +36,11 @@ import java.time.YearMonth
 import java.time.format.TextStyle
 import java.util.Locale
 
-/** A calendar month of square day cells. Colours are supplied by the caller; future days are inert. */
+/**
+ * A calendar month of square day cells with 4dp gaps. Colours are supplied by the caller; future days are inert.
+ * Cell size is width-driven: about 50dp on a 411dp phone and about 42dp on a 360dp phone, so on narrow
+ * phones the cells fall slightly short of the 48dp touch-target guideline (accepted trade-off for a 7-column month).
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MonthGrid(
@@ -56,8 +60,8 @@ fun MonthGrid(
     val primary = MaterialTheme.colorScheme.primary
     val onSurface = MaterialTheme.colorScheme.onSurface
     val cellShape = RoundedCornerShape(10.dp)
-    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             (0 until 7).forEach { i ->
                 val dow = weekStart.plus(i.toLong())
                 Text(
@@ -70,7 +74,7 @@ fun MonthGrid(
             }
         }
         cells.chunked(7).forEach { week ->
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 week.forEach { date ->
                     if (date == null) {
                         Box(Modifier.weight(1f).aspectRatio(1f))
