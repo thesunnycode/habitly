@@ -20,6 +20,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.habitly.app.ui.theme.HabitlyTheme
@@ -65,7 +67,11 @@ fun ScreenHeader(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Text(text = title, style = MaterialTheme.typography.headlineMedium)
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.semantics { heading() },
+        )
         if (subtitle != null) {
             Text(
                 text = subtitle,
