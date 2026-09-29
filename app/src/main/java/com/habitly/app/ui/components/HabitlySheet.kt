@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.BottomSheetDefaults
@@ -43,9 +42,9 @@ fun HabitlySheet(
 @Composable
 internal fun HabitlySheetBody(title: String?, content: @Composable ColumnScope.() -> Unit) {
     Column(
-        modifier = Modifier
-            .padding(start = 20.dp, end = 20.dp, bottom = 24.dp)
-            .navigationBarsPadding(),
+        // ModalBottomSheet already keeps its content clear of the navigation bar; padding for it again here
+        // would double the bottom inset.
+        modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
     ) {
         if (title != null) {
             Text(

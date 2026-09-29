@@ -17,7 +17,7 @@ private val STREAK_NUDGE_KEY = booleanPreferencesKey("streak_nudge_enabled")
 private val LAST_CELEBRATED_KEY = stringPreferencesKey("last_celebrated_date")
 private val SEEN_BADGES_KEY = stringSetPreferencesKey("seen_badge_keys")
 
-class SettingsPrefs(private val context: Context) {
+class SettingsPrefs(private val context: Context) : TodayPrefs {
 
     val themeMode = context.habitlyDataStore.data.map { prefs ->
         prefs[THEME_KEY]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.DARK
@@ -33,16 +33,16 @@ class SettingsPrefs(private val context: Context) {
         context.habitlyDataStore.edit { it[NOTIFICATIONS_KEY] = enabled }
     }
 
-    val userName = context.habitlyDataStore.data.map { it[USER_NAME_KEY] }
+    override val userName = context.habitlyDataStore.data.map { it[USER_NAME_KEY] }
 
-    val weekStart = context.habitlyDataStore.data.map { prefs ->
+    override val weekStart = context.habitlyDataStore.data.map { prefs ->
         prefs[WEEK_START_KEY]?.let { runCatching { java.time.DayOfWeek.valueOf(it) }.getOrNull() }
             ?: java.time.DayOfWeek.MONDAY
     }
 
     val streakNudgeEnabled = context.habitlyDataStore.data.map { it[STREAK_NUDGE_KEY] ?: true }
 
-    val lastCelebratedDate = context.habitlyDataStore.data.map { it[LAST_CELEBRATED_KEY] }
+    override val lastCelebratedDate = context.habitlyDataStore.data.map { it[LAST_CELEBRATED_KEY] }
 
     val seenBadgeKeys = context.habitlyDataStore.data.map { it[SEEN_BADGES_KEY] ?: emptySet() }
 
@@ -61,7 +61,7 @@ class SettingsPrefs(private val context: Context) {
         context.habitlyDataStore.edit { it[STREAK_NUDGE_KEY] = enabled }
     }
 
-    suspend fun setLastCelebratedDate(date: String) {
+    override suspend fun setLastCelebratedDate(date: String) {
         context.habitlyDataStore.edit { it[LAST_CELEBRATED_KEY] = date }
     }
 

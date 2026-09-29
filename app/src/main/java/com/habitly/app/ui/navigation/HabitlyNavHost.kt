@@ -16,6 +16,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.habitly.app.data.prefs.SettingsPrefs
+import com.habitly.app.domain.CompletionStatus
 import com.habitly.app.ui.achievements.AchievementsScreen
 import com.habitly.app.ui.achievements.AchievementsViewModel
 import com.habitly.app.ui.addedit.AddEditHabitScreen
@@ -27,8 +28,6 @@ import com.habitly.app.ui.calendar.CalendarViewModel
 import com.habitly.app.ui.components.NotificationPermissionPrompt
 import com.habitly.app.ui.detail.HabitDetailScreen
 import com.habitly.app.ui.detail.HabitDetailViewModel
-import com.habitly.app.ui.today.TodayScreen
-import com.habitly.app.ui.today.TodayViewModel
 import com.habitly.app.ui.insights.InsightsScreen
 import com.habitly.app.ui.onboarding.OnboardingScreen
 import com.habitly.app.ui.reminders.RemindersScreen
@@ -36,6 +35,8 @@ import com.habitly.app.ui.settings.SettingsScreen
 import com.habitly.app.ui.settings.SettingsViewModel
 import com.habitly.app.ui.stats.StatsScreen
 import com.habitly.app.ui.stats.StatsViewModel
+import com.habitly.app.ui.today.TodayScreen
+import com.habitly.app.ui.today.TodayViewModel
 import com.habitly.app.ui.you.YouScreen
 
 @Composable
@@ -53,17 +54,31 @@ fun HabitlyNavHost(
             })
         }
         composable(Destination.Today.route) {
-            val viewModel = habitlyViewModel { TodayViewModel(repository) }
+            val context = LocalContext.current
+            val prefs = remember { SettingsPrefs(context) }
+            val viewModel = habitlyViewModel { TodayViewModel(repository, prefs) }
             val uiState by viewModel.uiState.collectAsState()
-            NotificationPermissionPrompt(hasLoggedSomething = uiState.habits.any { it.isCompletedToday })
+            NotificationPermissionPrompt(
+                hasLoggedSomething = uiState.isViewingToday &&
+                    uiState.done.any { it.todayStatus == CompletionStatus.DONE },
+            )
             TodayScreen(
                 uiState = uiState,
-                onToggleHabit = viewModel::onToggleHabit,
+                onCheck = { habit ->
+                    if (habit.habit.targetCount != null) {
+                        viewModel.onIncrement(habit.habit.id)
+                    } else {
+                        viewModel.onToggleHabit(habit.habit.id)
+                    }
+                },
                 onSetStatus = viewModel::onSetStatus,
-                onAddHabit = { navController.navigate(Destination.AddEditHabit.createRoute()) },
                 onHabitClick = { id -> navController.navigate(Destination.HabitDetail.createRoute(id)) },
-                onSeeAllClick = { navController.navigate(Destination.Habits.createRoute()) },
                 onSelectDate = viewModel::onSelectDate,
+                onAddHabit = { navController.navigate(Destination.AddEditHabit.createRoute()) },
+                onTemplatePicked = { template ->
+                    navController.navigate(Destination.AddEditHabit.createRoute(template = template?.key))
+                },
+                onCelebrationShown = viewModel::onCelebrationShown,
                 windowWidthSizeClass = windowWidthSizeClass,
             )
         }

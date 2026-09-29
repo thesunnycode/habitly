@@ -1,6 +1,7 @@
 package com.habitly.app.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -82,11 +83,14 @@ private fun DayChip(
         completion > 0f -> lerp(scheme.primaryContainer, scheme.primary, 0.5f)
         else -> extras.gridEmpty
     }
+    val shape = RoundedCornerShape(14.dp)
     Column(
         modifier = modifier
             .heightIn(min = 64.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(shape)
             .background(if (isSelected) extras.primaryButton else scheme.surface)
+            // Today keeps a ring when another day is selected, so the way back is always visible.
+            .then(if (isToday && !isSelected) Modifier.border(1.5.dp, scheme.primary, shape) else Modifier)
             .selectable(selected = isSelected, role = Role.Tab, onClick = onClick)
             .padding(vertical = 8.dp)
             .clearAndSetSemantics {
@@ -118,7 +122,7 @@ private fun WeekStripPreviewContent() {
     Surface(color = MaterialTheme.colorScheme.background) {
         WeekStrip(
             days = days,
-            selected = today,
+            selected = today.minusDays(2),
             completion = { if (it.dayOfMonth % 3 == 0) 1f else if (it.dayOfMonth % 2 == 0) 0.5f else 0f },
             describe = { it.toString() },
             onSelect = {},

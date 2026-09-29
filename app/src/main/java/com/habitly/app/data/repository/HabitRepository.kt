@@ -10,6 +10,7 @@ import com.habitly.app.domain.AchievementEvaluator
 import com.habitly.app.domain.AchievementType
 import com.habitly.app.domain.CompletionRecord
 import com.habitly.app.domain.CompletionStatus
+import com.habitly.app.domain.ContributionLevels
 import com.habitly.app.domain.HabitSchedule
 import com.habitly.app.domain.StreakCalculator
 import kotlinx.coroutines.flow.Flow
@@ -22,6 +23,9 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 private val ISO = DateTimeFormatter.ISO_LOCAL_DATE
+
+/** How far back each habit's grid levels reach — enough for the 16-week Today card plus slack. */
+private const val LEVEL_WEEKS = 18L
 
 class HabitRepository(
     private val habitDao: HabitDao,
@@ -61,6 +65,10 @@ class HabitRepository(
                     lastBrokenDueDay = StreakCalculator.lastBrokenDueDay(records, today, schedule),
                     todayProgress = todayLog?.progress ?: 0,
                     schedule = schedule,
+                    levels = ContributionLevels.forHabit(
+                        records.filter { it.date >= today.minusWeeks(LEVEL_WEEKS) },
+                    ),
+                    todayNote = todayLog?.note,
                 )
             }
         }

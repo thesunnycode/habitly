@@ -169,7 +169,8 @@ fun HabitCard(
         HabitStatusSheet(
             habitName = habit.habit.name,
             current = habit.todayStatus,
-            onSelect = { status ->
+            // This legacy card's callers take no note; the Habits rebuild replaces it.
+            onSelect = { status, _ ->
                 showStatusSheet = false
                 onSetStatus(status)
             },

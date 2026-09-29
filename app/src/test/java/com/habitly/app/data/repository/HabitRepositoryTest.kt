@@ -241,4 +241,18 @@ class HabitRepositoryTest {
         repo.setReminder(id, null)
         assertNull(repo.getHabit(id)?.reminderTime)
     }
+
+    @Test
+    fun levelsCoverTheLast18WeeksWithADoneDayAtFullStrength() = runBlocking {
+        val id = repo.addHabit(newHabit("Read"))
+        val today = LocalDate.of(2026, 9, 29)
+        repo.setStatus(id, today.minusDays(1), CompletionStatus.DONE)
+        repo.setStatus(id, today.minusDays(2), CompletionStatus.SKIPPED)
+        repo.setStatus(id, today.minusWeeks(18).minusDays(1), CompletionStatus.DONE)
+        val levels = repo.observeHabitsWithStats(today).first().single().levels
+        assertEquals(4, levels[today.minusDays(1)])
+        assertEquals(1, levels[today.minusDays(2)])
+        assertNull(levels[today.minusWeeks(18).minusDays(1)])
+        assertEquals(2, levels.size)
+    }
 }

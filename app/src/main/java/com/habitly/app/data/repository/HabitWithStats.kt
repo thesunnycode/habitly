@@ -25,4 +25,8 @@ data class HabitWithStats(
     val todayProgress: Int = 0,
     /** The habit's own schedule, so callers can reason about which days it was ever due. */
     val schedule: com.habitly.app.domain.HabitSchedule = com.habitly.app.domain.HabitSchedule.DAILY,
+    /** Contribution-grid shading (0..4) per day for the last 18 weeks; days with nothing logged are absent. */
+    val levels: Map<java.time.LocalDate, Int> = emptyMap(),
+    /** The note recorded against today's status, if any. */
+    val todayNote: String? = null,
 )
