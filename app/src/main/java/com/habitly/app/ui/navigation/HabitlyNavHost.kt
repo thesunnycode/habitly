@@ -5,6 +5,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
@@ -84,16 +87,11 @@ fun HabitlyNavHost(
             route = Destination.Insights.route,
             arguments = listOf(navArgument("tab") { type = NavType.StringType; defaultValue = "stats" }),
         ) { backStackEntry ->
-            val tab = backStackEntry.arguments?.getString("tab") ?: "stats"
+            val initialTab = backStackEntry.arguments?.getString("tab") ?: "stats"
+            var tab by rememberSaveable(initialTab) { mutableStateOf(initialTab) }
             InsightsScreen(
                 tab = tab,
-                onTabChange = { next ->
-                    navController.navigate(Destination.Insights.createRoute(next)) {
-                        popUpTo(Destination.Today.route) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                },
+                onTabChange = { tab = it },
                 statsContent = {
                     val viewModel = habitlyViewModel { StatsViewModel(repository) }
                     val uiState by viewModel.uiState.collectAsState()
@@ -109,7 +107,12 @@ fun HabitlyNavHost(
         composable(Destination.You.route) {
             YouScreen(
                 onAwards = { navController.navigate(Destination.Awards.route) },
-                onArchived = { navController.navigate(Destination.Habits.createRoute("archived")) },
+                onArchived = {
+                    navController.navigate(Destination.Habits.createRoute("archived")) {
+                        popUpTo(Destination.Today.route) { saveState = true }
+                        launchSingleTop = true
+                    }
+                },
                 onSettings = { navController.navigate(Destination.Settings.route) },
             )
         }

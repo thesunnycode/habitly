@@ -14,6 +14,9 @@ class DestinationsTest {
         assertFalse(isTabRoute(Destination.Settings.route))
         assertFalse(isTabRoute(Destination.HabitDetail.route))
         assertTrue(isTabRoute(Destination.Today.route))
+        assertTrue(isTabRoute(Destination.Habits.route))
+        assertTrue(isTabRoute(Destination.Insights.route))
+        assertFalse(isTabRoute("habits"))
     }
     @Test fun `add edit route encodes id and template`() {
         assertEquals("add_edit_habit?habitId=-1&template=drink_water", Destination.AddEditHabit.createRoute(template = "drink_water"))
