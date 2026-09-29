@@ -39,4 +39,35 @@ class BadgeCelebrationLogicTest {
             newlyUnlocked(list, seen = setOf("FIRST_HABIT"), queued = setOf(AchievementType.EARLY_BIRD)),
         )
     }
+
+    @Test
+    fun aResetBadgeIsForgottenSoItCelebratesWhenReEarned() {
+        val handled = setOf(AchievementType.FIRST_HABIT, AchievementType.STREAK_3)
+        // After Reset all data: nothing stored, nothing seen, nothing queued.
+        val wiped = listOf(
+            AchievementProgress(AchievementType.FIRST_HABIT, unlockedAt = null, progress = 0),
+            AchievementProgress(AchievementType.STREAK_3, unlockedAt = null, progress = 0),
+        )
+        val kept = stillHandled(handled, wiped, seen = emptySet(), queued = emptySet())
+        assertEquals(emptySet<AchievementType>(), kept)
+
+        // The first habit after the reset earns FIRST_HABIT again, and it is new once more.
+        val reEarned = listOf(AchievementProgress(AchievementType.FIRST_HABIT, unlockedAt = 5L, progress = 1))
+        assertEquals(listOf(AchievementType.FIRST_HABIT), newlyUnlocked(reEarned, seen = emptySet(), queued = kept))
+    }
+
+    @Test
+    fun seenQueuedAndStoredBadgesStayHandled() {
+        val handled = setOf(AchievementType.FIRST_HABIT, AchievementType.STREAK_3, AchievementType.STREAK_7)
+        val progress = listOf(
+            AchievementProgress(AchievementType.FIRST_HABIT, unlockedAt = 1L, progress = 1),
+            AchievementProgress(AchievementType.STREAK_3, unlockedAt = 2L, progress = 3),
+            AchievementProgress(AchievementType.STREAK_7, unlockedAt = 3L, progress = 7),
+        )
+        // STREAK_7 was just dismissed: stored, but its "seen" write has not landed yet.
+        assertEquals(
+            handled,
+            stillHandled(handled, progress, seen = setOf("FIRST_HABIT"), queued = setOf(AchievementType.STREAK_3)),
+        )
+    }
 }

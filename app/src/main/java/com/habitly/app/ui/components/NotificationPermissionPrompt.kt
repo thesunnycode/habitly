@@ -26,6 +26,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.habitly.app.data.prefs.OnboardingPrefs
+import kotlinx.coroutines.delay
+
+/** Longer than the badge host's settle time plus an evaluation, so a fresh badge wins the race. */
+private const val PROMPT_SETTLE_MS = 1_000L
 
 /** The one explainer line for reminders, shared by this sheet and the Reminders permission card. */
 internal const val REMINDER_EXPLAINER = "Get a nudge at the time you chose — only if the habit isn't done yet."
@@ -39,15 +43,23 @@ internal const val REMINDER_EXPLAINER = "Get a nudge at the time you chose — o
  * first check-in the offer explains itself.
  */
 @Composable
-fun NotificationPermissionPrompt(hasLoggedSomething: Boolean, onTurnOnReminders: () -> Unit) {
+fun NotificationPermissionPrompt(
+    hasLoggedSomething: Boolean,
+    onTurnOnReminders: () -> Unit,
+    /** A celebration is on screen; the offer waits until it is dismissed rather than stacking on it. */
+    blocked: Boolean = false,
+) {
     val context = LocalContext.current.applicationContext
     val prefs = remember { OnboardingPrefs(context) }
     // Defaults to true so a slow first read cannot show the sheet spuriously.
     val alreadyShown by prefs.hasShownNotificationPrompt.collectAsState(initial = true)
     var showing by rememberSaveable { mutableStateOf(false) }
 
-    LaunchedEffect(hasLoggedSomething, alreadyShown) {
-        if (hasLoggedSomething && !alreadyShown) {
+    LaunchedEffect(hasLoggedSomething, alreadyShown, blocked) {
+        if (hasLoggedSomething && !alreadyShown && !blocked) {
+            // The same check-in may earn a badge a moment later; let it queue (which sets blocked and
+            // restarts this effect) before offering anything.
+            delay(PROMPT_SETTLE_MS)
             // Recorded as it opens, so a dismissed sheet is not offered again on every check-in.
             showing = true
             prefs.setNotificationPromptShown()

@@ -23,6 +23,7 @@ import com.habitly.app.domain.CompletionStatus
 import com.habitly.app.reminder.NotificationHelper
 import com.habitly.app.ui.achievements.AchievementsScreen
 import com.habitly.app.ui.achievements.AchievementsViewModel
+import com.habitly.app.ui.achievements.LocalBadgeCelebrationShowing
 import com.habitly.app.ui.addedit.AddEditHabitScreen
 import com.habitly.app.ui.addedit.AddEditHabitViewModel
 import com.habitly.app.ui.calendar.CalendarScreen
@@ -100,6 +101,7 @@ fun HabitlyNavHost(
                 hasLoggedSomething = uiState.isViewingToday &&
                     uiState.done.any { it.todayStatus == CompletionStatus.DONE },
                 onTurnOnReminders = { navController.navigate(Destination.Reminders.route) },
+                blocked = uiState.showCelebration || LocalBadgeCelebrationShowing.current,
             )
             CenteredContent(enabled = !twoPane) {
                 TodayScreen(

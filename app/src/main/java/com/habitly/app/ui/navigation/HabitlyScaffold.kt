@@ -21,6 +21,8 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -29,6 +31,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.habitly.app.data.prefs.SettingsPrefs
 import com.habitly.app.ui.achievements.BadgeCelebrationHost
+import com.habitly.app.ui.achievements.LocalBadgeCelebrationShowing
 import com.habitly.app.ui.components.HabitlyNavBar
 import com.habitly.app.ui.components.LocalSnackbarHostState
 import com.habitly.app.ui.components.NavItem
@@ -55,6 +58,7 @@ fun HabitlyScaffold(
     val currentRoute = backStackEntry?.destination?.route
     val snackbarHostState = remember { SnackbarHostState() }
     val onTab = isTabRoute(currentRoute)
+    var badgeShowing by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -84,7 +88,10 @@ fun HabitlyScaffold(
             }
         },
     ) { padding ->
-        CompositionLocalProvider(LocalSnackbarHostState provides snackbarHostState) { content(padding) }
+        CompositionLocalProvider(
+            LocalSnackbarHostState provides snackbarHostState,
+            LocalBadgeCelebrationShowing provides badgeShowing,
+        ) { content(padding) }
     }
 
     // Once, above every screen: a badge earned anywhere is celebrated wherever the user is — except
@@ -94,5 +101,6 @@ fun HabitlyScaffold(
         repository = rememberHabitRepository(),
         prefs = remember { SettingsPrefs(context.applicationContext) },
         suspended = currentRoute == Destination.Onboarding.route,
+        onShowingChange = { badgeShowing = it },
     )
 }

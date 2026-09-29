@@ -16,6 +16,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -47,6 +48,9 @@ import java.time.LocalDate
 
 private const val SETTLE_MS = 300L
 
+/** True while a badge celebration is on screen, so other one-off sheets can wait their turn. */
+val LocalBadgeCelebrationShowing = compositionLocalOf { false }
+
 /**
  * Keys to mark seen without a celebration on the very first collection, so someone who already
  * earned badges before this screen existed is not shown a string of dialogs. Badges already earned
@@ -68,12 +72,32 @@ internal fun newlyUnlocked(
     progress.filter { it.unlockedAt != null && it.type.name !in seen && it.type !in queued }.map { it.type }
 
 /**
+ * The handled badges still worth remembering: ones already seen, still queued, or still stored
+ * (a stored, unqueued badge is one whose "seen" write is in flight). A badge that is none of these
+ * was wiped by a reset, so forgetting it lets it celebrate again when it is re-earned.
+ */
+internal fun stillHandled(
+    handled: Set<AchievementType>,
+    progress: List<AchievementProgress>,
+    seen: Set<String>,
+    queued: Set<AchievementType>,
+): Set<AchievementType> {
+    val stored = progress.filter { it.unlockedAt != null }.map { it.type }.toSet()
+    return handled.filter { it.name in seen || it in queued || it in stored }.toSet()
+}
+
+/**
  * Watches for new badges from anywhere in the app and celebrates each one once, one at a time.
  * Placed once, in the app scaffold. While [suspended] new badges keep queueing but none is shown.
  */
 @OptIn(FlowPreview::class)
 @Composable
-fun BadgeCelebrationHost(repository: HabitDataSource, prefs: SettingsPrefs, suspended: Boolean = false) {
+fun BadgeCelebrationHost(
+    repository: HabitDataSource,
+    prefs: SettingsPrefs,
+    suspended: Boolean = false,
+    onShowingChange: (Boolean) -> Unit = {},
+) {
     val queue = remember { mutableStateListOf<AchievementType>() }
     // Everything ever queued this session, so a badge is not re-queued while its "seen" write is in flight.
     val handled = remember { mutableSetOf<AchievementType>() }
@@ -90,6 +114,7 @@ fun BadgeCelebrationHost(repository: HabitDataSource, prefs: SettingsPrefs, susp
             .collect { (progress, seen) ->
                 // Something else (demo seeding) may mark a queued badge seen before it is shown.
                 queue.removeAll { it.name in seen }
+                handled.retainAll(stillHandled(handled, progress, seen, queue.toSet()))
                 if (first) {
                     first = false
                     val silent = silentFirstRunKeys(progress, seen)
@@ -105,6 +130,8 @@ fun BadgeCelebrationHost(repository: HabitDataSource, prefs: SettingsPrefs, susp
             }
     }
 
+    val showing = !suspended && queue.isNotEmpty()
+    LaunchedEffect(showing) { onShowingChange(showing) }
     if (suspended) return
     val current = queue.firstOrNull() ?: return
     BadgeUnlockDialog(
