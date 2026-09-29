@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
@@ -193,8 +195,11 @@ class HabitRepository(
         return evaluateAchievements()
     }
 
+    override suspend fun reconcileAchievements(): Set<AchievementType> = evaluateAchievements()
+
     /** Unlocks every badge the current habits and logs have earned, returning the newly unlocked ones. */
-    private suspend fun evaluateAchievements(): Set<AchievementType> {
+    private suspend fun evaluateAchievements(): Set<AchievementType> = achievementLock.withLock {
+        // Read, decide and insert under one lock, so two check-ins racing cannot both store a badge.
         val habits = habitDao.observeAllHabits().first()
         val logs = logDao.observeAllLogs().first()
         val snapshot = withContext(Dispatchers.Default) { AchievementSnapshotBuilder.build(habits, logs, LocalDate.now()) }
@@ -207,6 +212,11 @@ class HabitRepository(
         newlyUnlocked.forEach { type ->
             achievementDao.insert(AchievementEntity(0, null, type.name, now))
         }
-        return newlyUnlocked
+        newlyUnlocked
+    }
+
+    companion object {
+        /** Process-wide: screens, workers and the celebration host each build their own repository. */
+        private val achievementLock = Mutex()
     }
 }

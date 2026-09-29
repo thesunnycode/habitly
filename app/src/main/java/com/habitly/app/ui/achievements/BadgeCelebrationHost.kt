@@ -39,9 +39,13 @@ import com.habitly.app.ui.components.Confetti
 import com.habitly.app.ui.components.PrimaryButton
 import com.habitly.app.ui.theme.HabitlyTheme
 import com.habitly.app.ui.theme.LocalReduceMotion
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+
+private const val SETTLE_MS = 300L
 
 /**
  * Keys to mark seen without a celebration on the very first collection, so someone who already
@@ -67,6 +71,7 @@ internal fun newlyUnlocked(
  * Watches for new badges from anywhere in the app and celebrates each one once, one at a time.
  * Placed once, in the app scaffold.
  */
+@OptIn(FlowPreview::class)
 @Composable
 fun BadgeCelebrationHost(repository: HabitDataSource, prefs: SettingsPrefs) {
     val queue = remember { mutableStateListOf<AchievementType>() }
@@ -75,13 +80,21 @@ fun BadgeCelebrationHost(repository: HabitDataSource, prefs: SettingsPrefs) {
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(repository, prefs) {
+        // Store anything earned before this build (or while nothing evaluated) first, so the tiles
+        // show it as unlocked and the first-run check below silences it rather than celebrating it.
+        repository.reconcileAchievements()
         var first = true
         combine(repository.observeAchievementProgress(LocalDate.now()), prefs.seenBadgeKeys) { progress, seen -> progress to seen }
+            // Let bursts of writes (demo seeding, then its "seen" mark) settle before deciding anything.
+            .debounce(SETTLE_MS)
             .collect { (progress, seen) ->
+                // Something else (demo seeding) may mark a queued badge seen before it is shown.
+                queue.removeAll { it.name in seen }
                 if (first) {
                     first = false
                     val silent = silentFirstRunKeys(progress, seen)
                     if (silent != null) {
+                        handled += AchievementType.entries.filter { it.name in silent }
                         prefs.markBadgesSeen(silent)
                         return@collect
                     }

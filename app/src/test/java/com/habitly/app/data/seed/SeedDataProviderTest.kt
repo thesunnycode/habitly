@@ -59,4 +59,26 @@ class SeedDataProviderTest {
         val habits = db.habitDao().observeAllHabits().first()
         assertEquals(1, habits.size)
     }
+
+    @Test
+    fun seedAndSilenceBadgesMarksEveryStoredBadgeSeen() = runBlocking {
+        var seen = emptySet<String>()
+        SeedDataProvider.seedAndSilenceBadges(repo, db.habitDao(), LocalDate.of(2026, 8, 22)) { seen = seen + it }
+        val stored = repo.observeAchievements().first().map { it.type }.toSet()
+        assertTrue(stored.isNotEmpty())
+        assertEquals(stored, seen)
+    }
+
+    @Test
+    fun seedAndSilenceBadgesMarksNothingWhenNothingWasSeeded() = runBlocking {
+        repo.addHabit(
+            com.habitly.app.data.local.HabitEntity(
+                0, "Existing", "star", "#000000", "Custom",
+                com.habitly.app.domain.FrequencyType.DAILY, null, null, null, 0L, false,
+            )
+        )
+        var called = false
+        SeedDataProvider.seedAndSilenceBadges(repo, db.habitDao(), LocalDate.of(2026, 8, 22)) { called = true }
+        assertEquals(false, called)
+    }
 }

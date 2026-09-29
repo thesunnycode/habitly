@@ -28,8 +28,23 @@ object SeedDataProvider {
         return pattern
     }
 
-    suspend fun seedIfEmpty(repository: HabitRepository, habitDao: HabitDao, today: LocalDate) {
-        if (habitDao.observeAllHabits().first().isNotEmpty()) return
+    /**
+     * Seeds demo data and then marks every badge it unlocked as seen, so demo history does not set
+     * off a run of celebrations. [markSeen] is normally `SettingsPrefs::markBadgesSeen`.
+     */
+    suspend fun seedAndSilenceBadges(
+        repository: HabitRepository,
+        habitDao: HabitDao,
+        today: LocalDate,
+        markSeen: suspend (Set<String>) -> Unit,
+    ) {
+        if (!seedIfEmpty(repository, habitDao, today)) return
+        markSeen(repository.observeAchievements().first().map { it.type }.toSet())
+    }
+
+    /** Returns whether anything was seeded: false when habits already exist. */
+    suspend fun seedIfEmpty(repository: HabitRepository, habitDao: HabitDao, today: LocalDate): Boolean {
+        if (habitDao.observeAllHabits().first().isNotEmpty()) return false
 
         SEED_HABITS.forEachIndexed { index, seed ->
             val habitId = repository.addHabit(
@@ -54,5 +69,6 @@ object SeedDataProvider {
                 }
             }
         }
+        return true
     }
 }

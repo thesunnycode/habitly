@@ -104,6 +104,16 @@ internal fun BadgeProgressBar(fraction: Float, height: Dp, modifier: Modifier = 
 
 internal fun AchievementProgress.fraction(): Float = progress.toFloat() / type.target
 
+/**
+ * "12 of 30", or "12/30" when [compact]. The month badge counts percent, so it reads "62% of 80%"
+ * (compact "62% / 80%") rather than a bare "62/80".
+ */
+internal fun AchievementProgress.progressLabel(compact: Boolean = false): String = when {
+    type == AchievementType.MONTH_80 -> if (compact) "$progress% / ${type.target}%" else "$progress% of ${type.target}%"
+    compact -> "$progress/${type.target}"
+    else -> "$progress of ${type.target}"
+}
+
 private val LONG_DATE = DateTimeFormatter.ofPattern("d MMMM yyyy")
 
 internal fun formatUnlockDate(millis: Long, formatter: DateTimeFormatter): String =
@@ -141,7 +151,7 @@ fun BadgeSheet(item: AchievementProgress, onDismiss: () -> Unit) {
                 BadgeProgressBar(item.fraction(), height = 6.dp, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "${item.progress} of ${item.type.target}",
+                    text = item.progressLabel(),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

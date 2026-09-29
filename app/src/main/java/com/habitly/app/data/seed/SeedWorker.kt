@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.habitly.app.data.local.AppDatabase
+import com.habitly.app.data.prefs.SettingsPrefs
 import com.habitly.app.data.repository.HabitRepository
 import java.time.LocalDate
 
@@ -19,7 +20,8 @@ class SeedWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
     override suspend fun doWork(): Result {
         val db = AppDatabase.getInstance(applicationContext)
         val repository = HabitRepository(db.habitDao(), db.habitLogDao(), db.achievementDao())
-        SeedDataProvider.seedIfEmpty(repository, db.habitDao(), LocalDate.now())
+        val prefs = SettingsPrefs(applicationContext)
+        SeedDataProvider.seedAndSilenceBadges(repository, db.habitDao(), LocalDate.now(), prefs::markBadgesSeen)
         return Result.success()
     }
 }

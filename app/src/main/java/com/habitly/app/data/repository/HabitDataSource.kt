@@ -37,6 +37,9 @@ interface HabitDataSource {
 
     /** Every badge with its unlock time (null while locked) and progress towards its target. */
     fun observeAchievementProgress(today: LocalDate): Flow<List<AchievementProgress>>
+
+    /** Stores every badge already earned but not yet unlocked, returning the ones it stored. */
+    suspend fun reconcileAchievements(): Set<AchievementType>
     fun observeRecordsForHabit(habitId: Long): Flow<List<CompletionRecord>>
 }
 

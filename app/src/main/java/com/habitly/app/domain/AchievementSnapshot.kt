@@ -37,6 +37,9 @@ object AchievementSnapshotBuilder {
         }
         val startOf = habits.associate { it.id to Instant.ofEpochMilli(it.createdAt).atZone(zone).toLocalDate() }
         val kept = setOf(CompletionStatus.DONE, CompletionStatus.SKIPPED)
+        // An archived habit is no longer asked of the user, so it must not make a day or month imperfect.
+        // Its logs still count wherever the logs themselves are what is measured.
+        val active = habits.filter { !it.isArchived }
 
         val bestStreak = habits.maxOf { h ->
             StreakCalculator.bestStreak((byHabit[h.id] ?: emptyList()).map { CompletionRecord(LocalDate.parse(it.date), it.status) })
@@ -47,7 +50,7 @@ object AchievementSnapshotBuilder {
         var perfectDays = 0; var run = 0; var longestRun = 0
         var d = first
         while (!d.isAfter(today)) {
-            val due = habits.filter { !startOf.getValue(it.id).isAfter(d) && schedules.getValue(it.id).isDue(d) }
+            val due = active.filter { !startOf.getValue(it.id).isAfter(d) && schedules.getValue(it.id).isDue(d) }
             val perfect = due.isNotEmpty() && due.all { statusOf[it.id to d] in kept } &&
                 due.any { statusOf[it.id to d] == CompletionStatus.DONE }
             if (perfect) { perfectDays++; run++; longestRun = maxOf(longestRun, run) } else if (d != today) run = 0
@@ -61,7 +64,7 @@ object AchievementSnapshotBuilder {
             var due = 0; var done = 0
             for (day in 1..month.lengthOfMonth()) {
                 val date = month.atDay(day)
-                habits.filter { !startOf.getValue(it.id).isAfter(date) && schedules.getValue(it.id).isDue(date) }.forEach {
+                active.filter { !startOf.getValue(it.id).isAfter(date) && schedules.getValue(it.id).isDue(date) }.forEach {
                     due++; if (statusOf[it.id to date] in kept) done++
                 }
             }
@@ -71,7 +74,7 @@ object AchievementSnapshotBuilder {
 
         // Comebacks: a done day after a miss that ended a run of at least 3.
         var comebacks = 0
-        habits.forEach { h ->
+        active.forEach { h ->
             var streak = 0; var armed = false
             var day = startOf.getValue(h.id)
             while (day.isBefore(today)) {

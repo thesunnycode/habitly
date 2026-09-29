@@ -50,6 +50,19 @@ class AchievementSnapshotTest {
         val s = AchievementSnapshotBuilder.build(listOf(habit(1)), logs, start.plusDays(5), zone)
         assertEquals(1, s.comebacks)
     }
+    @Test fun archivedHabitsAreNeverDue() {
+        val logs = (0L..6L).map { log(1, start.plusDays(it)) } + log(2, start, CompletionStatus.SKIPPED, 12)
+        val habits = listOf(habit(1), habit(2, archived = true))
+        val s = AchievementSnapshotBuilder.build(habits, logs, start.plusDays(7), zone)
+        assertEquals(7, s.perfectDays); assertEquals(7, s.longestPerfectRun)
+        // Still counted where the logs themselves are what matters.
+        assertEquals(2, s.habitsEver); assertEquals(7, s.totalCheckIns); assertEquals(1, s.restDays)
+    }
+    @Test fun archivedHabitsDoNotDragDownTheMonth() {
+        val logs = (0L until 31L).map { log(1, start.plusDays(it)) }
+        val s = AchievementSnapshotBuilder.build(listOf(habit(1), habit(2, archived = true)), logs, LocalDate.of(2026, 9, 29), zone)
+        assertEquals(100, s.bestMonthPercent)
+    }
     @Test fun habitCountsSeparateActiveFromEver() {
         val s = AchievementSnapshotBuilder.build(listOf(habit(1), habit(2, archived = true)), emptyList(), start, zone)
         assertEquals(2, s.habitsEver); assertEquals(1, s.activeHabits)

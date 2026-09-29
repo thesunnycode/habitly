@@ -6,6 +6,9 @@ import com.habitly.app.data.local.AppDatabase
 import com.habitly.app.domain.AchievementType
 import com.habitly.app.domain.CompletionStatus
 import com.habitly.app.domain.FrequencyType
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -77,6 +80,38 @@ class HabitRepositoryTest {
         val stored = repo.observeAchievements().first()
         assertEquals(listOf(AchievementType.FIRST_HABIT.name), stored.map { it.type })
         assertNull(stored.single().habitId)
+    }
+
+    /** Writes a habit with three done days straight to the DAOs, so nothing has been evaluated yet. */
+    private suspend fun insertUnevaluatedHistory() {
+        val id = db.habitDao().insert(newHabit())
+        (20..22).forEach { day ->
+            db.habitLogDao().upsert(
+                com.habitly.app.data.local.HabitLogEntity(0, id, "2026-08-$day", CompletionStatus.DONE, 1L, null)
+            )
+        }
+    }
+
+    @Test
+    fun reconcileStoresBadgesEarnedButNeverUnlocked() = runBlocking {
+        insertUnevaluatedHistory()
+        val stored = repo.reconcileAchievements()
+        assertTrue(AchievementType.FIRST_HABIT in stored && AchievementType.STREAK_3 in stored)
+        assertTrue(repo.reconcileAchievements().isEmpty())
+    }
+
+    @Test
+    fun concurrentEvaluationsStoreEachBadgeOnce() = runBlocking {
+        insertUnevaluatedHistory()
+        // Two repositories, as screens and workers each build their own.
+        val other = HabitRepository(db.habitDao(), db.habitLogDao(), db.achievementDao())
+        val jobs = List(4) { i ->
+            async(Dispatchers.IO) { (if (i % 2 == 0) repo else other).reconcileAchievements() }
+        }
+        jobs.awaitAll()
+        val types = repo.observeAchievements().first().map { it.type }
+        assertEquals(types.distinct(), types)
+        assertTrue(AchievementType.STREAK_3.name in types)
     }
 
     @Test
