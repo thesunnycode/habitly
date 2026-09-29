@@ -29,8 +29,9 @@ private fun habit(
     name: String,
     currentStreak: Int = 0,
     bestStreak: Int = 0,
+    colorHex: String = "#6B9080",
 ) = HabitWithStats(
-    habit = HabitEntity(id, name, "star", "#6B9080", "General", FrequencyType.DAILY, null, null, null, 0L, false),
+    habit = HabitEntity(id, name, "star", colorHex, "General", FrequencyType.DAILY, null, null, null, 0L, false),
     currentStreak = currentStreak,
     bestStreak = bestStreak,
     completionRate = 0f,
@@ -284,5 +285,150 @@ class StatsViewModelTest {
         val bars = vm.uiState.value.periodBars
         assertEquals(7, bars.size)
         assertEquals(1f, bars.last(), 0.001f)
+    }
+
+    @Test
+    fun chipsFollowRepositoryOrderWithEachHabitsColour() = runTest {
+        val vm = viewModel(
+            listOf(habit(2, "Read", colorHex = "#222222"), habit(1, "Water", colorHex = "#111111")),
+            mapOf(1L to done(TODAY), 2L to done(TODAY)),
+        )
+        advanceUntilIdle()
+        assertEquals(
+            listOf(HabitChip(2, "Read", "#222222"), HabitChip(1, "Water", "#111111")),
+            vm.uiState.value.chips,
+        )
+    }
+
+    @Test
+    fun theWindowIsTheRollingPeriodOldestFirstEndingToday() = runTest {
+        val vm = viewModel(listOf(habit(1, "Water")), mapOf(1L to done(TODAY)))
+        advanceUntilIdle()
+        assertEquals((6 downTo 0).map { TODAY.minusDays(it.toLong()) }, vm.uiState.value.window)
+
+        vm.onPeriodChange(StatsPeriod.MONTH)
+        advanceUntilIdle()
+        val month = vm.uiState.value.window
+        assertEquals(30, month.size)
+        assertEquals(TODAY.minusDays(29), month.first())
+        assertEquals(TODAY, month.last())
+    }
+
+    @Test
+    fun dayStacksListOneSlicePerHabitKeptOrRestedInChipOrder() = runTest {
+        val yesterday = TODAY.minusDays(1)
+        val records = mapOf(
+            1L to done(TODAY, yesterday),
+            2L to listOf(CompletionRecord(TODAY, CompletionStatus.SKIPPED)),
+            3L to done(TODAY) + CompletionRecord(yesterday, CompletionStatus.MISSED),
+        )
+        val vm = viewModel(
+            listOf(
+                habit(3, "Gym", colorHex = "#333333"),
+                habit(1, "Water", colorHex = "#111111"),
+                habit(2, "Read", colorHex = "#222222"),
+            ),
+            records,
+        )
+        advanceUntilIdle()
+        val stacks = vm.uiState.value.dayStacks
+        assertEquals(
+            listOf(
+                DaySlice("#333333", rested = false),
+                DaySlice("#111111", rested = false),
+                DaySlice("#222222", rested = true),
+            ),
+            stacks[TODAY],
+        )
+        assertEquals(listOf(DaySlice("#111111", rested = false)), stacks[yesterday])
+        assertTrue(stacks[TODAY.minusDays(2)].isNullOrEmpty())
+    }
+
+    @Test
+    fun filteringToAHabitSwitchesTheFiguresToThatHabit() = runTest {
+        val records = mapOf(
+            // Water: kept all week, plus one rest day earlier on.
+            1L to done(*daysBack(TODAY, 7).toTypedArray()) +
+                CompletionRecord(TODAY.minusDays(9), CompletionStatus.SKIPPED),
+            // Gym: kept one day of the week.
+            2L to done(TODAY.minusDays(6)),
+        )
+        val vm = viewModel(
+            listOf(
+                habit(1, "Water", currentStreak = 7, bestStreak = 7),
+                habit(2, "Gym", currentStreak = 0, bestStreak = 3),
+            ),
+            records,
+        )
+        advanceUntilIdle()
+        val all = vm.uiState.value
+        assertNull(all.selectedHabitId)
+        assertEquals(7, all.currentStreak)
+        assertEquals(8, all.totalCompletions)
+        assertTrue(all.habitLevels.isEmpty())
+
+        vm.onHabitFilterChange(2L)
+        advanceUntilIdle()
+        val gym = vm.uiState.value
+        assertEquals(2L, gym.selectedHabitId)
+        assertEquals(1f / 7, gym.completionRate, 0.001f) // one kept of its seven due days
+        assertTrue(gym.completionRate < all.completionRate)
+        assertEquals(0, gym.currentStreak)
+        assertEquals(3, gym.bestStreak)
+        assertEquals(1, gym.totalCompletions)
+        assertEquals(0, gym.restDays)
+        assertEquals(mapOf(TODAY.minusDays(6) to 4), gym.habitLevels)
+        assertTrue(gym.dayStacks.isEmpty())
+
+        vm.onHabitFilterChange(1L)
+        advanceUntilIdle()
+        val water = vm.uiState.value
+        assertEquals(7, water.currentStreak)
+        assertEquals(7, water.totalCompletions)
+        assertEquals(1, water.restDays)
+        assertEquals(1, water.habitLevels[TODAY.minusDays(9)])
+
+        vm.onHabitFilterChange(null)
+        advanceUntilIdle()
+        assertEquals(all.completionRate, vm.uiState.value.completionRate, 0.001f)
+        assertEquals(8, vm.uiState.value.totalCompletions)
+    }
+
+    @Test
+    fun theFilterSurvivesAPeriodChange() = runTest {
+        val records = mapOf(1L to done(*daysBack(TODAY, 7).toTypedArray()), 2L to done(TODAY))
+        val vm = viewModel(listOf(habit(1, "Water"), habit(2, "Gym")), records)
+        advanceUntilIdle()
+        vm.onHabitFilterChange(2L)
+        advanceUntilIdle()
+        vm.onPeriodChange(StatsPeriod.MONTH)
+        advanceUntilIdle()
+        assertEquals(2L, vm.uiState.value.selectedHabitId)
+        assertEquals(1, vm.uiState.value.totalCompletions)
+    }
+
+    @Test
+    fun filteringToAnIdThatIsNotActiveFallsBackToAll() = runTest {
+        val records = mapOf(1L to done(TODAY), 2L to done(TODAY))
+        val vm = viewModel(listOf(habit(1, "Water"), habit(2, "Gym")), records)
+        advanceUntilIdle()
+        vm.onHabitFilterChange(99L)
+        advanceUntilIdle()
+        assertNull(vm.uiState.value.selectedHabitId)
+        assertEquals(2, vm.uiState.value.totalCompletions)
+    }
+
+    @Test
+    fun verdictsAreSortedByRateDescending() = runTest {
+        // Established: 5 of 7 in both weeks (going well, ~71%). New: 3 days old, all kept (100%,
+        // not judged yet). Rate decides the order, not the group.
+        val established = daysBack(TODAY, 5) + daysBack(TODAY.minusDays(7), 5)
+        val records = mapOf(
+            1L to done(*established.toTypedArray()),
+            2L to done(*daysBack(TODAY, 3).toTypedArray()),
+        )
+        val vm = viewModel(listOf(habit(1, "Established"), habit(2, "New")), records)
+        advanceUntilIdle()
+        assertEquals(listOf("New", "Established"), vm.uiState.value.habitVerdicts.map { it.name })
     }
 }

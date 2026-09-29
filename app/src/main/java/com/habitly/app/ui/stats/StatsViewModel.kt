@@ -65,7 +65,10 @@ class StatsViewModel(
                 // This screen aggregates every record of every habit over months. That is far too
                 // much work for the main thread — doing it there froze the app into an ANR the
                 // first time the screen was opened with real seeded history.
-                .map { pairs -> pairs to build(pairs, _uiState.value.period) }
+                .map { pairs ->
+                    val current = _uiState.value
+                    pairs to build(pairs, current.period, current.selectedHabitId)
+                }
                 .flowOn(computeDispatcher)
                 .collect { (pairs, state) ->
                     lastPairs = pairs
@@ -77,8 +80,21 @@ class StatsViewModel(
     fun onPeriodChange(period: StatsPeriod) {
         // Optimistic: flip the selector immediately, then recompute off the main thread.
         _uiState.value = _uiState.value.copy(period = period)
+        recompute()
+    }
+
+    /** Filters the figures to one habit, or back to all habits with null. */
+    fun onHabitFilterChange(id: Long?) {
+        _uiState.value = _uiState.value.copy(selectedHabitId = id)
+        recompute()
+    }
+
+    private fun recompute() {
+        val current = _uiState.value
         viewModelScope.launch {
-            val next = withContext(computeDispatcher) { build(lastPairs, period) }
+            val next = withContext(computeDispatcher) {
+                build(lastPairs, current.period, current.selectedHabitId)
+            }
             _uiState.value = next
         }
     }
@@ -86,9 +102,17 @@ class StatsViewModel(
     private fun build(
         pairs: List<Pair<HabitWithStats, List<CompletionRecord>>>,
         period: StatsPeriod,
+        habitId: Long?,
     ): StatsUiState {
         val now = today()
         if (pairs.isEmpty()) return StatsUiState(period = period, today = now, isLoading = false)
+
+        // A filter to a habit that is no longer active (archived, deleted) falls back to all.
+        val selected = habitId?.let { id -> pairs.firstOrNull { it.first.habit.id == id } }
+        // The habits the headline figures describe: the selected one, or every habit.
+        val scope = selected?.let { listOf(it) } ?: pairs
+        val scopeRecords = scope.flatMap { it.second }
+        val window = barDays(period, now)
 
         val allRecords = pairs.flatMap { it.second }
         val earliest = allRecords.minOfOrNull { it.date }
@@ -97,9 +121,9 @@ class StatsViewModel(
         val periodStart = now.minusDays((period.days - 1).toLong())
         val previousStart = periodStart.minusDays(period.days.toLong())
 
-        val rate = rateOver(pairs, periodStart, now)
+        val rate = rateOver(scope, periodStart, now)
         val previousRate = if (daysOfHistory >= period.days * 2) {
-            rateOver(pairs, previousStart, periodStart.minusDays(1))
+            rateOver(scope, previousStart, periodStart.minusDays(1))
         } else {
             null
         }
@@ -121,11 +145,11 @@ class StatsViewModel(
         }
 
         val byWeekday = WeekdayBreakdown.completionsByWeekday(allRecords)
-        val currentStreak = pairs.maxOfOrNull { it.first.currentStreak } ?: 0
-        val bestStreak = pairs.maxOfOrNull { it.first.bestStreak } ?: 0
+        val currentStreak = scope.maxOfOrNull { it.first.currentStreak } ?: 0
+        val bestStreak = scope.maxOfOrNull { it.first.bestStreak } ?: 0
 
         val insights = InsightEngine.insights(
-            histories = pairs.map { (stats, records) ->
+            histories = scope.map { (stats, records) ->
                 HabitHistory(
                     name = stats.habit.name,
                     records = records,
@@ -139,6 +163,13 @@ class StatsViewModel(
 
         return StatsUiState(
             period = period,
+            selectedHabitId = selected?.first?.habit?.id,
+            chips = pairs.map { (stats, _) ->
+                HabitChip(stats.habit.id, stats.habit.name, stats.habit.colorHex)
+            },
+            window = window,
+            dayStacks = if (selected == null) dayStacks(pairs, window) else emptyMap(),
+            habitLevels = selected?.let { ContributionLevels.forHabit(it.second) } ?: emptyMap(),
             insights = insights,
             completionRate = rate,
             previousRate = previousRate,
@@ -148,8 +179,9 @@ class StatsViewModel(
             todayIndex = 6,
             currentStreak = currentStreak,
             bestStreak = bestStreak,
-            totalCompletions = allRecords.count { it.status == CompletionStatus.DONE },
+            totalCompletions = scopeRecords.count { it.status == CompletionStatus.DONE },
             perfectDays = perfectDays(pairs, now),
+            restDays = scopeRecords.count { it.status == CompletionStatus.SKIPPED },
             isPersonalBest = currentStreak > 0 && currentStreak >= bestStreak,
             completionsByWeekday = byWeekday,
             weakestWeekday = WeekdayBreakdown.weakestWeekday(byWeekday),
@@ -159,8 +191,8 @@ class StatsViewModel(
                     .groupingBy { it.date }.eachCount(),
                 habitCount = pairs.size,
             ),
-            periodBars = barDays(period, now).map { rateOver(pairs, it, it) },
-            periodBarLabels = barDays(period, now).map { day ->
+            periodBars = window.map { rateOver(pairs, it, it) },
+            periodBarLabels = window.map { day ->
                 if (period == StatsPeriod.WEEK) {
                     day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()).take(1)
                 } else {
@@ -176,6 +208,29 @@ class StatsViewModel(
     private fun barDays(period: StatsPeriod, now: LocalDate): List<LocalDate> =
         if (period == StatsPeriod.YEAR) emptyList()
         else (period.days - 1 downTo 0).map { now.minusDays(it.toLong()) }
+
+    /**
+     * Per day of the window, one slice per habit kept (or rested) that day, in repository order so
+     * the colours sit in the same order as the chips. Days with nothing get no entry.
+     */
+    private fun dayStacks(
+        pairs: List<Pair<HabitWithStats, List<CompletionRecord>>>,
+        window: List<LocalDate>,
+    ): Map<LocalDate, List<DaySlice>> {
+        val index = pairs.map { (stats, records) ->
+            stats.habit.colorHex to records.associate { it.date to it.status }
+        }
+        return window.mapNotNull { day ->
+            val slices = index.mapNotNull { (colorHex, byDate) ->
+                when (byDate[day]) {
+                    CompletionStatus.DONE -> DaySlice(colorHex, rested = false)
+                    CompletionStatus.SKIPPED -> DaySlice(colorHex, rested = true)
+                    else -> null
+                }
+            }
+            if (slices.isEmpty()) null else day to slices
+        }.toMap()
+    }
 
     /** Share of due days across all habits that were kept, over a window. */
     private fun rateOver(
@@ -243,7 +298,7 @@ class StatsViewModel(
     /**
      * Sorts habits into going well, slipping, or not judged yet. Borrowed from Apple Fitness's
      * Trends tab, where the grouping carries the message and "not enough data" is a named state
-     * rather than a blank row.
+     * rather than a blank row. The list is ordered by rate, highest first; ties fall back to group.
      */
     private fun verdicts(
         pairs: List<Pair<HabitWithStats, List<CompletionRecord>>>,
@@ -283,7 +338,7 @@ class StatsViewModel(
                 group = group,
                 spark = sparkFor(single, now),
             )
-        }.sortedWith(compareBy({ it.group.ordinal }, { -it.rate }))
+        }.sortedWith(compareByDescending<HabitVerdict> { it.rate }.thenBy { it.group.ordinal })
     }
 
     /** Six weekly rates, oldest first — enough to show a direction, not enough to invite reading. */
