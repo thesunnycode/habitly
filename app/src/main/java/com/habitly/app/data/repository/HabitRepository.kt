@@ -24,8 +24,8 @@ import java.time.format.DateTimeFormatter
 
 private val ISO = DateTimeFormatter.ISO_LOCAL_DATE
 
-/** How far back each habit's grid levels reach — enough for the 16-week Today card plus slack. */
-private const val LEVEL_WEEKS = 18L
+/** How far back each habit's grid levels reach: a full year, covering the dense Today card, Detail and a year view. */
+private const val LEVEL_WEEKS = 53L
 
 class HabitRepository(
     private val habitDao: HabitDao,
