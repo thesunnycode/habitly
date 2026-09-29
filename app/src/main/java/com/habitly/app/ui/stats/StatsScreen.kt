@@ -2,15 +2,17 @@ package com.habitly.app.ui.stats
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,23 +20,27 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.LocalFireDepartment
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.automirrored.rounded.TrendingDown
+import androidx.compose.material.icons.automirrored.rounded.TrendingUp
+import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.EmojiEvents
+import androidx.compose.material.icons.rounded.LocalFireDepartment
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.TaskAlt
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
@@ -42,124 +48,326 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.habitly.app.domain.Insight
-import com.habitly.app.ui.components.HabitGrid
-import com.habitly.app.ui.components.HeroCard
-import com.habitly.app.ui.components.MiniBars
-import com.habitly.app.ui.components.PeriodBars
+import com.habitly.app.domain.InsightKind
+import com.habitly.app.ui.components.IconTile
 import com.habitly.app.ui.components.SectionLabel
-import com.habitly.app.ui.components.Sparkline
+import com.habitly.app.ui.components.SegmentedPill
 import com.habitly.app.ui.components.StatTile
+import com.habitly.app.ui.theme.HabitlyTheme
 import com.habitly.app.ui.theme.LocalHabitlyColors
+import com.habitly.app.ui.theme.LocalReduceMotion
 import com.habitly.app.ui.theme.habitTones
 import java.time.DayOfWeek
-import java.time.format.TextStyle
-import java.util.Locale
+import java.time.LocalDate
 
-/** Each card says how much history it needs, so a thin dataset never renders as a broken chart. */
-private const val DAYS_FOR_WEEKDAYS = 14
+/** The habit list judges each habit against its own history, which needs a week of it. */
 private const val DAYS_FOR_VERDICTS = 7
 
 private val CARD_SHAPE = RoundedCornerShape(20.dp)
+private val SCREEN_MARGIN = 20.dp
 
-private const val YEAR_WEEKS = 52
-private val YEAR_CELL = 8.dp
-private val YEAR_GAP = 2.dp
-
+/**
+ * The Stats segment of Insights (spec §11): habit filter chips, the heatmap hero, four record tiles
+ * and the habit list. The W · M · Y switch lives in the Insights title row — see [StatsPeriodSwitch].
+ */
 @Composable
 fun StatsScreen(
     uiState: StatsUiState,
-    onPeriodChange: (StatsPeriod) -> Unit = {},
+    onHabitFilterChange: (Long?) -> Unit = {},
+    onHabitClick: (Long) -> Unit = {},
+    weekStart: DayOfWeek = DayOfWeek.MONDAY,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        // Clear of the floating nav bar.
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 120.dp),
+        // Clear of the floating nav bar. No side padding: the chip row scrolls edge to edge.
+        contentPadding = PaddingValues(top = 4.dp, bottom = 120.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        // Nothing to say until the first build lands; the empty card would only flash.
+        if (uiState.isLoading) return@LazyColumn
+        val margin = Modifier.padding(horizontal = SCREEN_MARGIN)
         if (!uiState.hasAnyHistory) {
-            item { NothingYetCard() }
+            item { NothingYetCard(margin) }
             return@LazyColumn
         }
 
-        item { PeriodTabs(selected = uiState.period, onSelect = onPeriodChange) }
-
-        // The insight leads, because a sentence about your own behaviour beats a chart of it.
-        if (uiState.insights.isNotEmpty()) {
-            item { InsightsCard(uiState.insights) }
+        if (uiState.chips.isNotEmpty()) {
+            item { HabitChipRow(uiState.chips, uiState.selectedHabitId, onHabitFilterChange) }
         }
 
-        item { CompletionHero(uiState) }
+        item { StatsHeroCard(uiState, weekStart, margin) }
 
-        item { RecordTiles(uiState) }
-
-        item {
-            if (uiState.daysOfHistory >= DAYS_FOR_WEEKDAYS) {
-                WeekdayCard(uiState)
-            } else {
-                LockedCard(
-                    title = "Your weekly pattern",
-                    detail = "Which day of the week you tend to drop.",
-                    daysNeeded = DAYS_FOR_WEEKDAYS,
-                    daysSoFar = uiState.daysOfHistory,
-                )
-            }
-        }
+        item { RecordTiles(uiState, margin) }
 
         item {
             if (uiState.daysOfHistory >= DAYS_FOR_VERDICTS) {
-                VerdictCard(uiState)
+                HabitsCard(uiState.habitVerdicts, onHabitClick, margin.padding(top = 12.dp))
             } else {
-                LockedCard(
-                    title = "Habit by habit",
-                    detail = "Which habits are going well and which are slipping.",
-                    daysNeeded = DAYS_FOR_VERDICTS,
-                    daysSoFar = uiState.daysOfHistory,
-                )
+                StatsCard(margin.padding(top = 12.dp)) {
+                    Text("Habit by habit", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+                    Text(
+                        text = "How each habit is going. Unlocks on day $DAYS_FOR_VERDICTS — ${uiState.daysOfHistory} so far.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
 }
 
-/** Week / Month / Year as text tabs: the selected one in full ink over a brand underline. */
+/** Compact W · M · Y switch for the Insights title row. The letters are read out as whole words. */
 @Composable
-private fun PeriodTabs(selected: StatsPeriod, onSelect: (StatsPeriod) -> Unit) {
+fun StatsPeriodSwitch(selected: StatsPeriod, onSelect: (StatsPeriod) -> Unit, modifier: Modifier = Modifier) {
+    SegmentedPill(
+        options = StatsPeriod.entries,
+        selected = selected,
+        onSelect = onSelect,
+        label = { it.label.take(1) },
+        description = { it.label },
+        modifier = modifier.width(144.dp),
+    )
+}
+
+/** All + one chip per habit. The selected chip is kept in view, so a filter is never off-screen. */
+@Composable
+private fun HabitChipRow(chips: List<HabitChip>, selectedId: Long?, onSelect: (Long?) -> Unit) {
+    val listState = rememberLazyListState()
+    val reduceMotion = LocalReduceMotion.current
+    // All is item 0, so a habit's index is its chip index + 1 (and a missing one falls back to All).
+    val selectedIndex = chips.indexOfFirst { it.id == selectedId } + 1
+    LaunchedEffect(selectedIndex) {
+        val info = listState.layoutInfo
+        val item = info.visibleItemsInfo.firstOrNull { it.index == selectedIndex }
+        val fullyVisible = item != null &&
+            item.offset >= info.viewportStartOffset &&
+            item.offset + item.size <= info.viewportEndOffset
+        if (!fullyVisible) {
+            if (reduceMotion) listState.scrollToItem(selectedIndex) else listState.animateScrollToItem(selectedIndex)
+        }
+    }
+    val scheme = MaterialTheme.colorScheme
+    LazyRow(
+        state = listState,
+        contentPadding = PaddingValues(horizontal = SCREEN_MARGIN),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        item(key = "all") {
+            FilterPill(
+                label = "All",
+                dot = null,
+                selected = selectedId == null,
+                selectedFill = scheme.primaryContainer,
+                selectedInk = scheme.primary,
+                selectedText = scheme.primary,
+                onClick = { onSelect(null) },
+            )
+        }
+        itemsIndexed(chips, key = { _, chip -> chip.id }) { _, chip ->
+            val tones = habitTones(chip.colorHex)
+            FilterPill(
+                label = chip.name,
+                dot = tones.full,
+                selected = chip.id == selectedId,
+                selectedFill = tones.low,
+                selectedInk = tones.full,
+                // In light mode the full tone is only guaranteed 3:1 on white, not on its own tint,
+                // so the name stays in ink there; the outline and dot carry the colour.
+                selectedText = if (LocalHabitlyColors.current.isDark) tones.full else scheme.onSurface,
+                onClick = { onSelect(chip.id) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun FilterPill(
+    label: String,
+    dot: Color?,
+    selected: Boolean,
+    selectedFill: Color,
+    selectedInk: Color,
+    selectedText: Color,
+    onClick: () -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val isDark = LocalHabitlyColors.current.isDark
+    val border = when {
+        selected -> BorderStroke(1.5.dp, selectedInk)
+        isDark -> null
+        else -> BorderStroke(1.dp, scheme.outline)
+    }
+    Row(
+        modifier = Modifier
+            .minimumInteractiveComponentSize()
+            .height(36.dp)
+            .clip(CircleShape)
+            .background(if (selected) selectedFill else scheme.surface)
+            .then(if (border != null) Modifier.border(border, CircleShape) else Modifier)
+            .selectable(selected = selected, role = Role.Tab, onClick = onClick)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (dot != null) {
+            Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
+            Spacer(Modifier.width(8.dp))
+        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = if (selected) selectedText else scheme.onSurface,
+            maxLines = 1,
+        )
+    }
+}
+
+/** Two by two, equal heights. Perfect days are an all-habit figure, so one habit shows rest days. */
+@Composable
+private fun RecordTiles(uiState: StatsUiState, modifier: Modifier = Modifier) {
+    val extras = LocalHabitlyColors.current
     val primary = MaterialTheme.colorScheme.primary
-    Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-        StatsPeriod.entries.forEach { period ->
-            val active = period == selected
-            Column(
-                modifier = Modifier
-                    .heightIn(min = 48.dp)
-                    .widthIn(min = 48.dp)
-                    .selectable(selected = active, role = Role.Tab, onClick = { onSelect(period) }),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Text(
-                    text = period.label,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = if (active) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+    val tile = Modifier.fillMaxHeight()
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatTile(
+                value = "${uiState.currentStreak}",
+                label = "Current streak",
+                icon = Icons.Rounded.LocalFireDepartment,
+                iconTint = extras.warning,
+                animateFrom = 0,
+                modifier = tile.weight(1f),
+            )
+            StatTile(
+                value = "${uiState.bestStreak}",
+                label = "Best ever",
+                icon = Icons.Rounded.EmojiEvents,
+                iconTint = primary,
+                animateFrom = 0,
+                modifier = tile.weight(1f),
+            )
+        }
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (uiState.selectedHabitId != null) {
+                StatTile(
+                    value = "${uiState.restDays}",
+                    label = "Rest days",
+                    icon = Icons.Rounded.Bedtime,
+                    iconTint = primary,
+                    animateFrom = 0,
+                    modifier = tile.weight(1f),
                 )
-                Spacer(Modifier.height(4.dp))
-                Box(
-                    Modifier
-                        .width(24.dp)
-                        .height(2.dp)
-                        .background(if (active) primary else Color.Transparent, RoundedCornerShape(1.dp)),
+            } else {
+                StatTile(
+                    value = "${uiState.perfectDays}",
+                    label = "Perfect days",
+                    icon = Icons.Rounded.Star,
+                    iconTint = primary,
+                    animateFrom = 0,
+                    modifier = tile.weight(1f),
+                )
+            }
+            StatTile(
+                value = "${uiState.totalCompletions}",
+                label = "Total done",
+                icon = Icons.Rounded.TaskAlt,
+                iconTint = extras.success,
+                animateFrom = 0,
+                modifier = tile.weight(1f),
+            )
+        }
+    }
+}
+
+/** Every habit, best rate first. A row opens that habit's detail; it does not change the filter. */
+@Composable
+private fun HabitsCard(verdicts: List<HabitVerdict>, onHabitClick: (Long) -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        SectionLabel("Habits", modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
+        StatsCard(contentPadding = PaddingValues(vertical = 4.dp)) {
+            verdicts.forEachIndexed { index, verdict ->
+                if (index > 0) {
+                    // Inset to the text column: 16 padding + 32 tile + 12 gap.
+                    HorizontalDivider(Modifier.padding(start = 60.dp), thickness = 1.dp, color = MaterialTheme.colorScheme.outline)
+                }
+                HabitStatRow(verdict, onClick = { onHabitClick(verdict.id) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun HabitStatRow(verdict: HabitVerdict, onClick: () -> Unit) {
+    val tones = habitTones(verdict.colorHex)
+    val extras = LocalHabitlyColors.current
+    val judged = verdict.group != VerdictGroup.NOT_ENOUGH_DATA
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .clickable(onClickLabel = "Open details", role = Role.Button, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconTile(iconKey = verdict.iconKey, colorHex = verdict.colorHex, size = 32.dp)
+        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            Text(
+                text = verdict.name,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+            )
+            Spacer(Modifier.height(6.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(CircleShape)
+                    .background(extras.gridEmpty),
+            ) {
+                if (judged && verdict.rate > 0f) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth(verdict.rate.coerceIn(0f, 1f))
+                            .fillMaxHeight()
+                            .clip(CircleShape)
+                            .background(tones.full),
+                    )
+                }
+            }
+        }
+        Text(
+            text = if (judged) "${(verdict.rate * 100).toInt()}%" else "—",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = if (judged) Modifier else Modifier.clearAndSetSemantics { contentDescription = "Not enough data yet" },
+        )
+        // Fixed-width slot so the percentages line up whether or not a row has an arrow.
+        Box(Modifier.width(26.dp), contentAlignment = Alignment.CenterEnd) {
+            val points = verdict.delta?.takeIf { judged }?.let { (it * 100).toInt() } ?: 0
+            if (points != 0) {
+                val up = points > 0
+                Icon(
+                    imageVector = if (up) Icons.AutoMirrored.Rounded.TrendingUp else Icons.AutoMirrored.Rounded.TrendingDown,
+                    contentDescription = if (up) "Rising" else "Falling",
+                    tint = if (up) extras.success else MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(18.dp),
                 )
             }
         }
     }
 }
 
-/** The standard Insights block: a surface card, outlined in light mode where there is no tonal step. */
+/** A surface card, outlined in light mode where there is no tonal step from the background. */
 @Composable
 private fun StatsCard(
     modifier: Modifier = Modifier,
-    title: String? = null,
-    subtitle: String? = null,
+    contentPadding: PaddingValues = PaddingValues(16.dp),
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Surface(
@@ -168,299 +376,76 @@ private fun StatsCard(
         color = MaterialTheme.colorScheme.surface,
         border = if (LocalHabitlyColors.current.isDark) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            if (title != null) {
-                Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
-            }
-            if (subtitle != null) {
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (title != null || subtitle != null) Spacer(Modifier.height(14.dp))
-            content()
-        }
+        Column(Modifier.padding(contentPadding), content = content)
     }
 }
 
 @Composable
-private fun InsightsCard(insights: List<Insight>) {
-    StatsCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = Icons.Filled.AutoAwesome,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp),
-            )
-            Text(
-                text = "WHAT WE NOTICED",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 8.dp),
-            )
-        }
-        insights.forEach { insight ->
-            Text(
-                text = insight.text,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(top = 10.dp),
-            )
-        }
-    }
-}
-
-/**
- * The focal point: completion for the period, its comparison, and the period itself — daily bars
- * for Week and Month, a year of all-habits activity for Year.
- */
-@Composable
-private fun CompletionHero(uiState: StatsUiState) {
-    val percent = (uiState.completionRate * 100).toInt()
-    val delta = uiState.delta?.takeIf { uiState.showDelta }
-    val deltaPoints = delta?.let { (it * 100).toInt() }
-    val period = uiState.period.label.lowercase()
-    HeroCard(
-        label = "Completion",
-        value = "$percent%",
-        caption = "of due days kept",
-        // A zero change is neither good nor bad news, so it gets no arrow and no colour.
-        delta = deltaPoints?.let {
-            if (it == 0) "Same as previous $period" else "${if (it > 0) "+" else ""}$it% vs previous $period"
-        },
-        deltaPositive = deltaPoints?.takeIf { it != 0 }?.let { it > 0 },
-    ) {
-        Spacer(Modifier.height(16.dp))
-        if (uiState.period == StatsPeriod.YEAR) {
-            // Inset on a surface so the palest brand step never melts into the hero's own tint. A full
-            // year at a readable cell size is wider than a phone, so it scrolls, opening on this week.
-            val scroll = rememberScrollState()
-            LaunchedEffect(scroll.maxValue) { scroll.scrollTo(scroll.maxValue) }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surface)
-                    .padding(10.dp)
-                    .horizontalScroll(scroll),
-            ) {
-                HabitGrid(
-                    levels = uiState.yearLevels,
-                    colorHex = null,
-                    weeks = YEAR_WEEKS,
-                    cellGap = YEAR_GAP,
-                    endDate = uiState.today,
-                    modifier = Modifier.width(YEAR_CELL * YEAR_WEEKS + YEAR_GAP * (YEAR_WEEKS - 1)),
-                    summary = { weeks -> "Activity across all habits for the last $weeks weeks" },
-                )
-            }
-        } else {
-            val bars = uiState.periodBars
-            // Today is still running, so it is never called the weakest day.
-            val past = bars.dropLast(1)
-            val weakest = past.withIndex()
-                .takeIf { past.size > 1 && past.min() < past.max() }
-                ?.minByOrNull { it.value }?.index
-            PeriodBars(
-                values = bars,
-                labels = uiState.periodBarLabels,
-                weakestIndex = weakest,
-                description = buildString {
-                    append("Daily completion for the last ${bars.size} days, average ")
-                    append("${(bars.average().takeIf { !it.isNaN() } ?: 0.0).times(100).toInt()}%")
-                    if (weakest != null) append(", weakest day ${(bars[weakest] * 100).toInt()}%")
-                },
-            )
-        }
-    }
-}
-
-@Composable
-private fun RecordTiles(uiState: StatsUiState) {
-    val extras = LocalHabitlyColors.current
-    Column {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatTile(
-                value = "${uiState.currentStreak}",
-                label = "Current streak",
-                icon = Icons.Filled.LocalFireDepartment,
-                iconTint = extras.warning,
-                animateFrom = 0,
-                modifier = Modifier.weight(1f),
-            )
-            StatTile(
-                value = "${uiState.bestStreak}",
-                label = "Best ever",
-                icon = Icons.Filled.EmojiEvents,
-                iconTint = extras.warning,
-                animateFrom = 0,
-                modifier = Modifier.weight(1f),
-            )
-            StatTile(
-                value = "${uiState.perfectDays}",
-                label = "Perfect days",
-                icon = Icons.Filled.Star,
-                iconTint = MaterialTheme.colorScheme.primary,
-                animateFrom = 0,
-                modifier = Modifier.weight(1f),
-            )
-            StatTile(
-                value = "${uiState.totalCompletions}",
-                label = "Total done",
-                icon = Icons.Filled.CheckCircle,
-                iconTint = extras.success,
-                animateFrom = 0,
-                modifier = Modifier.weight(1f),
-            )
-        }
-        if (uiState.isPersonalBest && uiState.currentStreak >= 3) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.EmojiEvents,
-                    contentDescription = null,
-                    tint = extras.warning,
-                    modifier = Modifier.size(16.dp),
-                )
-                Text(
-                    text = "This is your longest run so far.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(start = 8.dp),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun WeekdayCard(uiState: StatsUiState) {
-    val weekdays = DayOfWeek.entries
-    val counts = weekdays.map { (uiState.completionsByWeekday[it] ?: 0).toFloat() }
-    val weakIndex = uiState.weakestWeekday?.let { weekdays.indexOf(it) }
-
-    StatsCard(
-        title = "Your weekly pattern",
-        subtitle = uiState.weakestWeekday?.let {
-            "${it.getDisplayName(TextStyle.FULL, Locale.getDefault())} is your weakest day"
-        } ?: "Completions on each weekday",
-    ) {
-        MiniBars(
-            values = counts,
-            labels = weekdays.map {
-                it.getDisplayName(TextStyle.SHORT, Locale.getDefault()).take(1)
-            },
-            highlightIndex = weakIndex,
-        )
-    }
-}
-
-@Composable
-private fun VerdictCard(uiState: StatsUiState) {
-    StatsCard(title = "Habit by habit", subtitle = "Sorted by how they are going") {
-        VerdictGroup.entries.forEach { group ->
-            val rows = uiState.habitVerdicts.filter { it.group == group }
-            if (rows.isEmpty()) return@forEach
-            GroupLabel(group)
-            rows.forEach { VerdictRow(it) }
-        }
-    }
-}
-
-@Composable
-private fun GroupLabel(group: VerdictGroup) {
-    val extras = LocalHabitlyColors.current
-    val (text, dot) = when (group) {
-        VerdictGroup.GOING_WELL -> "Going well" to extras.success
-        VerdictGroup.SLIPPING -> "Slipping" to MaterialTheme.colorScheme.error
-        VerdictGroup.NOT_ENOUGH_DATA -> "Not enough data" to extras.onSurfaceFaint
-    }
-    Row(
-        modifier = Modifier.padding(top = 14.dp, bottom = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
-        SectionLabel(text = text, modifier = Modifier.padding(start = 8.dp))
-    }
-}
-
-@Composable
-private fun VerdictRow(verdict: HabitVerdict) {
-    val tones = habitTones(verdict.colorHex)
-    val extras = LocalHabitlyColors.current
-
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(tones.full))
+private fun NothingYetCard(modifier: Modifier = Modifier) {
+    StatsCard(modifier) {
+        Text("No stats yet", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
         Text(
-            text = verdict.name,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f).padding(start = 10.dp),
-        )
-        Sparkline(
-            values = verdict.spark,
-            color = tones.full,
-            modifier = Modifier.width(52.dp).height(20.dp),
-        )
-        Text(
-            text = if (verdict.group == VerdictGroup.NOT_ENOUGH_DATA) {
-                "—"
-            } else {
-                "${(verdict.rate * 100).toInt()}%"
-            },
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(start = 12.dp),
-        )
-        // No arrow on a habit we cannot judge yet, nor on one that has not moved.
-        verdict.delta?.takeIf {
-            verdict.group != VerdictGroup.NOT_ENOUGH_DATA && (it * 100).toInt() != 0
-        }?.let { delta ->
-            Icon(
-                imageVector = if (delta >= 0f) Icons.Filled.ArrowUpward else Icons.Filled.ArrowDownward,
-                contentDescription = if (delta >= 0f) "Rising" else "Falling",
-                tint = if (delta >= 0f) extras.success else MaterialTheme.colorScheme.error,
-                modifier = Modifier.size(14.dp),
-            )
-        }
-    }
-}
-
-/**
- * A card that has not earned its data yet. It shows what it will become and when — the screen is
- * never broken, just partly not-yet-unlocked.
- */
-@Composable
-private fun LockedCard(title: String, detail: String, daysNeeded: Int, daysSoFar: Int) {
-    StatsCard(
-        title = title,
-        subtitle = "$detail Unlocks on day $daysNeeded — $daysSoFar so far.",
-    ) {
-        MiniBars(
-            values = listOf(0.5f, 0.8f, 0.35f, 0.65f, 0.9f, 0.45f, 0.7f),
-            labels = List(7) { "" },
-            barColor = MaterialTheme.colorScheme.outline,
-            height = 72.dp,
-        )
-    }
-}
-
-@Composable
-private fun NothingYetCard() {
-    StatsCard(title = "No stats yet", subtitle = "Tick off a habit and this screen fills in") {
-        Text(
-            text = "Your completion rate, streak records and weekly pattern all appear here once " +
-                "you have a few days of history.",
+            text = "Tick off a habit and this screen fills in: your completion rate, streak records and " +
+                "a grid of every day, in each habit's colour.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
         )
     }
 }
+
+private fun previewState(selected: Long?): StatsUiState {
+    val today = LocalDate.of(2026, 9, 30)
+    val chips = listOf(
+        HabitChip(1, "Water", "#4DABF7"),
+        HabitChip(2, "Read 20 min", "#9775FA"),
+        HabitChip(3, "Run", "#FF922B"),
+        HabitChip(4, "Meditate", "#51CF66"),
+    )
+    val window = (29 downTo 0).map { today.minusDays(it.toLong()) }
+    val stacks = window.mapIndexedNotNull { i, day ->
+        val slices = chips.filterIndexed { c, _ -> (i * 3 + c * 5) % 7 < 4 }
+            .mapIndexed { c, chip -> DaySlice(chip.colorHex, rested = (i + c) % 9 == 0) }
+        if (slices.isEmpty()) null else day to slices
+    }.toMap()
+    return StatsUiState(
+        period = StatsPeriod.MONTH,
+        selectedHabitId = selected,
+        chips = chips,
+        window = window,
+        dayStacks = if (selected == null) stacks else emptyMap(),
+        habitLevels = if (selected != null) window.withIndex().associate { (i, d) -> d to listOf(4, 4, 0, 4, 1, 4, 2)[i % 7] } else emptyMap(),
+        insights = listOf(Insight(InsightKind.PERSONAL_BEST, "Best on Wednesdays · Sundays slip most")),
+        completionRate = 0.78f,
+        previousRate = 0.72f,
+        daysOfHistory = 90,
+        currentStreak = 12,
+        bestStreak = 21,
+        perfectDays = 9,
+        restDays = 3,
+        totalCompletions = 184,
+        habitVerdicts = listOf(
+            HabitVerdict(1, "Water", "#4DABF7", 0.93f, 0.05f, VerdictGroup.GOING_WELL, iconKey = "water_drop"),
+            HabitVerdict(2, "Read 20 min", "#9775FA", 0.8f, 0f, VerdictGroup.GOING_WELL, iconKey = "menu_book"),
+            HabitVerdict(3, "Run", "#FF922B", 0.52f, -0.12f, VerdictGroup.SLIPPING, iconKey = "run"),
+            HabitVerdict(4, "Meditate", "#51CF66", 0.4f, null, VerdictGroup.NOT_ENOUGH_DATA, iconKey = "self_improvement"),
+        ),
+        today = today,
+        isLoading = false,
+    )
+}
+
+@Composable
+private fun StatsPreviewContent(selected: Long?) {
+    Surface(color = MaterialTheme.colorScheme.background) {
+        Column {
+            StatsPeriodSwitch(StatsPeriod.MONTH, {}, Modifier.padding(start = 20.dp, top = 8.dp))
+            StatsScreen(previewState(selected))
+        }
+    }
+}
+
+@Preview(heightDp = 1400) @Composable private fun StatsDarkPreview() = HabitlyTheme(darkTheme = true) { StatsPreviewContent(null) }
+@Preview(heightDp = 1400) @Composable private fun StatsLightPreview() = HabitlyTheme(darkTheme = false) { StatsPreviewContent(null) }
+@Preview(heightDp = 1400) @Composable private fun StatsHabitDarkPreview() = HabitlyTheme(darkTheme = true) { StatsPreviewContent(2) }
+@Preview(heightDp = 1400) @Composable private fun StatsHabitLightPreview() = HabitlyTheme(darkTheme = false) { StatsPreviewContent(2) }

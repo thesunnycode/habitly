@@ -24,6 +24,8 @@ data class HabitVerdict(
     val group: VerdictGroup,
     /** A few points of recent history, purely for the row's sparkline. */
     val spark: List<Float> = emptyList(),
+    /** The habit's icon, for its row's icon tile. */
+    val iconKey: String = "",
 )
 
 /** One entry of the habit filter row, in repository order. */

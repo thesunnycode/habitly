@@ -343,6 +343,7 @@ class StatsViewModel(
                 delta = previous?.let { rate - it },
                 group = group,
                 spark = sparkFor(single, now),
+                iconKey = stats.habit.icon,
             )
         }.sortedWith(compareByDescending<HabitVerdict> { it.rate }.thenBy { it.group.ordinal })
     }

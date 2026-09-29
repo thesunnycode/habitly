@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.habitly.app.ui.components.ScreenHeader
@@ -27,10 +28,21 @@ fun InsightsScreen(
     stats: @Composable () -> Unit,
     calendar: @Composable () -> Unit,
     windowWidthSizeClass: WindowWidthSizeClass = WindowWidthSizeClass.Compact,
+    /** Sits at the right of the title — the Stats period switch. Only shown while Stats is visible. */
+    statsTitleTrailing: (@Composable () -> Unit)? = null,
 ) {
+    val expanded = windowWidthSizeClass == WindowWidthSizeClass.Expanded
+    val trailing = statsTitleTrailing?.takeIf { expanded || tab != INSIGHTS_CALENDAR }
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        ScreenHeader(title = "Insights", modifier = Modifier.padding(horizontal = 20.dp))
-        if (windowWidthSizeClass == WindowWidthSizeClass.Expanded) {
+        Row(
+            modifier = Modifier.padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ScreenHeader(title = "Insights", modifier = Modifier.weight(1f))
+            // Same vertical padding as the header, so the two share a centre line.
+            if (trailing != null) Box(Modifier.padding(top = 8.dp, bottom = 12.dp)) { trailing() }
+        }
+        if (expanded) {
             Row(Modifier.weight(1f)) {
                 Box(Modifier.weight(0.55f)) { stats() }
                 Box(Modifier.weight(0.45f)) { calendar() }

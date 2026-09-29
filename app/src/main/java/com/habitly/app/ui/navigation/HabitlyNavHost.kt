@@ -43,6 +43,7 @@ import com.habitly.app.ui.reminders.RemindersScreen
 import com.habitly.app.ui.reminders.RemindersViewModel
 import com.habitly.app.ui.settings.SettingsScreen
 import com.habitly.app.ui.settings.SettingsViewModel
+import com.habitly.app.ui.stats.StatsPeriodSwitch
 import com.habitly.app.ui.stats.StatsScreen
 import com.habitly.app.ui.stats.StatsViewModel
 import com.habitly.app.ui.theme.LocalReduceMotion
@@ -169,15 +170,27 @@ fun HabitlyNavHost(
         ) { backStackEntry ->
             val initialTab = backStackEntry.arguments?.getString("tab") ?: "stats"
             var tab by rememberSaveable(initialTab) { mutableStateOf(initialTab) }
+            // Hoisted out of the Stats slot: its W · M · Y switch sits in the Insights title row.
+            val statsViewModel = habitlyViewModel { StatsViewModel(repository) }
+            val statsState by statsViewModel.uiState.collectAsState()
+            val weekStart by prefs.weekStart.collectAsState(initial = java.time.DayOfWeek.MONDAY)
             CenteredContent(enabled = !twoPane) {
                 InsightsScreen(
                     tab = tab,
                     onTabChange = { tab = it },
                     windowWidthSizeClass = windowWidthSizeClass,
+                    statsTitleTrailing = if (statsState.hasAnyHistory) {
+                        { StatsPeriodSwitch(selected = statsState.period, onSelect = statsViewModel::onPeriodChange) }
+                    } else {
+                        null
+                    },
                     stats = {
-                        val viewModel = habitlyViewModel { StatsViewModel(repository) }
-                        val uiState by viewModel.uiState.collectAsState()
-                        StatsScreen(uiState = uiState, onPeriodChange = viewModel::onPeriodChange)
+                        StatsScreen(
+                            uiState = statsState,
+                            onHabitFilterChange = statsViewModel::onHabitFilterChange,
+                            onHabitClick = { id -> navController.navigate(Destination.HabitDetail.createRoute(id)) },
+                            weekStart = weekStart,
+                        )
                     },
                     calendar = {
                         val viewModel = habitlyViewModel { CalendarViewModel(repository, weekStart = prefs.weekStart, notifications = notifications) }

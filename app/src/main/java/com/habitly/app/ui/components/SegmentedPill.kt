@@ -26,6 +26,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
@@ -42,6 +44,8 @@ fun <T> SegmentedPill(
     onSelect: (T) -> Unit,
     label: (T) -> String,
     modifier: Modifier = Modifier,
+    /** What a screen reader says for an option whose visible [label] is abbreviated ("W" -> "Week"). */
+    description: ((T) -> String)? = null,
 ) {
     val colors = LocalHabitlyColors.current
     val outline = MaterialTheme.colorScheme.outline
@@ -84,7 +88,10 @@ fun <T> SegmentedPill(
                         .height(40.dp)
                         .minimumInteractiveComponentSize()
                         .clickable(role = Role.Tab) { onSelect(option) }
-                        .semantics { this.selected = isSelected },
+                        .semantics {
+                            this.selected = isSelected
+                            if (description != null) contentDescription = description(option)
+                        },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
@@ -92,6 +99,7 @@ fun <T> SegmentedPill(
                         style = MaterialTheme.typography.labelLarge,
                         color = if (isSelected) MaterialTheme.colorScheme.onSurface
                         else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = if (description != null) Modifier.clearAndSetSemantics { } else Modifier,
                     )
                 }
             }
