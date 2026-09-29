@@ -197,6 +197,12 @@ class HabitRepository(
 
     override suspend fun reconcileAchievements(): Set<AchievementType> = evaluateAchievements()
 
+    override suspend fun clearAchievements() = achievementLock.withLock { achievementDao.deleteAll() }
+
+    override fun observeAllHabits(): Flow<List<HabitEntity>> = habitDao.observeAllHabits()
+
+    override fun observeAllLogs(): Flow<List<HabitLogEntity>> = logDao.observeAllLogs()
+
     /** Unlocks every badge the current habits and logs have earned, returning the newly unlocked ones. */
     private suspend fun evaluateAchievements(): Set<AchievementType> = achievementLock.withLock {
         // Read, decide and insert under one lock, so two check-ins racing cannot both store a badge.

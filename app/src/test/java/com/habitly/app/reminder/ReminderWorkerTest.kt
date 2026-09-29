@@ -29,4 +29,14 @@ class ReminderWorkerTest {
         val result = worker.doWork()
         assertEquals(androidx.work.ListenableWorker.Result.success(), result)
     }
+
+    @Test
+    fun doWorkSucceedsWithTheStreakNudgeTurnedOff() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val prefs = SettingsPrefs(context)
+        prefs.setNotificationsEnabled(true)
+        prefs.setStreakNudgeEnabled(false)
+        val worker = TestListenableWorkerBuilder<ReminderWorker>(context).build()
+        assertEquals(androidx.work.ListenableWorker.Result.success(), worker.doWork())
+    }
 }

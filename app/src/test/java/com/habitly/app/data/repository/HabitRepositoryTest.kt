@@ -314,4 +314,23 @@ class HabitRepositoryTest {
         assertNull(levels[today.minusWeeks(53).minusDays(1)])
         assertEquals(3, levels.size)
     }
+
+    @Test
+    fun observeAllHabitsIncludesArchivedAndObserveAllLogsCoversEveryHabit() = runBlocking {
+        val a = repo.addHabit(newHabit("A"))
+        val b = repo.addHabit(newHabit("B"))
+        repo.setArchived(b, true)
+        repo.setStatus(a, LocalDate.of(2026, 9, 28), CompletionStatus.DONE)
+        repo.setStatus(b, LocalDate.of(2026, 9, 27), CompletionStatus.DONE)
+        assertEquals(setOf(a, b), repo.observeAllHabits().first().map { it.id }.toSet())
+        assertEquals(setOf(a, b), repo.observeAllLogs().first().map { it.habitId }.toSet())
+    }
+
+    @Test
+    fun clearAchievementsRemovesEveryUnlockedBadge() = runBlocking {
+        repo.addHabit(newHabit()) // unlocks FIRST_HABIT
+        assertTrue(repo.observeAchievements().first().isNotEmpty())
+        repo.clearAchievements()
+        assertTrue(repo.observeAchievements().first().isEmpty())
+    }
 }

@@ -2,6 +2,7 @@ package com.habitly.app.data.repository
 
 import com.habitly.app.data.local.AchievementEntity
 import com.habitly.app.data.local.HabitEntity
+import com.habitly.app.data.local.HabitLogEntity
 import com.habitly.app.domain.AchievementType
 import com.habitly.app.domain.CompletionRecord
 import com.habitly.app.domain.CompletionStatus
@@ -40,7 +41,15 @@ interface HabitDataSource {
 
     /** Stores every badge already earned but not yet unlocked, returning the ones it stored. */
     suspend fun reconcileAchievements(): Set<AchievementType>
+    /** Removes every unlocked badge, for a full reset. */
+    suspend fun clearAchievements()
     fun observeRecordsForHabit(habitId: Long): Flow<List<CompletionRecord>>
+
+    /** Every habit, archived ones included. */
+    fun observeAllHabits(): Flow<List<HabitEntity>>
+
+    /** Every log of every habit. */
+    fun observeAllLogs(): Flow<List<HabitLogEntity>>
 }
 
 data class AchievementProgress(val type: AchievementType, val unlockedAt: Long?, val progress: Int)

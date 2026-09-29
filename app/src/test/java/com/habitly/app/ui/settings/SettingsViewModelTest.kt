@@ -4,24 +4,30 @@ import androidx.test.core.app.ApplicationProvider
 import com.habitly.app.MainDispatcherRule
 import com.habitly.app.data.local.AchievementEntity
 import com.habitly.app.data.local.HabitEntity
+import com.habitly.app.data.local.HabitLogEntity
 import com.habitly.app.data.prefs.SettingsPrefs
 import com.habitly.app.data.prefs.ThemeMode
 import com.habitly.app.data.repository.HabitDataSource
 import com.habitly.app.data.repository.HabitWithStats
 import com.habitly.app.domain.AchievementType
 import com.habitly.app.domain.CompletionRecord
+import com.habitly.app.domain.CompletionStatus
 import com.habitly.app.domain.FrequencyType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.time.DayOfWeek
 import java.time.LocalDate
 
 private fun habit(id: Long) = HabitWithStats(
@@ -29,7 +35,12 @@ private fun habit(id: Long) = HabitWithStats(
     currentStreak = 0, bestStreak = 0, completionRate = 0f, isCompletedToday = false,
 )
 
-private class FakeHabitDataSource(habits: List<HabitWithStats>) : HabitDataSource {
+private class FakeHabitDataSource(
+    habits: List<HabitWithStats>,
+    private val archived: List<HabitEntity> = emptyList(),
+    private val logs: List<HabitLogEntity> = emptyList(),
+) : HabitDataSource {
+    var achievementsCleared = false
     var lastIncremented: Pair<Long, LocalDate>? = null
     var lastSetStatus: Pair<Long, com.habitly.app.domain.CompletionStatus?>? = null
     private val flow = MutableStateFlow(habits)
@@ -61,6 +72,9 @@ private class FakeHabitDataSource(habits: List<HabitWithStats>) : HabitDataSourc
     override fun observeAchievements(): Flow<List<AchievementEntity>> = MutableStateFlow(emptyList())
     override fun observeAchievementProgress(today: LocalDate): Flow<List<com.habitly.app.data.repository.AchievementProgress>> = MutableStateFlow(emptyList())
     override suspend fun reconcileAchievements() = emptySet<com.habitly.app.domain.AchievementType>()
+    override suspend fun clearAchievements() { achievementsCleared = true }
+    override fun observeAllHabits(): Flow<List<HabitEntity>> = flowOf(flow.value.map { it.habit } + archived)
+    override fun observeAllLogs(): Flow<List<HabitLogEntity>> = flowOf(logs)
     override fun observeRecordsForHabit(habitId: Long): Flow<List<CompletionRecord>> = MutableStateFlow(emptyList())
 }
 
@@ -79,14 +93,70 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun onResetAllDataDeletesEveryObservedHabit() = runTest {
+    fun onResetAllDataDeletesEveryHabitIncludingArchivedAndClearsAwards() = runTest {
         val prefs = SettingsPrefs(ApplicationProvider.getApplicationContext())
-        val fake = FakeHabitDataSource(listOf(habit(1), habit(2)))
+        val fake = FakeHabitDataSource(listOf(habit(1), habit(2)), archived = listOf(habit(3).habit.copy(isArchived = true)))
         val viewModel = SettingsViewModel(prefs, fake)
         advanceUntilIdle()
         viewModel.onResetAllData()
         advanceUntilIdle()
-        assertEquals(setOf(1L, 2L), fake.deleted.toSet())
+        assertEquals(setOf(1L, 2L, 3L), fake.deleted.toSet())
+        assertTrue(fake.achievementsCleared)
         assertTrue(viewModel.uiState.value.resetCompleted)
+    }
+
+    @Test
+    fun themeDefaultsToDarkBeforePrefsLoad() {
+        assertEquals(ThemeMode.DARK, SettingsUiState().themeMode)
+    }
+
+    @Test
+    fun onWeekStartChangePersistsAndReflectsInUiState() = runTest {
+        val prefs = SettingsPrefs(ApplicationProvider.getApplicationContext())
+        val viewModel = SettingsViewModel(prefs, FakeHabitDataSource(emptyList()))
+        viewModel.onWeekStartChange(DayOfWeek.SUNDAY).join()
+        advanceUntilIdle()
+        assertEquals(DayOfWeek.SUNDAY, prefs.weekStart.first())
+        assertEquals(DayOfWeek.SUNDAY, viewModel.uiState.value.weekStart)
+    }
+
+    @Test
+    fun onStreakNudgeTogglePersistsAndReflectsInUiState() = runTest {
+        val prefs = SettingsPrefs(ApplicationProvider.getApplicationContext())
+        val viewModel = SettingsViewModel(prefs, FakeHabitDataSource(emptyList()))
+        viewModel.onStreakNudgeToggle(false).join()
+        advanceUntilIdle()
+        assertFalse(prefs.streakNudgeEnabled.first())
+        assertFalse(viewModel.uiState.value.streakNudgeEnabled)
+    }
+
+    @Test
+    fun onExportReturnsCsvOfEveryHabitAndLog() = runTest {
+        val prefs = SettingsPrefs(ApplicationProvider.getApplicationContext())
+        val fake = FakeHabitDataSource(
+            listOf(habit(1)),
+            logs = listOf(HabitLogEntity(0, 1, "2026-09-28", CompletionStatus.DONE, 1L, null, 0)),
+        )
+        val viewModel = SettingsViewModel(prefs, fake)
+        val csv = viewModel.onExport()
+        assertEquals("habit,category,date,status,progress,unit,note\nH1,General,2026-09-28,DONE,0,,\n", csv)
+    }
+
+    @Test
+    fun onLoadDemoDataRunsTheSeeder() = runTest {
+        val prefs = SettingsPrefs(ApplicationProvider.getApplicationContext())
+        var seeded = 0
+        val viewModel = SettingsViewModel(prefs, FakeHabitDataSource(emptyList()), loadDemoData = { seeded++ })
+        viewModel.onLoadDemoData()
+        advanceUntilIdle()
+        assertEquals(1, seeded)
+    }
+
+    @Test
+    fun versionAndBuildTypeAreExposed() = runTest {
+        val prefs = SettingsPrefs(ApplicationProvider.getApplicationContext())
+        val viewModel = SettingsViewModel(prefs, FakeHabitDataSource(emptyList()), versionName = "9.9", isDebug = true)
+        assertEquals("9.9", viewModel.uiState.value.versionName)
+        assertTrue(viewModel.uiState.value.isDebug)
     }
 }

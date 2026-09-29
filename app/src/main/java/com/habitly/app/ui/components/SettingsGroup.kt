@@ -75,6 +75,8 @@ fun SettingsRow(
     onClick: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
     showDivider: Boolean = false,
+    /** Replaces the [icon] tile with custom 32dp content, such as a habit's [IconTile]. */
+    leading: (@Composable () -> Unit)? = null,
 ) {
     val extras = LocalHabitlyColors.current
     Column(modifier = modifier.fillMaxWidth()) {
@@ -93,7 +95,10 @@ fun SettingsRow(
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (icon != null) {
+            if (leading != null) {
+                leading()
+                Spacer(Modifier.width(12.dp))
+            } else if (icon != null) {
                 Box(
                     modifier = Modifier
                         .size(32.dp)

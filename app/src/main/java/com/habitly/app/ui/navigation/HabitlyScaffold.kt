@@ -89,5 +89,5 @@ fun HabitlyScaffold(
 
     // Once, above every screen: a badge earned anywhere is celebrated wherever the user is.
     val context = LocalContext.current
-    BadgeCelebrationHost(repository = rememberHabitRepository(), prefs = remember { SettingsPrefs(context) })
+    BadgeCelebrationHost(repository = rememberHabitRepository(), prefs = remember { SettingsPrefs(context.applicationContext) })
 }

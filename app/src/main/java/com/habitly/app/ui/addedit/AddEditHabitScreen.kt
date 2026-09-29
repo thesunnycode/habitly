@@ -1,6 +1,5 @@
 package com.habitly.app.ui.addedit
 
-import android.text.format.DateFormat
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -48,9 +47,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TimePicker
-import androidx.compose.material3.TimePickerDefaults
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,7 +59,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -80,11 +75,10 @@ import com.habitly.app.ui.components.CheckState
 import com.habitly.app.ui.components.ConfirmSheet
 import com.habitly.app.ui.components.HABIT_COLOR_SWATCHES
 import com.habitly.app.ui.components.HabitGridCard
-import com.habitly.app.ui.components.HabitlySheet
 import com.habitly.app.ui.components.IconTile
 import com.habitly.app.ui.components.PrimaryButton
+import com.habitly.app.ui.components.ReminderTimeSheet
 import com.habitly.app.ui.components.ScreenHeader
-import com.habitly.app.ui.components.SecondaryButton
 import com.habitly.app.ui.components.SectionLabel
 import com.habitly.app.ui.components.SegmentedPill
 import com.habitly.app.ui.components.SettingsGroup
@@ -233,7 +227,7 @@ fun AddEditHabitScreen(
         )
     }
     if (showReminder) {
-        ReminderSheet(
+        ReminderTimeSheet(
             time = uiState.reminderTime,
             onSet = { onReminderTimeChange(it); showReminder = false },
             onTurnOff = { onReminderTimeChange(null); showReminder = false },
@@ -617,63 +611,4 @@ internal fun formFieldColors(): TextFieldColors {
         errorIndicatorColor = Color.Transparent,
         disabledIndicatorColor = Color.Transparent,
     )
-}
-
-@Composable
-private fun ReminderSheet(
-    time: String?,
-    onSet: (String) -> Unit,
-    onTurnOff: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val context = LocalContext.current
-    val (initialHour, initialMinute) = remember(time) {
-        time?.split(":")?.mapNotNull { it.toIntOrNull() }?.takeIf { it.size == 2 }
-            ?.let { it[0] to it[1] } ?: (9 to 0)
-    }
-    val state = rememberTimePickerState(
-        initialHour = initialHour,
-        initialMinute = initialMinute,
-        is24Hour = DateFormat.is24HourFormat(context),
-    )
-    val scheme = MaterialTheme.colorScheme
-    val extras = LocalHabitlyColors.current
-    HabitlySheet(onDismiss = onDismiss, title = "Reminder", skipPartiallyExpanded = true) {
-        // Scrolls on short screens so the actions below the dial are always reachable.
-        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                TimePicker(
-                    state = state,
-                    colors = TimePickerDefaults.colors(
-                        clockDialColor = scheme.surface,
-                        clockDialSelectedContentColor = scheme.onPrimary,
-                        clockDialUnselectedContentColor = scheme.onSurface,
-                        selectorColor = scheme.primary,
-                        periodSelectorBorderColor = scheme.outline,
-                        periodSelectorSelectedContainerColor = scheme.primaryContainer,
-                        periodSelectorUnselectedContainerColor = extras.surfaceRaised,
-                        periodSelectorSelectedContentColor = scheme.onPrimaryContainer,
-                        periodSelectorUnselectedContentColor = scheme.onSurfaceVariant,
-                        timeSelectorSelectedContainerColor = scheme.primaryContainer,
-                        timeSelectorUnselectedContainerColor = scheme.surface,
-                        timeSelectorSelectedContentColor = scheme.onPrimaryContainer,
-                        timeSelectorUnselectedContentColor = scheme.onSurface,
-                    ),
-                )
-            }
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                SecondaryButton(
-                    text = "Turn off",
-                    onClick = onTurnOff,
-                    modifier = Modifier.weight(1f),
-                )
-                PrimaryButton(
-                    text = "Set",
-                    onClick = { onSet("%02d:%02d".format(Locale.ROOT, state.hour, state.minute)) },
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
-    }
 }

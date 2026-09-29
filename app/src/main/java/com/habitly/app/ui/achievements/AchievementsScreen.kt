@@ -45,7 +45,7 @@ import java.time.format.DateTimeFormatter
 private val SHORT_DATE = DateTimeFormatter.ofPattern("d MMM")
 
 @Composable
-fun AchievementsScreen(uiState: AchievementsUiState, onBack: () -> Unit = {}) {
+fun AchievementsScreen(uiState: AchievementsUiState, onBack: () -> Unit) {
     var openType by rememberSaveable { mutableStateOf<AchievementType?>(null) }
 
     LazyVerticalGrid(
@@ -146,8 +146,8 @@ private fun previewState(): AchievementsUiState {
 }
 
 @Preview @Composable private fun AchievementsDarkPreview() = HabitlyTheme(darkTheme = true) {
-    Column(Modifier.background(MaterialTheme.colorScheme.background)) { AchievementsScreen(previewState()) }
+    Column(Modifier.background(MaterialTheme.colorScheme.background)) { AchievementsScreen(previewState(), onBack = {}) }
 }
 @Preview @Composable private fun AchievementsLightPreview() = HabitlyTheme(darkTheme = false) {
-    Column(Modifier.background(MaterialTheme.colorScheme.background)) { AchievementsScreen(previewState()) }
+    Column(Modifier.background(MaterialTheme.colorScheme.background)) { AchievementsScreen(previewState(), onBack = {}) }
 }

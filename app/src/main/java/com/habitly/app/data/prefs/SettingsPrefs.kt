@@ -17,7 +17,7 @@ private val STREAK_NUDGE_KEY = booleanPreferencesKey("streak_nudge_enabled")
 private val LAST_CELEBRATED_KEY = stringPreferencesKey("last_celebrated_date")
 private val SEEN_BADGES_KEY = stringSetPreferencesKey("seen_badge_keys")
 
-class SettingsPrefs(private val context: Context) : TodayPrefs {
+class SettingsPrefs(private val context: Context) : TodayPrefs, YouPrefs {
 
     val themeMode = context.habitlyDataStore.data.map { prefs ->
         prefs[THEME_KEY]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.DARK
@@ -46,7 +46,7 @@ class SettingsPrefs(private val context: Context) : TodayPrefs {
 
     val seenBadgeKeys = context.habitlyDataStore.data.map { it[SEEN_BADGES_KEY] ?: emptySet() }
 
-    suspend fun setUserName(name: String?) {
+    override suspend fun setUserName(name: String?) {
         context.habitlyDataStore.edit { prefs ->
             val trimmed = name?.trim()
             if (trimmed.isNullOrEmpty()) prefs.remove(USER_NAME_KEY) else prefs[USER_NAME_KEY] = trimmed

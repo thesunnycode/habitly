@@ -51,6 +51,9 @@ private class FakeHabitDataSource(progress: List<AchievementProgress>) : HabitDa
     override fun observeAchievements(): Flow<List<AchievementEntity>> = MutableStateFlow(emptyList())
     override fun observeAchievementProgress(today: LocalDate): Flow<List<AchievementProgress>> = progressFlow.asStateFlow()
     override suspend fun reconcileAchievements() = emptySet<com.habitly.app.domain.AchievementType>()
+    override suspend fun clearAchievements() {}
+    override fun observeAllHabits(): kotlinx.coroutines.flow.Flow<List<com.habitly.app.data.local.HabitEntity>> = kotlinx.coroutines.flow.flowOf(emptyList())
+    override fun observeAllLogs(): kotlinx.coroutines.flow.Flow<List<com.habitly.app.data.local.HabitLogEntity>> = kotlinx.coroutines.flow.flowOf(emptyList())
     override fun observeRecordsForHabit(habitId: Long): Flow<List<CompletionRecord>> = MutableStateFlow(emptyList())
 }
 

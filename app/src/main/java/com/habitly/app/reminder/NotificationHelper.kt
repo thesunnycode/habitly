@@ -9,6 +9,9 @@ import androidx.core.app.NotificationManagerCompat
 
 private const val CHANNEL_ID = "habit_reminders"
 
+/** Tags the streak nudge so it sits beside, rather than replaces, the same habit's reminder. */
+private const val STREAK_TAG = "streak_at_risk"
+
 class NotificationHelper(private val context: Context) {
 
     fun ensureChannel() {
@@ -29,5 +32,15 @@ class NotificationHelper(private val context: Context) {
             .setAutoCancel(true)
             .build()
         NotificationManagerCompat.from(context).notify(habitId.toInt(), notification)
+    }
+
+    fun notifyStreakAtRisk(habitId: Long, habitName: String, streak: Int) {
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setContentTitle("Keep your $streak-day $habitName streak going")
+            .setContentText("There's still time to check in today.")
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setAutoCancel(true)
+            .build()
+        NotificationManagerCompat.from(context).notify(STREAK_TAG, habitId.toInt(), notification)
     }
 }

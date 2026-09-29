@@ -15,7 +15,9 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.habitly.app.data.local.AppDatabase
 import com.habitly.app.data.prefs.SettingsPrefs
+import com.habitly.app.data.seed.SeedDataProvider
 import com.habitly.app.domain.CompletionStatus
 import com.habitly.app.ui.achievements.AchievementsScreen
 import com.habitly.app.ui.achievements.AchievementsViewModel
@@ -32,6 +34,7 @@ import com.habitly.app.ui.habits.HabitsViewModel
 import com.habitly.app.ui.insights.InsightsScreen
 import com.habitly.app.ui.onboarding.OnboardingScreen
 import com.habitly.app.ui.reminders.RemindersScreen
+import com.habitly.app.ui.reminders.RemindersViewModel
 import com.habitly.app.ui.settings.SettingsScreen
 import com.habitly.app.ui.settings.SettingsViewModel
 import com.habitly.app.ui.stats.StatsScreen
@@ -39,6 +42,8 @@ import com.habitly.app.ui.stats.StatsViewModel
 import com.habitly.app.ui.today.TodayScreen
 import com.habitly.app.ui.today.TodayViewModel
 import com.habitly.app.ui.you.YouScreen
+import com.habitly.app.ui.you.YouViewModel
+import java.time.LocalDate
 
 @Composable
 fun HabitlyNavHost(
@@ -47,6 +52,9 @@ fun HabitlyNavHost(
     windowWidthSizeClass: WindowWidthSizeClass = WindowWidthSizeClass.Compact,
 ) {
     val repository = rememberHabitRepository()
+    // Application context: the prefs outlive any one screen and must not hold the activity.
+    val appContext = LocalContext.current.applicationContext
+    val prefs = remember { SettingsPrefs(appContext) }
 
     NavHost(navController = navController, startDestination = startDestination) {
         composable(Destination.Onboarding.route) {
@@ -56,13 +64,12 @@ fun HabitlyNavHost(
         }
         composable(Destination.Today.route) { backStackEntry ->
             ArchivedUndoEffect(backStackEntry.savedStateHandle, repository)
-            val context = LocalContext.current
-            val prefs = remember { SettingsPrefs(context) }
             val viewModel = habitlyViewModel { TodayViewModel(repository, prefs) }
             val uiState by viewModel.uiState.collectAsState()
             NotificationPermissionPrompt(
                 hasLoggedSomething = uiState.isViewingToday &&
                     uiState.done.any { it.todayStatus == CompletionStatus.DONE },
+                onTurnOnReminders = { navController.navigate(Destination.Reminders.route) },
             )
             TodayScreen(
                 uiState = uiState,
@@ -126,10 +133,7 @@ fun HabitlyNavHost(
                     StatsScreen(uiState = uiState, onPeriodChange = viewModel::onPeriodChange)
                 },
                 calendar = {
-                    val context = LocalContext.current
-                    val viewModel = habitlyViewModel {
-                        CalendarViewModel(repository, weekStart = SettingsPrefs(context).weekStart)
-                    }
+                    val viewModel = habitlyViewModel { CalendarViewModel(repository, weekStart = prefs.weekStart) }
                     val uiState by viewModel.uiState.collectAsState()
                     CalendarScreen(
                         uiState = uiState,
@@ -142,8 +146,13 @@ fun HabitlyNavHost(
             )
         }
         composable(Destination.You.route) {
+            val viewModel = habitlyViewModel { YouViewModel(repository, prefs) }
+            val uiState by viewModel.uiState.collectAsState()
             YouScreen(
+                uiState = uiState,
+                onNameChange = viewModel::onNameChange,
                 onAwards = { navController.navigate(Destination.Awards.route) },
+                onReminders = { navController.navigate(Destination.Reminders.route) },
                 onArchived = {
                     navController.navigate(Destination.Habits.createRoute("archived")) {
                         popUpTo(Destination.Today.route) { saveState = true }
@@ -159,20 +168,40 @@ fun HabitlyNavHost(
             AchievementsScreen(uiState = uiState, onBack = { navController.popBackStack() })
         }
         composable(Destination.Settings.route) {
-            val context = LocalContext.current
-            val prefs = remember { SettingsPrefs(context) }
-            val viewModel = habitlyViewModel { SettingsViewModel(prefs, repository) }
+            val viewModel = habitlyViewModel {
+                SettingsViewModel(
+                    prefs = prefs,
+                    repository = repository,
+                    loadDemoData = {
+                        // Silences the badges the demo history unlocks, so they don't all celebrate at once.
+                        SeedDataProvider.seedAndSilenceBadges(
+                            repository, AppDatabase.getInstance(appContext).habitDao(), LocalDate.now(), prefs::markBadgesSeen,
+                        )
+                    },
+                )
+            }
             val uiState by viewModel.uiState.collectAsState()
             SettingsScreen(
                 uiState = uiState,
                 onThemeModeChange = viewModel::onThemeModeChange,
+                onWeekStartChange = viewModel::onWeekStartChange,
                 onNotificationsToggle = viewModel::onNotificationsToggle,
+                onStreakNudgeToggle = viewModel::onStreakNudgeToggle,
+                onHabitReminders = { navController.navigate(Destination.Reminders.route) },
+                onExport = viewModel::onExport,
+                onLoadDemoData = viewModel::onLoadDemoData,
                 onResetAllData = viewModel::onResetAllData,
                 onBack = { navController.popBackStack() },
             )
         }
         composable(Destination.Reminders.route) {
-            RemindersScreen(onBack = { navController.popBackStack() })
+            val viewModel = habitlyViewModel { RemindersViewModel(repository) }
+            val uiState by viewModel.uiState.collectAsState()
+            RemindersScreen(
+                uiState = uiState,
+                onSetReminder = viewModel::onSetReminder,
+                onBack = { navController.popBackStack() },
+            )
         }
         composable(
             route = Destination.AddEditHabit.route,
@@ -185,8 +214,6 @@ fun HabitlyNavHost(
             val templateKey = backStackEntry.arguments?.getString("template")?.takeIf { it.isNotEmpty() }
             val viewModel = habitlyViewModel { AddEditHabitViewModel(repository, habitId, templateKey) }
             val uiState by viewModel.uiState.collectAsState()
-            val context = LocalContext.current
-            val prefs = remember { SettingsPrefs(context) }
             val weekStart by prefs.weekStart.collectAsState(initial = java.time.DayOfWeek.MONDAY)
             if (uiState.isSaved || uiState.isNotFound) {
                 LaunchedEffect(Unit) { navController.popBackStack() }
