@@ -27,6 +27,7 @@ import com.habitly.app.ui.addedit.AddEditHabitScreen
 import com.habitly.app.ui.addedit.AddEditHabitViewModel
 import com.habitly.app.ui.calendar.CalendarScreen
 import com.habitly.app.ui.calendar.CalendarViewModel
+import com.habitly.app.ui.components.CenteredContent
 import com.habitly.app.ui.components.NotificationPermissionPrompt
 import com.habitly.app.ui.detail.HabitDetailScreen
 import com.habitly.app.ui.detail.HabitDetailViewModel
@@ -60,6 +61,8 @@ fun HabitlyNavHost(
     val appContext = LocalContext.current.applicationContext
     val prefs = remember { SettingsPrefs(appContext) }
     val notifications = remember { NotificationHelper(appContext) }
+    // Today and Insights have their own side-by-side layout at expanded widths; don't squeeze it.
+    val twoPane = windowWidthSizeClass == WindowWidthSizeClass.Expanded
 
     NavHost(navController = navController, startDestination = startDestination) {
         composable(Destination.Onboarding.route) {
@@ -98,25 +101,27 @@ fun HabitlyNavHost(
                     uiState.done.any { it.todayStatus == CompletionStatus.DONE },
                 onTurnOnReminders = { navController.navigate(Destination.Reminders.route) },
             )
-            TodayScreen(
-                uiState = uiState,
-                onCheck = { habit ->
-                    if (habit.habit.targetCount != null) {
-                        viewModel.onIncrement(habit.habit.id)
-                    } else {
-                        viewModel.onToggleHabit(habit.habit.id)
-                    }
-                },
-                onSetStatus = viewModel::onSetStatus,
-                onHabitClick = { id -> navController.navigate(Destination.HabitDetail.createRoute(id)) },
-                onSelectDate = viewModel::onSelectDate,
-                onAddHabit = { navController.navigate(Destination.AddEditHabit.createRoute()) },
-                onTemplatePicked = { template ->
-                    navController.navigate(Destination.AddEditHabit.createRoute(template = template?.key))
-                },
-                onCelebrationShown = viewModel::onCelebrationShown,
-                windowWidthSizeClass = windowWidthSizeClass,
-            )
+            CenteredContent(enabled = !twoPane) {
+                TodayScreen(
+                    uiState = uiState,
+                    onCheck = { habit ->
+                        if (habit.habit.targetCount != null) {
+                            viewModel.onIncrement(habit.habit.id)
+                        } else {
+                            viewModel.onToggleHabit(habit.habit.id)
+                        }
+                    },
+                    onSetStatus = viewModel::onSetStatus,
+                    onHabitClick = { id -> navController.navigate(Destination.HabitDetail.createRoute(id)) },
+                    onSelectDate = viewModel::onSelectDate,
+                    onAddHabit = { navController.navigate(Destination.AddEditHabit.createRoute()) },
+                    onTemplatePicked = { template ->
+                        navController.navigate(Destination.AddEditHabit.createRoute(template = template?.key))
+                    },
+                    onCelebrationShown = viewModel::onCelebrationShown,
+                    windowWidthSizeClass = windowWidthSizeClass,
+                )
+            }
         }
         composable(
             route = Destination.Habits.route,
@@ -127,22 +132,24 @@ fun HabitlyNavHost(
             val initialSegment = if (segment == "archived") HabitsSegment.ARCHIVED else HabitsSegment.ACTIVE
             val viewModel = habitlyViewModel(key = "habits-$segment") { HabitsViewModel(repository, initialSegment) }
             val uiState by viewModel.uiState.collectAsState()
-            HabitsScreen(
-                uiState = uiState,
-                onSegmentChange = viewModel::onSegmentChange,
-                onQueryChange = viewModel::onQueryChange,
-                onCategorySelect = viewModel::onCategorySelect,
-                onSortChange = viewModel::onSortChange,
-                onClearFilters = viewModel::onClearFilters,
-                onArchive = viewModel::onArchive,
-                onRestore = viewModel::onRestore,
-                onDeleteForever = viewModel::onDeleteForever,
-                onMove = viewModel::onMove,
-                onHabitClick = { id -> navController.navigate(Destination.HabitDetail.createRoute(id)) },
-                onAddHabit = { template ->
-                    navController.navigate(Destination.AddEditHabit.createRoute(template = template?.key))
-                },
-            )
+            CenteredContent {
+                HabitsScreen(
+                    uiState = uiState,
+                    onSegmentChange = viewModel::onSegmentChange,
+                    onQueryChange = viewModel::onQueryChange,
+                    onCategorySelect = viewModel::onCategorySelect,
+                    onSortChange = viewModel::onSortChange,
+                    onClearFilters = viewModel::onClearFilters,
+                    onArchive = viewModel::onArchive,
+                    onRestore = viewModel::onRestore,
+                    onDeleteForever = viewModel::onDeleteForever,
+                    onMove = viewModel::onMove,
+                    onHabitClick = { id -> navController.navigate(Destination.HabitDetail.createRoute(id)) },
+                    onAddHabit = { template ->
+                        navController.navigate(Destination.AddEditHabit.createRoute(template = template?.key))
+                    },
+                )
+            }
         }
         composable(
             route = Destination.Insights.route,
@@ -150,49 +157,55 @@ fun HabitlyNavHost(
         ) { backStackEntry ->
             val initialTab = backStackEntry.arguments?.getString("tab") ?: "stats"
             var tab by rememberSaveable(initialTab) { mutableStateOf(initialTab) }
-            InsightsScreen(
-                tab = tab,
-                onTabChange = { tab = it },
-                windowWidthSizeClass = windowWidthSizeClass,
-                stats = {
-                    val viewModel = habitlyViewModel { StatsViewModel(repository) }
-                    val uiState by viewModel.uiState.collectAsState()
-                    StatsScreen(uiState = uiState, onPeriodChange = viewModel::onPeriodChange)
-                },
-                calendar = {
-                    val viewModel = habitlyViewModel { CalendarViewModel(repository, weekStart = prefs.weekStart, notifications = notifications) }
-                    val uiState by viewModel.uiState.collectAsState()
-                    CalendarScreen(
-                        uiState = uiState,
-                        onMonthChange = viewModel::onMonthChange,
-                        onDaySelected = viewModel::onDaySelected,
-                        onDayDismissed = viewModel::onDayDismissed,
-                        onToggleHabitOnDay = viewModel::onToggleHabitOnDay,
-                    )
-                },
-            )
+            CenteredContent(enabled = !twoPane) {
+                InsightsScreen(
+                    tab = tab,
+                    onTabChange = { tab = it },
+                    windowWidthSizeClass = windowWidthSizeClass,
+                    stats = {
+                        val viewModel = habitlyViewModel { StatsViewModel(repository) }
+                        val uiState by viewModel.uiState.collectAsState()
+                        StatsScreen(uiState = uiState, onPeriodChange = viewModel::onPeriodChange)
+                    },
+                    calendar = {
+                        val viewModel = habitlyViewModel { CalendarViewModel(repository, weekStart = prefs.weekStart, notifications = notifications) }
+                        val uiState by viewModel.uiState.collectAsState()
+                        CalendarScreen(
+                            uiState = uiState,
+                            onMonthChange = viewModel::onMonthChange,
+                            onDaySelected = viewModel::onDaySelected,
+                            onDayDismissed = viewModel::onDayDismissed,
+                            onToggleHabitOnDay = viewModel::onToggleHabitOnDay,
+                        )
+                    },
+                )
+            }
         }
         composable(Destination.You.route) {
             val viewModel = habitlyViewModel { YouViewModel(repository, prefs) }
             val uiState by viewModel.uiState.collectAsState()
-            YouScreen(
-                uiState = uiState,
-                onNameChange = viewModel::onNameChange,
-                onAwards = { navController.navigate(Destination.Awards.route) },
-                onReminders = { navController.navigate(Destination.Reminders.route) },
-                onArchived = {
-                    navController.navigate(Destination.Habits.createRoute("archived")) {
-                        popUpTo(Destination.Today.route) { saveState = true }
-                        launchSingleTop = true
-                    }
-                },
-                onSettings = { navController.navigate(Destination.Settings.route) },
-            )
+            CenteredContent {
+                YouScreen(
+                    uiState = uiState,
+                    onNameChange = viewModel::onNameChange,
+                    onAwards = { navController.navigate(Destination.Awards.route) },
+                    onReminders = { navController.navigate(Destination.Reminders.route) },
+                    onArchived = {
+                        navController.navigate(Destination.Habits.createRoute("archived")) {
+                            popUpTo(Destination.Today.route) { saveState = true }
+                            launchSingleTop = true
+                        }
+                    },
+                    onSettings = { navController.navigate(Destination.Settings.route) },
+                )
+            }
         }
         composable(Destination.Awards.route) {
             val viewModel = habitlyViewModel { AchievementsViewModel(repository) }
             val uiState by viewModel.uiState.collectAsState()
-            AchievementsScreen(uiState = uiState, onBack = { navController.popBackStack() })
+            CenteredContent {
+                AchievementsScreen(uiState = uiState, onBack = { navController.popBackStack() })
+            }
         }
         composable(Destination.Settings.route) {
             val viewModel = habitlyViewModel {
@@ -208,28 +221,32 @@ fun HabitlyNavHost(
                 )
             }
             val uiState by viewModel.uiState.collectAsState()
-            SettingsScreen(
-                uiState = uiState,
-                onThemeModeChange = viewModel::onThemeModeChange,
-                onWeekStartChange = viewModel::onWeekStartChange,
-                onNotificationsToggle = viewModel::onNotificationsToggle,
-                onStreakNudgeToggle = viewModel::onStreakNudgeToggle,
-                onHabitReminders = { navController.navigate(Destination.Reminders.route) },
-                onExport = viewModel::onExport,
-                onLoadDemoData = viewModel::onLoadDemoData,
-                onResetAllData = viewModel::onResetAllData,
-                onBack = { navController.popBackStack() },
-                onResetMessageShown = viewModel::onResetMessageShown,
-            )
+            CenteredContent {
+                SettingsScreen(
+                    uiState = uiState,
+                    onThemeModeChange = viewModel::onThemeModeChange,
+                    onWeekStartChange = viewModel::onWeekStartChange,
+                    onNotificationsToggle = viewModel::onNotificationsToggle,
+                    onStreakNudgeToggle = viewModel::onStreakNudgeToggle,
+                    onHabitReminders = { navController.navigate(Destination.Reminders.route) },
+                    onExport = viewModel::onExport,
+                    onLoadDemoData = viewModel::onLoadDemoData,
+                    onResetAllData = viewModel::onResetAllData,
+                    onBack = { navController.popBackStack() },
+                    onResetMessageShown = viewModel::onResetMessageShown,
+                )
+            }
         }
         composable(Destination.Reminders.route) {
             val viewModel = habitlyViewModel { RemindersViewModel(repository) }
             val uiState by viewModel.uiState.collectAsState()
-            RemindersScreen(
-                uiState = uiState,
-                onSetReminder = viewModel::onSetReminder,
-                onBack = { navController.popBackStack() },
-            )
+            CenteredContent {
+                RemindersScreen(
+                    uiState = uiState,
+                    onSetReminder = viewModel::onSetReminder,
+                    onBack = { navController.popBackStack() },
+                )
+            }
         }
         composable(
             route = Destination.AddEditHabit.route,
@@ -246,22 +263,24 @@ fun HabitlyNavHost(
             if (uiState.isSaved || uiState.isNotFound) {
                 LaunchedEffect(Unit) { navController.popBackStack() }
             }
-            AddEditHabitScreen(
-                uiState = uiState,
-                onNameChange = viewModel::onNameChange,
-                onIconChange = viewModel::onIconChange,
-                onColorChange = viewModel::onColorChange,
-                onCategoryChange = viewModel::onCategoryChange,
-                onFrequencyTypeChange = viewModel::onFrequencyTypeChange,
-                onSpecificDaysChange = viewModel::onSpecificDaysChange,
-                onIntervalDaysChange = viewModel::onIntervalDaysChange,
-                onTargetCountChange = viewModel::onTargetCountChange,
-                onUnitChange = viewModel::onUnitChange,
-                onReminderTimeChange = viewModel::onReminderTimeChange,
-                onSave = viewModel::onSave,
-                onClose = { navController.popBackStack() },
-                weekStart = weekStart,
-            )
+            CenteredContent {
+                AddEditHabitScreen(
+                    uiState = uiState,
+                    onNameChange = viewModel::onNameChange,
+                    onIconChange = viewModel::onIconChange,
+                    onColorChange = viewModel::onColorChange,
+                    onCategoryChange = viewModel::onCategoryChange,
+                    onFrequencyTypeChange = viewModel::onFrequencyTypeChange,
+                    onSpecificDaysChange = viewModel::onSpecificDaysChange,
+                    onIntervalDaysChange = viewModel::onIntervalDaysChange,
+                    onTargetCountChange = viewModel::onTargetCountChange,
+                    onUnitChange = viewModel::onUnitChange,
+                    onReminderTimeChange = viewModel::onReminderTimeChange,
+                    onSave = viewModel::onSave,
+                    onClose = { navController.popBackStack() },
+                    weekStart = weekStart,
+                )
+            }
         }
         composable(
             route = Destination.HabitDetail.route,
@@ -279,19 +298,21 @@ fun HabitlyNavHost(
                     navController.popBackStack()
                 }
             }
-            HabitDetailScreen(
-                uiState = uiState,
-                onBack = { navController.popBackStack() },
-                onEdit = { navController.navigate(Destination.AddEditHabit.createRoute(habitId)) },
-                onArchive = viewModel::onArchive,
-                onDelete = viewModel::onDelete,
-                onMonthChange = viewModel::onMonthChange,
-                onToggleDay = viewModel::onToggleDay,
-                onDayLongPress = viewModel::onSetDayStatus,
-                onToggleToday = viewModel::onToggleToday,
-                onRepairStreak = viewModel::onRepairStreak,
-                windowWidthSizeClass = windowWidthSizeClass,
-            )
+            CenteredContent {
+                HabitDetailScreen(
+                    uiState = uiState,
+                    onBack = { navController.popBackStack() },
+                    onEdit = { navController.navigate(Destination.AddEditHabit.createRoute(habitId)) },
+                    onArchive = viewModel::onArchive,
+                    onDelete = viewModel::onDelete,
+                    onMonthChange = viewModel::onMonthChange,
+                    onToggleDay = viewModel::onToggleDay,
+                    onDayLongPress = viewModel::onSetDayStatus,
+                    onToggleToday = viewModel::onToggleToday,
+                    onRepairStreak = viewModel::onRepairStreak,
+                    windowWidthSizeClass = windowWidthSizeClass,
+                )
+            }
         }
     }
 }

@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -47,6 +49,8 @@ import androidx.compose.animation.core.tween
 data class NavItem(val route: String, val label: String, val icon: ImageVector, val selectedIcon: ImageVector)
 
 /** Floating bottom navigation: a rounded surface with an icon pill behind the selected destination. */
+private val MAX_NAV_BAR_WIDTH = 560.dp
+
 @Composable
 fun HabitlyNavBar(
     items: List<NavItem>,
@@ -57,8 +61,12 @@ fun HabitlyNavBar(
     val extras = LocalHabitlyColors.current
     Surface(
         modifier = modifier
+            // On tablets a full-width floating bar spreads four targets a hand apart; keep it centred and compact.
+            .fillMaxWidth()
+            .wrapContentWidth(Alignment.CenterHorizontally)
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .navigationBarsPadding()
+            .widthIn(max = MAX_NAV_BAR_WIDTH)
             .fillMaxWidth()
             .height(64.dp),
         shape = RoundedCornerShape(24.dp),
