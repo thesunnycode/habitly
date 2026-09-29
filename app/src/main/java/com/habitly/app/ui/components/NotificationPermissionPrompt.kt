@@ -56,20 +56,7 @@ fun NotificationPermissionPrompt(hasLoggedSomething: Boolean, onTurnOnReminders:
 
     if (showing) {
         HabitlySheet(onDismiss = { showing = false }) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Icons.Rounded.NotificationsActive,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp),
-                )
-            }
+            ReminderBellTile()
             Spacer(Modifier.height(16.dp))
             Text(
                 text = "Want a reminder?",
@@ -91,5 +78,24 @@ fun NotificationPermissionPrompt(hasLoggedSomething: Boolean, onTurnOnReminders:
             Spacer(Modifier.height(8.dp))
             SecondaryButton(text = "Not now", onClick = { showing = false }, modifier = Modifier.fillMaxWidth())
         }
+    }
+}
+
+/** The bell on its brand tile that heads every reminders explainer. */
+@Composable
+internal fun ReminderBellTile() {
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.primaryContainer),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            Icons.Rounded.NotificationsActive,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(24.dp),
+        )
     }
 }
