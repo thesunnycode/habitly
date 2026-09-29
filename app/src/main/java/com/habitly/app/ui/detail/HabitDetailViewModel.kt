@@ -8,6 +8,7 @@ import com.habitly.app.domain.CompletionStatus
 import com.habitly.app.domain.ContributionLevels
 import com.habitly.app.domain.HabitSchedule
 import com.habitly.app.domain.StreakCalculator
+import com.habitly.app.reminder.ReminderNotifications
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,6 +21,7 @@ class HabitDetailViewModel(
     private val repository: HabitDataSource,
     private val habitId: Long,
     private val today: () -> LocalDate = { LocalDate.now() },
+    private val notifications: ReminderNotifications = ReminderNotifications.None,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HabitDetailUiState(today = today()))
@@ -97,13 +99,17 @@ class HabitDetailViewModel(
             } else {
                 repository.toggleCompletion(habitId, date, null)
             }
+            clearNotificationsIfToday(date)
         }
     }
 
     /** The long-press sheet's choice for [date]: done, rest day, or cleared (null). */
     fun onSetDayStatus(date: LocalDate, status: CompletionStatus?, note: String? = null) {
         if (date.isAfter(today())) return
-        viewModelScope.launch { repository.setStatus(habitId, date, status, note) }
+        viewModelScope.launch {
+            repository.setStatus(habitId, date, status, note)
+            if (status != null) clearNotificationsIfToday(date)
+        }
     }
 
     /** The sticky button: done / undo for plain habits, one more unit for goals in progress. */
@@ -113,10 +119,21 @@ class HabitDetailViewModel(
         viewModelScope.launch {
             when {
                 state.todayStatus == CompletionStatus.DONE -> repository.setStatus(habitId, day, null)
-                state.habit?.targetCount != null -> repository.incrementProgress(habitId, day)
-                else -> repository.toggleCompletion(habitId, day, null)
+                state.habit?.targetCount != null -> {
+                    repository.incrementProgress(habitId, day)
+                    notifications.cancelFor(habitId)
+                }
+                else -> {
+                    repository.toggleCompletion(habitId, day, null)
+                    notifications.cancelFor(habitId)
+                }
             }
         }
+    }
+
+    /** Logging today's entry makes its reminder and streak nudge stale. */
+    private fun clearNotificationsIfToday(date: LocalDate) {
+        if (date == today()) notifications.cancelFor(habitId)
     }
 
     fun onArchive() {

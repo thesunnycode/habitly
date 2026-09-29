@@ -105,6 +105,24 @@ class TodayViewModelTest {
     @get:Rule val mainDispatcherRule = MainDispatcherRule()
 
     @Test
+    fun loggingTodayClearsThatHabitsNotificationsButAPastDayDoesNot() = runTest {
+        val cancelled = mutableListOf<Long>()
+        val vm = TodayViewModel(
+            FakeHabitDataSource(listOf(stats(id = 1, name = "Read", due = true, done = false))),
+            FakeTodayPrefs(), today = { D }, now = { LocalTime.NOON },
+            notifications = { cancelled += it },
+        )
+        vm.onToggleHabit(1); vm.onIncrement(2); vm.onSetStatus(3, CompletionStatus.SKIPPED)
+        vm.onSetStatus(4, null) // clearing a day is not a check-off
+        advanceUntilIdle()
+        assertEquals(listOf(1L, 2L, 3L), cancelled)
+
+        cancelled.clear()
+        vm.onSelectDate(D.minusDays(1)); vm.onToggleHabit(1); advanceUntilIdle()
+        assertTrue(cancelled.isEmpty())
+    }
+
+    @Test
     fun splitsHabitsIntoDueDoneAndNotDue() = runTest {
         val repo = FakeHabitDataSource(listOf(
             stats(id = 1, name = "Water", due = true, done = false),

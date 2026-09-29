@@ -7,6 +7,7 @@ import com.habitly.app.data.repository.HabitDataSource
 import com.habitly.app.data.repository.HabitWithStats
 import com.habitly.app.domain.CompletionStatus
 import com.habitly.app.domain.ContributionLevels
+import com.habitly.app.reminder.ReminderNotifications
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -32,6 +33,7 @@ class TodayViewModel(
     private val prefs: TodayPrefs,
     private val today: () -> LocalDate = { LocalDate.now() },
     private val now: () -> LocalTime = { LocalTime.now() },
+    private val notifications: ReminderNotifications = ReminderNotifications.None,
 ) : ViewModel() {
 
     private val selectedDate = MutableStateFlow(today())
@@ -117,19 +119,34 @@ class TodayViewModel(
 
     /** Ticks or un-ticks a plain habit on the selected day. */
     fun onToggleHabit(habitId: Long) {
-        viewModelScope.launch { repository.toggleCompletion(habitId, selectedDate.value, null) }
+        val date = selectedDate.value
+        viewModelScope.launch {
+            repository.toggleCompletion(habitId, date, null)
+            clearNotificationsIfToday(habitId, date)
+        }
     }
 
     /** Adds one unit towards a goal habit on the selected day; past the goal it clears the day. */
     fun onIncrement(habitId: Long) {
-        viewModelScope.launch { repository.incrementProgress(habitId, selectedDate.value) }
+        val date = selectedDate.value
+        viewModelScope.launch {
+            repository.incrementProgress(habitId, date)
+            clearNotificationsIfToday(habitId, date)
+        }
     }
 
     /** Records an explicit status (and optional note) for the selected day, or clears it when [status] is null. */
     fun onSetStatus(habitId: Long, status: CompletionStatus?, note: String? = null) {
+        val date = selectedDate.value
         viewModelScope.launch {
-            repository.setStatus(habitId, selectedDate.value, status, note?.trim()?.takeIf { it.isNotEmpty() })
+            repository.setStatus(habitId, date, status, note?.trim()?.takeIf { it.isNotEmpty() })
+            if (status != null) clearNotificationsIfToday(habitId, date)
         }
+    }
+
+    /** Logging today's entry makes its reminder and streak nudge stale. */
+    private fun clearNotificationsIfToday(habitId: Long, date: LocalDate) {
+        if (date == today()) notifications.cancelFor(habitId)
     }
 
     /** Remembers that today's celebration has been seen so it shows at most once a day. */

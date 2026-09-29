@@ -12,7 +12,7 @@ private const val CHANNEL_ID = "habit_reminders"
 /** Tags the streak nudge so it sits beside, rather than replaces, the same habit's reminder. */
 private const val STREAK_TAG = "streak_at_risk"
 
-class NotificationHelper(private val context: Context) {
+class NotificationHelper(private val context: Context) : ReminderNotifications {
 
     fun ensureChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -40,7 +40,15 @@ class NotificationHelper(private val context: Context) {
             .setContentText("There's still time to check in today.")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setAutoCancel(true)
+            // The worker can hit the nudge window more than once; re-posting must not buzz again.
+            .setOnlyAlertOnce(true)
             .build()
         NotificationManagerCompat.from(context).notify(STREAK_TAG, habitId.toInt(), notification)
+    }
+
+    override fun cancelFor(habitId: Long) {
+        val manager = NotificationManagerCompat.from(context)
+        manager.cancel(habitId.toInt())
+        manager.cancel(STREAK_TAG, habitId.toInt())
     }
 }

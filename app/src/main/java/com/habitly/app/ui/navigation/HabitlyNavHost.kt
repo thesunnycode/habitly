@@ -20,6 +20,7 @@ import com.habitly.app.data.prefs.OnboardingPrefs
 import com.habitly.app.data.prefs.SettingsPrefs
 import com.habitly.app.data.seed.SeedDataProvider
 import com.habitly.app.domain.CompletionStatus
+import com.habitly.app.reminder.NotificationHelper
 import com.habitly.app.ui.achievements.AchievementsScreen
 import com.habitly.app.ui.achievements.AchievementsViewModel
 import com.habitly.app.ui.addedit.AddEditHabitScreen
@@ -58,6 +59,7 @@ fun HabitlyNavHost(
     // Application context: the prefs outlive any one screen and must not hold the activity.
     val appContext = LocalContext.current.applicationContext
     val prefs = remember { SettingsPrefs(appContext) }
+    val notifications = remember { NotificationHelper(appContext) }
 
     NavHost(navController = navController, startDestination = startDestination) {
         composable(Destination.Onboarding.route) {
@@ -89,7 +91,7 @@ fun HabitlyNavHost(
         }
         composable(Destination.Today.route) { backStackEntry ->
             ArchivedUndoEffect(backStackEntry.savedStateHandle, repository)
-            val viewModel = habitlyViewModel { TodayViewModel(repository, prefs) }
+            val viewModel = habitlyViewModel { TodayViewModel(repository, prefs, notifications = notifications) }
             val uiState by viewModel.uiState.collectAsState()
             NotificationPermissionPrompt(
                 hasLoggedSomething = uiState.isViewingToday &&
@@ -158,7 +160,7 @@ fun HabitlyNavHost(
                     StatsScreen(uiState = uiState, onPeriodChange = viewModel::onPeriodChange)
                 },
                 calendar = {
-                    val viewModel = habitlyViewModel { CalendarViewModel(repository, weekStart = prefs.weekStart) }
+                    val viewModel = habitlyViewModel { CalendarViewModel(repository, weekStart = prefs.weekStart, notifications = notifications) }
                     val uiState by viewModel.uiState.collectAsState()
                     CalendarScreen(
                         uiState = uiState,
@@ -265,7 +267,7 @@ fun HabitlyNavHost(
             arguments = listOf(navArgument("habitId") { type = NavType.LongType }),
         ) { backStackEntry ->
             val habitId = backStackEntry.arguments?.getLong("habitId") ?: return@composable
-            val viewModel = habitlyViewModel { HabitDetailViewModel(repository, habitId) }
+            val viewModel = habitlyViewModel { HabitDetailViewModel(repository, habitId, notifications = notifications) }
             val uiState by viewModel.uiState.collectAsState()
             if (uiState.isDeleted) {
                 LaunchedEffect(Unit) { navController.popBackStack() }

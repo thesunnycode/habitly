@@ -99,6 +99,20 @@ class CalendarViewModelTest {
 
     @get:Rule val mainDispatcherRule = MainDispatcherRule()
 
+    @Test fun togglingTodayFromTheDaySheetClearsThatHabitsNotifications() = runTest {
+        val cancelled = mutableListOf<Long>()
+        fake = FakeHabitDataSource(habits = listOf(daily(1, "A")), recordsByHabit = emptyMap())
+        val vm = CalendarViewModel(
+            fake, today = LocalDate.of(2026, 9, 29), month = YearMonth.of(2026, 9),
+            notifications = { cancelled += it },
+        )
+        advanceUntilIdle()
+        vm.onToggleHabitOnDay(1, LocalDate.of(2026, 9, 20)); advanceUntilIdle()
+        assertTrue(cancelled.isEmpty())
+        vm.onToggleHabitOnDay(1, LocalDate.of(2026, 9, 29)); advanceUntilIdle()
+        assertEquals(listOf(1L), cancelled)
+    }
+
     private lateinit var fake: FakeHabitDataSource
 
     private fun calendarVm(

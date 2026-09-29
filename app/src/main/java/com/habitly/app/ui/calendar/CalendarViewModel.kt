@@ -6,6 +6,7 @@ import com.habitly.app.data.repository.HabitDataSource
 import com.habitly.app.data.repository.HabitWithStats
 import com.habitly.app.domain.CompletionRecord
 import com.habitly.app.domain.CompletionStatus
+import com.habitly.app.reminder.ReminderNotifications
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,6 +28,7 @@ class CalendarViewModel(
     private val today: LocalDate = LocalDate.now(),
     month: YearMonth = YearMonth.from(today),
     weekStart: Flow<DayOfWeek> = flowOf(DayOfWeek.MONDAY),
+    private val notifications: ReminderNotifications = ReminderNotifications.None,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CalendarUiState(month = month, today = today))
@@ -84,6 +86,8 @@ class CalendarViewModel(
             } else {
                 repository.toggleCompletion(habitId, date, null)
             }
+            // Logging today's entry makes its reminder and streak nudge stale.
+            if (date == today) notifications.cancelFor(habitId)
         }
     }
 

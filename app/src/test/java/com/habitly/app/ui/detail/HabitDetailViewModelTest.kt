@@ -104,6 +104,21 @@ class HabitDetailViewModelTest {
 
     @get:Rule val mainDispatcherRule = MainDispatcherRule()
 
+    @Test fun checkingOffTodayClearsTheHabitsNotifications() = runTest {
+        val cancelled = mutableListOf<Long>()
+        fake = FakeHabitDataSource(listOf(habitWithStats(HABIT_ID, streak = 0)), emptyList())
+        val vm = HabitDetailViewModel(fake, HABIT_ID, today = { D }, notifications = { cancelled += it })
+        advanceUntilIdle()
+        vm.onToggleToday(); advanceUntilIdle()
+        assertEquals(listOf(HABIT_ID), cancelled)
+
+        vm.onToggleDay(D.minusDays(3)); vm.onSetDayStatus(D.minusDays(4), CompletionStatus.SKIPPED); advanceUntilIdle()
+        assertEquals("past days leave notifications alone", listOf(HABIT_ID), cancelled)
+
+        vm.onSetDayStatus(D, CompletionStatus.SKIPPED); advanceUntilIdle()
+        assertEquals(listOf(HABIT_ID, HABIT_ID), cancelled)
+    }
+
     private lateinit var fake: FakeHabitDataSource
 
     private fun detailVm(records: List<CompletionRecord>): HabitDetailViewModel {
