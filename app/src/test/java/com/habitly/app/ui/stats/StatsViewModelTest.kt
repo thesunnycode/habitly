@@ -65,6 +65,7 @@ private class FakeHabitDataSource(
     override suspend fun setReminder(habitId: Long, time: String?) {}
     override suspend fun getHabit(habitId: Long): HabitEntity? = null
     override fun observeAchievements(): Flow<List<AchievementEntity>> = MutableStateFlow(emptyList())
+    override fun observeAchievementProgress(today: LocalDate): Flow<List<com.habitly.app.data.repository.AchievementProgress>> = MutableStateFlow(emptyList())
     override fun observeRecordsForHabit(habitId: Long): Flow<List<CompletionRecord>> =
         MutableStateFlow(recordsByHabit[habitId].orEmpty())
 }

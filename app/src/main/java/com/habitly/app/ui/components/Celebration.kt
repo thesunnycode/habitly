@@ -139,7 +139,7 @@ fun Celebration(
 }
 
 @Composable
-private fun Confetti() {
+internal fun Confetti() {
     val particles = remember {
         val random = Random(7)
         val colors = HabitPalette.seeds.map { hexToColor(it) }

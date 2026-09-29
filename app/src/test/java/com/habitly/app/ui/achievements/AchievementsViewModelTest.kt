@@ -3,8 +3,10 @@ package com.habitly.app.ui.achievements
 import com.habitly.app.MainDispatcherRule
 import com.habitly.app.data.local.AchievementEntity
 import com.habitly.app.data.local.HabitEntity
+import com.habitly.app.data.repository.AchievementProgress
 import com.habitly.app.data.repository.HabitDataSource
 import com.habitly.app.data.repository.HabitWithStats
+import com.habitly.app.domain.AchievementGroup
 import com.habitly.app.domain.AchievementType
 import com.habitly.app.domain.CompletionRecord
 import kotlinx.coroutines.flow.Flow
@@ -18,10 +20,10 @@ import org.junit.Rule
 import org.junit.Test
 import java.time.LocalDate
 
-private class FakeHabitDataSource(unlocked: List<AchievementEntity>) : HabitDataSource {
+private class FakeHabitDataSource(progress: List<AchievementProgress>) : HabitDataSource {
     var lastIncremented: Pair<Long, LocalDate>? = null
     var lastSetStatus: Pair<Long, com.habitly.app.domain.CompletionStatus?>? = null
-    private val flow = MutableStateFlow(unlocked)
+    private val progressFlow = MutableStateFlow(progress)
     override fun observeHabitsWithStats(today: LocalDate) = MutableStateFlow(emptyList<HabitWithStats>()).asStateFlow()
     override suspend fun addHabit(habit: HabitEntity) = 1L
     override suspend fun updateHabit(habit: HabitEntity) {}
@@ -46,7 +48,8 @@ private class FakeHabitDataSource(unlocked: List<AchievementEntity>) : HabitData
     override suspend fun reorder(orderedIds: List<Long>) {}
     override suspend fun setReminder(habitId: Long, time: String?) {}
     override suspend fun getHabit(habitId: Long): HabitEntity? = null
-    override fun observeAchievements(): Flow<List<AchievementEntity>> = flow.asStateFlow()
+    override fun observeAchievements(): Flow<List<AchievementEntity>> = MutableStateFlow(emptyList())
+    override fun observeAchievementProgress(today: LocalDate): Flow<List<AchievementProgress>> = progressFlow.asStateFlow()
     override fun observeRecordsForHabit(habitId: Long): Flow<List<CompletionRecord>> = MutableStateFlow(emptyList())
 }
 
@@ -55,13 +58,25 @@ class AchievementsViewModelTest {
     @get:Rule val mainDispatcherRule = MainDispatcherRule()
 
     @Test
-    fun itemsCoverEveryAchievementTypeWithCorrectUnlockedFlag() = runTest {
-        val fake = FakeHabitDataSource(listOf(AchievementEntity(1, null, "STREAK_7", 0L)))
-        val viewModel = AchievementsViewModel(fake)
+    fun groupsAndCountsFollowTheRepositoryProgress() = runTest {
+        val fake = FakeHabitDataSource(
+            listOf(
+                AchievementProgress(AchievementType.STREAK_3, unlockedAt = 1_000L, progress = 3),
+                AchievementProgress(AchievementType.STREAK_7, unlockedAt = null, progress = 3),
+                AchievementProgress(AchievementType.CHECKINS_10, unlockedAt = null, progress = 4),
+            )
+        )
+        val viewModel = AchievementsViewModel(fake, LocalDate.of(2026, 9, 29))
         advanceUntilIdle()
-        val items = viewModel.uiState.value.items
-        assertEquals(AchievementType.entries.size, items.size)
-        assertTrue(items.first { it.type == AchievementType.STREAK_7 }.unlocked)
-        assertEquals(false, items.first { it.type == AchievementType.STREAK_30 }.unlocked)
+        val state = viewModel.uiState.value
+        assertEquals(3, state.items.size)
+        assertEquals(1, state.unlockedCount)
+        assertEquals(16, state.total)
+        assertEquals(
+            listOf(AchievementType.STREAK_3, AchievementType.STREAK_7),
+            state.groups.getValue(AchievementGroup.STREAKS).map { it.type },
+        )
+        assertEquals(listOf(AchievementType.CHECKINS_10), state.groups.getValue(AchievementGroup.VOLUME).map { it.type })
+        assertTrue(state.groups.getValue(AchievementGroup.SPECIAL).isEmpty())
     }
 }

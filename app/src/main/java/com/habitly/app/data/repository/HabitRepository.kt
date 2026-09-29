@@ -7,16 +7,20 @@ import com.habitly.app.data.local.HabitEntity
 import com.habitly.app.data.local.HabitLogDao
 import com.habitly.app.data.local.HabitLogEntity
 import com.habitly.app.domain.AchievementEvaluator
+import com.habitly.app.domain.AchievementSnapshotBuilder
 import com.habitly.app.domain.AchievementType
 import com.habitly.app.domain.CompletionRecord
 import com.habitly.app.domain.CompletionStatus
 import com.habitly.app.domain.ContributionLevels
 import com.habitly.app.domain.HabitSchedule
 import com.habitly.app.domain.StreakCalculator
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -75,7 +79,9 @@ class HabitRepository(
 
     override suspend fun addHabit(habit: HabitEntity): Long {
         val order = if (habit.sortOrder != 0) habit.sortOrder else (habitDao.maxSortOrder() ?: 0) + 1
-        return habitDao.insert(habit.copy(sortOrder = order))
+        val id = habitDao.insert(habit.copy(sortOrder = order))
+        evaluateAchievements()
+        return id
     }
 
     override fun observeArchivedHabits(): Flow<List<HabitEntity>> = habitDao.observeArchivedHabits()
@@ -96,6 +102,17 @@ class HabitRepository(
     override suspend fun deleteHabit(habit: HabitEntity) = habitDao.delete(habit)
 
     override fun observeAchievements(): Flow<List<AchievementEntity>> = achievementDao.observeAll()
+
+    override fun observeAchievementProgress(today: LocalDate): Flow<List<AchievementProgress>> =
+        combine(habitDao.observeAllHabits(), logDao.observeAllLogs(), achievementDao.observeAll()) { habits, logs, unlocked ->
+            val snapshot = AchievementSnapshotBuilder.build(habits, logs, today)
+            val unlockedAt = unlocked.mapNotNull { entity ->
+                runCatching { AchievementType.valueOf(entity.type) }.getOrNull()?.let { it to entity.unlockedAt }
+            }.toMap()
+            AchievementType.entries.map { type ->
+                AchievementProgress(type, unlockedAt[type], AchievementEvaluator.progress(type, snapshot))
+            }
+        }.flowOn(Dispatchers.Default) // The snapshot walks every day since the first habit; keep it off the main thread.
 
     override fun observeRecordsForHabit(habitId: Long): Flow<List<CompletionRecord>> =
         logDao.observeLogsForHabit(habitId).map { logs ->
@@ -138,7 +155,7 @@ class HabitRepository(
                 progress = next,
             )
         )
-        return if (reached) evaluateAchievements(habitId) else emptySet()
+        return if (reached) evaluateAchievements() else emptySet()
     }
 
     override suspend fun setStatus(
@@ -171,27 +188,24 @@ class HabitRepository(
             )
         )
 
-        if (status != CompletionStatus.DONE) return emptySet()
-        return evaluateAchievements(habitId)
+        // A rest day can earn Second chance, so it is evaluated as well as a completion.
+        if (status != CompletionStatus.DONE && status != CompletionStatus.SKIPPED) return emptySet()
+        return evaluateAchievements()
     }
 
-    private suspend fun evaluateAchievements(habitId: Long): Set<AchievementType> {
-        val allHabitsBefore = habitDao.observeAllHabits().first()
-        val isFirstHabitEver = allHabitsBefore.size <= 1 &&
-            logDao.observeLogsForHabit(habitId).first()
-                .count { it.status == CompletionStatus.DONE } == 1
-
-        val records = logDao.observeLogsForHabit(habitId).first().map {
-            CompletionRecord(LocalDate.parse(it.date, ISO), it.status)
-        }
-        val bestStreak = StreakCalculator.bestStreak(records)
+    /** Unlocks every badge the current habits and logs have earned, returning the newly unlocked ones. */
+    private suspend fun evaluateAchievements(): Set<AchievementType> {
+        val habits = habitDao.observeAllHabits().first()
+        val logs = logDao.observeAllLogs().first()
+        val snapshot = withContext(Dispatchers.Default) { AchievementSnapshotBuilder.build(habits, logs, LocalDate.now()) }
         val alreadyUnlocked = achievementDao.observeAll().first()
             .mapNotNull { runCatching { AchievementType.valueOf(it.type) }.getOrNull() }
             .toSet()
 
-        val newlyUnlocked = AchievementEvaluator.evaluate(bestStreak, isFirstHabitEver, alreadyUnlocked)
+        val newlyUnlocked = AchievementEvaluator.evaluate(snapshot, alreadyUnlocked)
+        val now = System.currentTimeMillis()
         newlyUnlocked.forEach { type ->
-            achievementDao.insert(AchievementEntity(0, habitId, type.name, System.currentTimeMillis()))
+            achievementDao.insert(AchievementEntity(0, null, type.name, now))
         }
         return newlyUnlocked
     }

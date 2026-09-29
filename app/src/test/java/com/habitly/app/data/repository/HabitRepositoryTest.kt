@@ -72,11 +72,33 @@ class HabitRepositoryTest {
     }
 
     @Test
-    fun toggleCompletionReturnsFirstHabitAchievementForTheFirstEverHabit() = runBlocking {
+    fun addingTheFirstHabitUnlocksFirstStep() = runBlocking {
+        repo.addHabit(newHabit())
+        val stored = repo.observeAchievements().first()
+        assertEquals(listOf(AchievementType.FIRST_HABIT.name), stored.map { it.type })
+        assertNull(stored.single().habitId)
+    }
+
+    @Test
+    fun recordingARestDayUnlocksSecondChance() = runBlocking {
         val id = repo.addHabit(newHabit())
-        val today = LocalDate.of(2026, 8, 22)
-        val unlocked = repo.toggleCompletion(id, today, null)
-        assertTrue(AchievementType.FIRST_HABIT in unlocked)
+        val unlocked = repo.setStatus(id, LocalDate.of(2026, 8, 22), CompletionStatus.SKIPPED, null)
+        assertTrue(AchievementType.SECOND_CHANCE in unlocked)
+    }
+
+    @Test
+    fun achievementProgressCoversEveryBadgeWithUnlockTimesAndProgress() = runBlocking {
+        val id = repo.addHabit(newHabit())
+        repo.toggleCompletion(id, LocalDate.of(2026, 8, 21), null)
+        repo.toggleCompletion(id, LocalDate.of(2026, 8, 22), null)
+        val progress = repo.observeAchievementProgress(LocalDate.of(2026, 8, 23)).first()
+        assertEquals(16, progress.size)
+        val first = progress.first { it.type == AchievementType.FIRST_HABIT }
+        assertTrue(first.unlockedAt != null)
+        val streak3 = progress.first { it.type == AchievementType.STREAK_3 }
+        assertNull(streak3.unlockedAt)
+        assertEquals(2, streak3.progress)
+        assertEquals(2, progress.first { it.type == AchievementType.CHECKINS_10 }.progress)
     }
 
     @Test

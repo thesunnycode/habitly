@@ -34,5 +34,10 @@ interface HabitDataSource {
     suspend fun setReminder(habitId: Long, time: String?)
     suspend fun getHabit(habitId: Long): HabitEntity?
     fun observeAchievements(): Flow<List<AchievementEntity>>
+
+    /** Every badge with its unlock time (null while locked) and progress towards its target. */
+    fun observeAchievementProgress(today: LocalDate): Flow<List<AchievementProgress>>
     fun observeRecordsForHabit(habitId: Long): Flow<List<CompletionRecord>>
 }
+
+data class AchievementProgress(val type: AchievementType, val unlockedAt: Long?, val progress: Int)
