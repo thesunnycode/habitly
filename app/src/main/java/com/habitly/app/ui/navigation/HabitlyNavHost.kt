@@ -212,6 +212,7 @@ fun HabitlyNavHost(
                 SettingsViewModel(
                     prefs = prefs,
                     repository = repository,
+                    notifications = notifications,
                     loadDemoData = {
                         // Silences the badges the demo history unlocks, so they don't all celebrate at once.
                         SeedDataProvider.seedAndSilenceBadges(

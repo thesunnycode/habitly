@@ -7,6 +7,7 @@ import com.habitly.app.data.export.CsvExporter
 import com.habitly.app.data.prefs.SettingsPrefs
 import com.habitly.app.data.prefs.ThemeMode
 import com.habitly.app.data.repository.HabitDataSource
+import com.habitly.app.reminder.ReminderNotifications
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +25,7 @@ class SettingsViewModel(
     private val loadDemoData: suspend () -> Unit = {},
     versionName: String = BuildConfig.VERSION_NAME,
     isDebug: Boolean = BuildConfig.DEBUG,
+    private val notifications: ReminderNotifications = ReminderNotifications.None,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState(versionName = versionName, isDebug = isDebug))
@@ -69,7 +71,11 @@ class SettingsViewModel(
     fun onResetAllData() {
         viewModelScope.launch {
             // Archived habits too: "everything" includes what is out of sight.
-            repository.observeAllHabits().first().forEach { repository.deleteHabit(it) }
+            repository.observeAllHabits().first().forEach {
+                repository.deleteHabit(it)
+                // A reminder for a habit that no longer exists would open to nothing.
+                notifications.cancelFor(it.id)
+            }
             repository.clearAchievements()
             // A true fresh start: badges and the all-done moment celebrate again.
             prefs.clearSeenBadges()

@@ -98,13 +98,15 @@ class SettingsViewModelTest {
         val fake = FakeHabitDataSource(listOf(habit(1), habit(2)), archived = listOf(habit(3).habit.copy(isArchived = true)))
         prefs.markBadgesSeen(setOf("STREAK_7"))
         prefs.setLastCelebratedDate("2026-09-29")
-        val viewModel = SettingsViewModel(prefs, fake)
+        val cancelled = mutableListOf<Long>()
+        val viewModel = SettingsViewModel(prefs, fake, notifications = { cancelled += it })
         advanceUntilIdle()
         viewModel.onResetAllData()
         // The prefs writes run on DataStore's own IO thread, so wait for the flag rather than idling.
         viewModel.uiState.first { it.resetCompleted }
         assertEquals(setOf(1L, 2L, 3L), fake.deleted.toSet())
         assertTrue(fake.achievementsCleared)
+        assertEquals("every deleted habit's notifications are cleared", setOf(1L, 2L, 3L), cancelled.toSet())
         assertTrue("a fresh start celebrates badges again", prefs.seenBadgeKeys.first().isEmpty())
         assertEquals(null, prefs.lastCelebratedDate.first())
         assertTrue(viewModel.uiState.value.resetCompleted)
