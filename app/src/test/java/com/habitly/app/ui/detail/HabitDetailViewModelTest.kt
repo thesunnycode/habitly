@@ -7,6 +7,7 @@ import com.habitly.app.data.repository.HabitDataSource
 import com.habitly.app.data.repository.HabitWithStats
 import com.habitly.app.domain.AchievementType
 import com.habitly.app.domain.CompletionRecord
+import com.habitly.app.domain.CompletionStatus
 import com.habitly.app.domain.FrequencyType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,6 +15,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import java.time.LocalDate
@@ -25,8 +28,21 @@ private fun habitWithStats(id: Long, streak: Int) = HabitWithStats(
 
 private class FakeHabitDataSource(
     private val habits: List<HabitWithStats>,
-    private val records: List<CompletionRecord> = emptyList(),
+    records: List<CompletionRecord> = emptyList(),
 ) : HabitDataSource {
+    private val records = MutableStateFlow(records)
+    private val archived = mutableSetOf<Long>()
+
+    fun statusOn(habitId: Long, date: LocalDate): CompletionStatus? =
+        records.value.find { it.date == date }?.status
+
+    fun isArchived(habitId: Long): Boolean = habitId in archived
+
+    private fun write(date: LocalDate, status: CompletionStatus?) {
+        val others = records.value.filterNot { it.date == date }
+        records.value = if (status == null) others else others + CompletionRecord(date, status)
+    }
+
     var lastSetStatusDate: LocalDate? = null
     var lastIncremented: Pair<Long, LocalDate>? = null
     var lastSetStatus: Pair<Long, com.habitly.app.domain.CompletionStatus?>? = null
@@ -38,7 +54,10 @@ private class FakeHabitDataSource(
     override suspend fun addHabit(habit: HabitEntity): Long = 1L
     override suspend fun updateHabit(habit: HabitEntity) { if (habit.isArchived) archivedId = habit.id }
     override suspend fun deleteHabit(habit: HabitEntity) { deletedHabit = habit }
-    override suspend fun toggleCompletion(habitId: Long, date: LocalDate, note: String?) = emptySet<AchievementType>()
+    override suspend fun toggleCompletion(habitId: Long, date: LocalDate, note: String?): Set<AchievementType> {
+        write(date, if (statusOn(habitId, date) == CompletionStatus.DONE) null else CompletionStatus.DONE)
+        return emptySet()
+    }
     override suspend fun incrementProgress(habitId: Long, date: LocalDate): Set<AchievementType> {
         lastIncremented = habitId to date
         return emptySet()
@@ -52,20 +71,65 @@ private class FakeHabitDataSource(
     ): Set<AchievementType> {
         lastSetStatus = habitId to status
         lastSetStatusDate = date
+        write(date, status)
         return emptySet()
     }
     override fun observeArchivedHabits(): Flow<List<HabitEntity>> = MutableStateFlow(emptyList())
-    override suspend fun setArchived(habitId: Long, archived: Boolean) {}
+    override suspend fun setArchived(habitId: Long, archived: Boolean) {
+        if (archived) {
+            this.archived += habitId
+            archivedId = habitId
+        } else {
+            this.archived -= habitId
+        }
+    }
     override suspend fun reorder(orderedIds: List<Long>) {}
     override suspend fun setReminder(habitId: Long, time: String?) {}
     override suspend fun getHabit(habitId: Long): HabitEntity? = null
     override fun observeAchievements(): Flow<List<AchievementEntity>> = MutableStateFlow(emptyList())
-    override fun observeRecordsForHabit(habitId: Long): Flow<List<CompletionRecord>> = MutableStateFlow(records)
+    override fun observeRecordsForHabit(habitId: Long): Flow<List<CompletionRecord>> = records.asStateFlow()
 }
+
+private const val HABIT_ID = 5L
+private val D: LocalDate = LocalDate.of(2026, 9, 29)
+private fun done(date: LocalDate) = CompletionRecord(date, CompletionStatus.DONE)
+private fun skipped(date: LocalDate) = CompletionRecord(date, CompletionStatus.SKIPPED)
 
 class HabitDetailViewModelTest {
 
     @get:Rule val mainDispatcherRule = MainDispatcherRule()
+
+    private lateinit var fake: FakeHabitDataSource
+
+    private fun detailVm(records: List<CompletionRecord>): HabitDetailViewModel {
+        fake = FakeHabitDataSource(listOf(habitWithStats(HABIT_ID, streak = 0)), records)
+        return HabitDetailViewModel(fake, HABIT_ID, today = { D })
+    }
+
+    @Test fun togglingAPastDayMarksItDone() = runTest {
+        val vm = detailVm(records = emptyList())
+        vm.onToggleDay(D.minusDays(2)); advanceUntilIdle()
+        assertEquals(CompletionStatus.DONE, fake.statusOn(HABIT_ID, D.minusDays(2)))
+    }
+
+    @Test fun futureDaysCannotBeToggled() = runTest {
+        val vm = detailVm(records = emptyList())
+        vm.onToggleDay(D.plusDays(1)); advanceUntilIdle()
+        assertNull(fake.statusOn(HABIT_ID, D.plusDays(1)))
+    }
+
+    @Test fun totalDaysCountsDoneDays() = runTest {
+        val vm = detailVm(records = listOf(done(D), done(D.minusDays(1)), skipped(D.minusDays(2))))
+        advanceUntilIdle()
+        assertEquals(2, vm.uiState.value.totalDays)
+    }
+
+    @Test fun archivingFlagsTheScreenToClose() = runTest {
+        val vm = detailVm(records = emptyList())
+        vm.onArchive(); advanceUntilIdle()
+        assertTrue(vm.uiState.value.isArchived)
+        assertTrue(fake.isArchived(HABIT_ID))
+    }
 
     @Test
     fun uiStateExposesTheMatchingHabitAndItsStreaks() = runTest {

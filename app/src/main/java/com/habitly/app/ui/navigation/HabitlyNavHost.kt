@@ -53,7 +53,8 @@ fun HabitlyNavHost(
                 navController.navigate(Destination.Today.route) { popUpTo(Destination.Onboarding.route) { inclusive = true } }
             })
         }
-        composable(Destination.Today.route) {
+        composable(Destination.Today.route) { backStackEntry ->
+            ArchivedUndoEffect(backStackEntry.savedStateHandle, repository)
             val context = LocalContext.current
             val prefs = remember { SettingsPrefs(context) }
             val viewModel = habitlyViewModel { TodayViewModel(repository, prefs) }
@@ -85,7 +86,8 @@ fun HabitlyNavHost(
         composable(
             route = Destination.Habits.route,
             arguments = listOf(navArgument("segment") { type = NavType.StringType; defaultValue = "active" }),
-        ) {
+        ) { backStackEntry ->
+            ArchivedUndoEffect(backStackEntry.savedStateHandle, repository)
             val viewModel = habitlyViewModel { AllHabitsViewModel(repository) }
             val uiState by viewModel.uiState.collectAsState()
             AllHabitsScreen(
@@ -190,13 +192,24 @@ fun HabitlyNavHost(
             if (uiState.isDeleted) {
                 LaunchedEffect(Unit) { navController.popBackStack() }
             }
+            if (uiState.isArchived) {
+                LaunchedEffect(Unit) {
+                    navController.previousBackStackEntry?.savedStateHandle?.set(ARCHIVED_HABIT_KEY, habitId)
+                    navController.popBackStack()
+                }
+            }
             HabitDetailScreen(
                 uiState = uiState,
+                onBack = { navController.popBackStack() },
+                onEdit = { navController.navigate(Destination.AddEditHabit.createRoute(habitId)) },
                 onArchive = viewModel::onArchive,
                 onDelete = viewModel::onDelete,
                 onMonthChange = viewModel::onMonthChange,
+                onToggleDay = viewModel::onToggleDay,
+                onDayLongPress = viewModel::onSetDayStatus,
+                onToggleToday = viewModel::onToggleToday,
                 onRepairStreak = viewModel::onRepairStreak,
-                onBack = { navController.popBackStack() },
+                windowWidthSizeClass = windowWidthSizeClass,
             )
         }
     }
