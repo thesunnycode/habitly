@@ -226,17 +226,13 @@ private fun CompletionHero(uiState: StatsUiState) {
     HeroCard(
         label = "Completion",
         value = "$percent%",
+        caption = "of due days kept",
         // A zero change is neither good nor bad news, so it gets no arrow and no colour.
         delta = deltaPoints?.let {
             if (it == 0) "Same as previous $period" else "${if (it > 0) "+" else ""}$it% vs previous $period"
         },
         deltaPositive = deltaPoints?.takeIf { it != 0 }?.let { it > 0 },
     ) {
-        Text(
-            text = "of due days kept",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
         Spacer(Modifier.height(16.dp))
         if (uiState.period == StatsPeriod.YEAR) {
             // Inset on a surface so the palest brand step never melts into the hero's own tint. A full

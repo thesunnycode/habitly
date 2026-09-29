@@ -27,12 +27,16 @@ import androidx.compose.ui.unit.dp
 import com.habitly.app.ui.theme.HabitlyTheme
 import com.habitly.app.ui.theme.LocalHabitlyColors
 
-/** The one emphasised block on a screen: a label, a big value, an optional delta and free content. */
+/**
+ * The one emphasised block on a screen: a label, a big value with an optional [caption] that reads
+ * straight on from it, an optional delta and free content.
+ */
 @Composable
 fun HeroCard(
     label: String,
     value: String,
     modifier: Modifier = Modifier,
+    caption: String? = null,
     delta: String? = null,
     deltaPositive: Boolean? = null,
     trailing: (@Composable () -> Unit)? = null,
@@ -58,6 +62,13 @@ fun HeroCard(
                     style = MaterialTheme.typography.displaySmall,
                     color = MaterialTheme.colorScheme.onSurface,
                 )
+                if (caption != null) {
+                    Text(
+                        text = caption,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
             trailing?.invoke()
         }
