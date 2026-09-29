@@ -162,8 +162,12 @@ fun HabitlyNavHost(
             ),
         ) { backStackEntry ->
             val habitId = (backStackEntry.arguments?.getLong("habitId") ?: -1L).takeIf { it != -1L }
-            val viewModel = habitlyViewModel { AddEditHabitViewModel(repository, habitId) }
+            val templateKey = backStackEntry.arguments?.getString("template")?.takeIf { it.isNotEmpty() }
+            val viewModel = habitlyViewModel { AddEditHabitViewModel(repository, habitId, templateKey) }
             val uiState by viewModel.uiState.collectAsState()
+            val context = LocalContext.current
+            val prefs = remember { SettingsPrefs(context) }
+            val weekStart by prefs.weekStart.collectAsState(initial = java.time.DayOfWeek.MONDAY)
             if (uiState.isSaved) {
                 LaunchedEffect(Unit) { navController.popBackStack() }
             }
@@ -172,14 +176,16 @@ fun HabitlyNavHost(
                 onNameChange = viewModel::onNameChange,
                 onIconChange = viewModel::onIconChange,
                 onColorChange = viewModel::onColorChange,
+                onCategoryChange = viewModel::onCategoryChange,
                 onFrequencyTypeChange = viewModel::onFrequencyTypeChange,
                 onSpecificDaysChange = viewModel::onSpecificDaysChange,
                 onIntervalDaysChange = viewModel::onIntervalDaysChange,
-                onSave = viewModel::onSave,
-                onTemplateSelected = viewModel::onTemplateSelected,
                 onTargetCountChange = viewModel::onTargetCountChange,
                 onUnitChange = viewModel::onUnitChange,
-                onCancel = { navController.popBackStack() },
+                onReminderTimeChange = viewModel::onReminderTimeChange,
+                onSave = viewModel::onSave,
+                onClose = { navController.popBackStack() },
+                weekStart = weekStart,
             )
         }
         composable(
