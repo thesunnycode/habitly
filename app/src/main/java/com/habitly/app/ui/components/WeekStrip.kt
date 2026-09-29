@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -65,6 +66,15 @@ fun WeekStrip(
     }
 }
 
+/** From this font scale a seven-across chip can't fit "Wed", so the label drops to one letter. */
+internal const val NARROW_WEEKDAY_FONT_SCALE = 1.3f
+
+/** The chip's weekday: "Wed" normally, "W" at large font scales. Never more than three characters. */
+internal fun weekdayLabel(day: LocalDate, fontScale: Float, locale: Locale = Locale.getDefault()): String {
+    val style = if (fontScale >= NARROW_WEEKDAY_FONT_SCALE) TextStyle.NARROW else TextStyle.SHORT
+    return day.dayOfWeek.getDisplayName(style, locale).take(3)
+}
+
 @Composable
 private fun DayChip(
     day: LocalDate,
@@ -77,7 +87,7 @@ private fun DayChip(
 ) {
     val extras = LocalHabitlyColors.current
     val scheme = MaterialTheme.colorScheme
-    val label = day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
+    val label = weekdayLabel(day, LocalDensity.current.fontScale)
     val dot = when {
         completion >= 1f -> extras.success
         completion > 0f -> lerp(scheme.primaryContainer, scheme.primary, 0.5f)
@@ -101,13 +111,17 @@ private fun DayChip(
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            text = label.take(3),
+            text = label,
             style = MaterialTheme.typography.labelSmall,
             color = if (isSelected) extras.onPrimaryButton.copy(alpha = 0.7f) else extras.onSurfaceFaint,
+            maxLines = 1,
+            softWrap = false,
         )
         Text(
             text = "${day.dayOfMonth}",
             style = MaterialTheme.typography.titleMedium,
+            maxLines = 1,
+            softWrap = false,
             color = if (isSelected) extras.onPrimaryButton else scheme.onSurface,
             modifier = Modifier.padding(vertical = 2.dp),
         )

@@ -199,15 +199,28 @@ private fun AwardsPreview(state: YouUiState, onClick: () -> Unit) {
             .padding(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Awards", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+            // At large font scales the count gives way (ellipsis) so neither label breaks mid-word.
+            Text(
+                "Awards",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                softWrap = false,
+            )
             Spacer(Modifier.width(8.dp))
             Text(
                 text = "${state.unlockedCount} of $total",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
             )
-            Spacer(Modifier.weight(1f))
-            Text("See all", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Text(
+                "See all",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                softWrap = false,
+            )
             Icon(
                 Icons.Rounded.ChevronRight,
                 contentDescription = null,

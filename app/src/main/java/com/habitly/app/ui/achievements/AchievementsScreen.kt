@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -44,12 +45,19 @@ import java.time.format.DateTimeFormatter
 
 private val SHORT_DATE = DateTimeFormatter.ofPattern("d MMM")
 
+/** From this font scale a half-width tile can't fit words like "Comeback", so the grid goes to one column. */
+internal const val SINGLE_COLUMN_FONT_SCALE = 1.5f
+
+/** Two badge columns normally; one at large font scales so titles wrap only between words. */
+internal fun badgeColumns(fontScale: Float): Int = if (fontScale >= SINGLE_COLUMN_FONT_SCALE) 1 else 2
+
 @Composable
 fun AchievementsScreen(uiState: AchievementsUiState, onBack: () -> Unit) {
     var openType by rememberSaveable { mutableStateOf<AchievementType?>(null) }
+    val columns = badgeColumns(LocalDensity.current.fontScale)
 
     LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
+        columns = GridCells.Fixed(columns),
         modifier = Modifier.fillMaxSize().statusBarsPadding(),
         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -76,7 +84,7 @@ fun AchievementsScreen(uiState: AchievementsUiState, onBack: () -> Unit) {
             item(span = { GridItemSpan(maxLineSpan) }, key = "group-${group.name}") {
                 SectionLabel(group.title, modifier = Modifier.padding(top = 12.dp))
             }
-            items(items, key = { it.type.name }) { item -> BadgeTile(item, onClick = { openType = item.type }) }
+            items(items, key = { it.type.name }) { item -> BadgeTile(item, pairedTitles = columns > 1, onClick = { openType = item.type }) }
         }
         item(span = { GridItemSpan(maxLineSpan) }, key = "bottom") { Spacer(Modifier.navigationBarsPadding()) }
     }
@@ -86,7 +94,7 @@ fun AchievementsScreen(uiState: AchievementsUiState, onBack: () -> Unit) {
 }
 
 @Composable
-private fun BadgeTile(item: AchievementProgress, onClick: () -> Unit) {
+private fun BadgeTile(item: AchievementProgress, pairedTitles: Boolean, onClick: () -> Unit) {
     val unlockedAt = item.unlockedAt
     val status = if (unlockedAt != null) {
         "unlocked ${formatUnlockDate(unlockedAt, SHORT_DATE)}"
@@ -111,7 +119,8 @@ private fun BadgeTile(item: AchievementProgress, onClick: () -> Unit) {
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,
-                minLines = 2,
+                // Side-by-side tiles keep equal heights; a single column has no neighbour to match.
+                minLines = if (pairedTitles) 2 else 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Spacer(Modifier.height(4.dp))
