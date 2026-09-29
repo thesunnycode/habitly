@@ -237,7 +237,7 @@ class StatsViewModelTest {
     }
 
     @Test
-    fun verdictsAreOrderedByGroupThenByRate() = runTest {
+    fun equalRatesFallBackToGroupOrder() = runTest {
         val records = mapOf(
             1L to done(*daysBack(TODAY, 14).toTypedArray()),
             2L to done(*daysBack(TODAY, 2).toTypedArray()),
@@ -430,5 +430,46 @@ class StatsViewModelTest {
         val vm = viewModel(listOf(habit(1, "Established"), habit(2, "New")), records)
         advanceUntilIdle()
         assertEquals(listOf("New", "Established"), vm.uiState.value.habitVerdicts.map { it.name })
+    }
+
+    @Test
+    fun rapidFilterChangesSettleOnTheLastSelection() = runTest {
+        val records = mapOf(1L to done(*daysBack(TODAY, 7).toTypedArray()), 2L to done(TODAY))
+        val vm = viewModel(listOf(habit(1, "Water"), habit(2, "Gym")), records)
+        advanceUntilIdle()
+
+        vm.onHabitFilterChange(1L)
+        vm.onPeriodChange(StatsPeriod.MONTH)
+        vm.onHabitFilterChange(2L)
+        advanceUntilIdle()
+
+        val state = vm.uiState.value
+        assertEquals(2L, state.selectedHabitId)
+        assertEquals(StatsPeriod.MONTH, state.period)
+        assertEquals(1, state.totalCompletions)
+    }
+
+    @Test
+    fun aHabitYoungerThanThePreviousWindowHasNoPreviousRate() = runTest {
+        // Water has three weeks of history, so the screen as a whole can compare weeks. Gym is
+        // three days old: its previous week never existed, so it must not read as a jump from 0%.
+        val records = mapOf(
+            1L to done(*daysBack(TODAY, 21).toTypedArray()),
+            2L to done(*daysBack(TODAY, 3).toTypedArray()),
+        )
+        val vm = viewModel(listOf(habit(1, "Water"), habit(2, "Gym")), records)
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.showDelta)
+
+        vm.onHabitFilterChange(2L)
+        advanceUntilIdle()
+        val gym = vm.uiState.value
+        assertNull(gym.previousRate)
+        assertFalse(gym.showDelta)
+        assertNull(gym.habitVerdicts.single { it.id == 2L }.delta)
+
+        vm.onHabitFilterChange(1L)
+        advanceUntilIdle()
+        assertEquals(1f, vm.uiState.value.previousRate ?: -1f, 0.001f)
     }
 }

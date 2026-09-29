@@ -20,8 +20,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
 import java.time.DayOfWeek
@@ -47,8 +46,10 @@ class StatsViewModel(
     private val _uiState = MutableStateFlow(StatsUiState())
     val uiState: StateFlow<StatsUiState> = _uiState.asStateFlow()
 
-    /** The latest emission, kept so a period change can recompute without waiting for the flow. */
-    private var lastPairs: List<Pair<HabitWithStats, List<CompletionRecord>>> = emptyList()
+    /** What the user has picked. Kept apart from the state so every build reads one consistent pair. */
+    private data class Selection(val period: StatsPeriod, val habitId: Long?)
+
+    private val selection = MutableStateFlow(Selection(StatsPeriod.WEEK, null))
 
     init {
         viewModelScope.launch {
@@ -62,41 +63,28 @@ class StatsViewModel(
                         }
                     }
                 }
+                .combine(selection) { pairs, picked -> pairs to picked }
                 // This screen aggregates every record of every habit over months. That is far too
                 // much work for the main thread — doing it there froze the app into an ANR the
                 // first time the screen was opened with real seeded history.
-                .map { pairs ->
-                    val current = _uiState.value
-                    pairs to build(pairs, current.period, current.selectedHabitId)
-                }
+                // mapLatest drops a build superseded by a newer selection or data change, so quick
+                // chip taps can never settle on a stale one that happened to finish last.
+                .mapLatest { (pairs, picked) -> build(pairs, picked.period, picked.habitId) }
                 .flowOn(computeDispatcher)
-                .collect { (pairs, state) ->
-                    lastPairs = pairs
-                    _uiState.value = state
-                }
+                .collect { _uiState.value = it }
         }
     }
 
     fun onPeriodChange(period: StatsPeriod) {
         // Optimistic: flip the selector immediately, then recompute off the main thread.
         _uiState.value = _uiState.value.copy(period = period)
-        recompute()
+        selection.value = selection.value.copy(period = period)
     }
 
     /** Filters the figures to one habit, or back to all habits with null. */
     fun onHabitFilterChange(id: Long?) {
         _uiState.value = _uiState.value.copy(selectedHabitId = id)
-        recompute()
-    }
-
-    private fun recompute() {
-        val current = _uiState.value
-        viewModelScope.launch {
-            val next = withContext(computeDispatcher) {
-                build(lastPairs, current.period, current.selectedHabitId)
-            }
-            _uiState.value = next
-        }
+        selection.value = selection.value.copy(habitId = id)
     }
 
     private fun build(
@@ -122,10 +110,10 @@ class StatsViewModel(
         val previousStart = periodStart.minusDays(period.days.toLong())
 
         val rate = rateOver(scope, periodStart, now)
-        val previousRate = if (daysOfHistory >= period.days * 2) {
-            rateOver(scope, previousStart, periodStart.minusDays(1))
-        } else {
-            null
+        val previousRate = when {
+            selected != null -> habitPreviousRate(selected, period, now)
+            daysOfHistory >= period.days * 2 -> rateOver(scope, previousStart, periodStart.minusDays(1))
+            else -> null
         }
 
         // The trailing seven days, ending today — deliberately NOT the calendar week. The hero
@@ -185,7 +173,7 @@ class StatsViewModel(
             isPersonalBest = currentStreak > 0 && currentStreak >= bestStreak,
             completionsByWeekday = byWeekday,
             weakestWeekday = WeekdayBreakdown.weakestWeekday(byWeekday),
-            habitVerdicts = verdicts(pairs, period, now, daysOfHistory),
+            habitVerdicts = verdicts(pairs, period, now),
             yearLevels = ContributionLevels.forAllHabits(
                 completionsByDate = allRecords.filter { it.status == CompletionStatus.DONE }
                     .groupingBy { it.date }.eachCount(),
@@ -237,7 +225,31 @@ class StatsViewModel(
         pairs: List<Pair<HabitWithStats, List<CompletionRecord>>>,
         from: LocalDate,
         to: LocalDate,
-    ): Float {
+    ): Float = rateOrNull(pairs, from, to) ?: 0f
+
+    /**
+     * One habit's rate over the period before the current one, or null when that period is not
+     * fully inside the habit's own history or had no due days. Without this a habit only days old
+     * would compare against an empty week and show a large, invented gain.
+     */
+    private fun habitPreviousRate(
+        pair: Pair<HabitWithStats, List<CompletionRecord>>,
+        period: StatsPeriod,
+        now: LocalDate,
+    ): Float? {
+        val habitDays = pair.second.minOfOrNull { it.date }
+            ?.let { (ChronoUnit.DAYS.between(it, now) + 1).toInt() } ?: 0
+        if (habitDays < period.days * 2) return null
+        val periodStart = now.minusDays((period.days - 1).toLong())
+        return rateOrNull(listOf(pair), periodStart.minusDays(period.days.toLong()), periodStart.minusDays(1))
+    }
+
+    /** As [rateOver], but null when the window had no due days at all. */
+    private fun rateOrNull(
+        pairs: List<Pair<HabitWithStats, List<CompletionRecord>>>,
+        from: LocalDate,
+        to: LocalDate,
+    ): Float? {
         var due = 0
         var done = 0
         pairs.forEach { (stats, records) ->
@@ -251,7 +263,7 @@ class StatsViewModel(
                 it.status == CompletionStatus.DONE && !it.date.isBefore(from) && !it.date.isAfter(to)
             }
         }
-        if (due <= 0) return 0f
+        if (due <= 0) return null
         return (done.toFloat() / due).coerceIn(0f, 1f)
     }
 
@@ -304,20 +316,14 @@ class StatsViewModel(
         pairs: List<Pair<HabitWithStats, List<CompletionRecord>>>,
         period: StatsPeriod,
         now: LocalDate,
-        daysOfHistory: Int,
     ): List<HabitVerdict> {
         val periodStart = now.minusDays((period.days - 1).toLong())
-        val previousStart = periodStart.minusDays(period.days.toLong())
 
         return pairs.map { pair ->
             val (stats, records) = pair
             val single = listOf(pair)
             val rate = rateOver(single, periodStart, now)
-            val previous = if (daysOfHistory >= period.days * 2) {
-                rateOver(single, previousStart, periodStart.minusDays(1))
-            } else {
-                null
-            }
+            val previous = habitPreviousRate(pair, period, now)
             val habitDays = records.minOfOrNull { it.date }
                 ?.let { (ChronoUnit.DAYS.between(it, now) + 1).toInt() } ?: 0
 
