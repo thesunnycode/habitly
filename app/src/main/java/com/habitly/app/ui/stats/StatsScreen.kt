@@ -2,6 +2,8 @@ package com.habitly.app.ui.stats
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,6 +62,10 @@ private const val DAYS_FOR_WEEKDAYS = 14
 private const val DAYS_FOR_VERDICTS = 7
 
 private val CARD_SHAPE = RoundedCornerShape(20.dp)
+
+private const val YEAR_WEEKS = 52
+private val YEAR_CELL = 8.dp
+private val YEAR_GAP = 2.dp
 
 @Composable
 fun StatsScreen(
@@ -214,13 +221,16 @@ private fun InsightsCard(insights: List<Insight>) {
 private fun CompletionHero(uiState: StatsUiState) {
     val percent = (uiState.completionRate * 100).toInt()
     val delta = uiState.delta?.takeIf { uiState.showDelta }
+    val deltaPoints = delta?.let { (it * 100).toInt() }
+    val period = uiState.period.label.lowercase()
     HeroCard(
         label = "Completion",
         value = "$percent%",
-        delta = delta?.let {
-            "${if (it >= 0f) "+" else ""}${(it * 100).toInt()}% vs previous ${uiState.period.label.lowercase()}"
+        // A zero change is neither good nor bad news, so it gets no arrow and no colour.
+        delta = deltaPoints?.let {
+            if (it == 0) "Same as previous $period" else "${if (it > 0) "+" else ""}$it% vs previous $period"
         },
-        deltaPositive = delta?.let { it >= 0f },
+        deltaPositive = deltaPoints?.takeIf { it != 0 }?.let { it > 0 },
     ) {
         Text(
             text = "of due days kept",
@@ -229,27 +239,34 @@ private fun CompletionHero(uiState: StatsUiState) {
         )
         Spacer(Modifier.height(16.dp))
         if (uiState.period == StatsPeriod.YEAR) {
-            // Inset on a surface so the palest brand step never melts into the hero's own tint.
+            // Inset on a surface so the palest brand step never melts into the hero's own tint. A full
+            // year at a readable cell size is wider than a phone, so it scrolls, opening on this week.
+            val scroll = rememberScrollState()
+            LaunchedEffect(scroll.maxValue) { scroll.scrollTo(scroll.maxValue) }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
                     .background(MaterialTheme.colorScheme.surface)
-                    .padding(10.dp),
+                    .padding(10.dp)
+                    .horizontalScroll(scroll),
             ) {
                 HabitGrid(
                     levels = uiState.yearLevels,
                     colorHex = null,
-                    weeks = 52,
+                    weeks = YEAR_WEEKS,
+                    cellGap = YEAR_GAP,
                     endDate = uiState.today,
+                    modifier = Modifier.width(YEAR_CELL * YEAR_WEEKS + YEAR_GAP * (YEAR_WEEKS - 1)),
                     summary = { weeks -> "Activity across all habits for the last $weeks weeks" },
                 )
             }
         } else {
             val bars = uiState.periodBars
             // Today is still running, so it is never called the weakest day.
-            val weakest = bars.dropLast(1).withIndex()
-                .takeIf { bars.size > 1 && bars.min() < bars.max() }
+            val past = bars.dropLast(1)
+            val weakest = past.withIndex()
+                .takeIf { past.size > 1 && past.min() < past.max() }
                 ?.minByOrNull { it.value }?.index
             PeriodBars(
                 values = bars,
@@ -407,8 +424,10 @@ private fun VerdictRow(verdict: HabitVerdict) {
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(start = 12.dp),
         )
-        // No arrow on a habit we have just said we cannot judge yet.
-        verdict.delta?.takeIf { verdict.group != VerdictGroup.NOT_ENOUGH_DATA }?.let { delta ->
+        // No arrow on a habit we cannot judge yet, nor on one that has not moved.
+        verdict.delta?.takeIf {
+            verdict.group != VerdictGroup.NOT_ENOUGH_DATA && (it * 100).toInt() != 0
+        }?.let { delta ->
             Icon(
                 imageVector = if (delta >= 0f) Icons.Filled.ArrowUpward else Icons.Filled.ArrowDownward,
                 contentDescription = if (delta >= 0f) "Rising" else "Falling",

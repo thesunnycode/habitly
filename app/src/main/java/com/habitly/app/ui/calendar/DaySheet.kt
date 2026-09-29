@@ -30,9 +30,15 @@ fun DaySheet(
     onDismiss: () -> Unit,
 ) {
     val done = dayHabits.count { it.status == CompletionStatus.DONE }
+    // Rested habits stay listed but, being neutral, are not part of "n of m".
+    val counted = dayHabits.count { it.status != CompletionStatus.SKIPPED }
     HabitlySheet(onDismiss = onDismiss, title = date.format(SHEET_TITLE)) {
         Text(
-            text = if (dayHabits.isEmpty()) "Nothing was due this day" else "$done of ${dayHabits.size} done",
+            text = when {
+                dayHabits.isEmpty() -> "Nothing was due this day"
+                counted == 0 -> "Rest day"
+                else -> "$done of $counted done"
+            },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 8.dp),

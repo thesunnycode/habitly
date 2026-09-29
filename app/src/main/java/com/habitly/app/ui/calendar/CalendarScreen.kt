@@ -47,9 +47,11 @@ private fun brandSteps(): List<Color> {
     val scheme = MaterialTheme.colorScheme
     return listOf(
         LocalHabitlyColors.current.gridEmpty,
-        scheme.primaryContainer,
-        lerp(scheme.primaryContainer, scheme.primary, 0.5f),
-        lerp(scheme.primaryContainer, scheme.primary, 0.75f),
+        // Starting part-way to primary keeps the lowest step clearly apart from empty in light theme,
+        // where primaryContainer alone sits within a shade of gridEmpty.
+        lerp(scheme.primaryContainer, scheme.primary, 0.30f),
+        lerp(scheme.primaryContainer, scheme.primary, 0.55f),
+        lerp(scheme.primaryContainer, scheme.primary, 0.80f),
         scheme.primary,
     )
 }

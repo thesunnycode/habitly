@@ -126,6 +126,13 @@ class CalendarViewModelTest {
         assertEquals(0.5f, vm.uiState.value.dayFraction[LocalDate.of(2026, 9, 10)]!!, 0.001f)
     }
 
+    @Test fun aRestDayIsNeutralRatherThanMissed() = runTest {
+        val rested = 2L to CompletionRecord(LocalDate.of(2026, 9, 10), CompletionStatus.SKIPPED)
+        val vm = calendarVm(habits = listOf(daily(1, "A"), daily(2, "B")), logs = listOf(done(1, "2026-09-10"), rested))
+        advanceUntilIdle()
+        assertEquals(1f, vm.uiState.value.dayFraction[LocalDate.of(2026, 9, 10)]!!, 0.001f)
+    }
+
     @Test fun togglingFromTheDaySheetWritesThatDate() = runTest {
         val vm = calendarVm(habits = listOf(daily(1, "A")), logs = emptyList())
         vm.onToggleHabitOnDay(1, LocalDate.of(2026, 9, 20)); advanceUntilIdle()

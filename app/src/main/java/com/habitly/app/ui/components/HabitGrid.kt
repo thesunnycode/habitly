@@ -86,8 +86,10 @@ fun HabitGrid(
     } else {
         HabitTones(
             full = scheme.primary,
-            mid = lerp(scheme.primaryContainer, scheme.primary, 0.5f),
-            low = scheme.primaryContainer,
+            // Same ramp as the Insights calendar: part-way to primary, so the lowest level stays
+            // distinct from an empty cell in light theme.
+            mid = lerp(scheme.primaryContainer, scheme.primary, 0.55f),
+            low = lerp(scheme.primaryContainer, scheme.primary, 0.30f),
             onFull = scheme.onPrimary,
         )
     }

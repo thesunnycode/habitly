@@ -101,7 +101,10 @@ class CalendarViewModel(
         for (day in 1..current.month.lengthOfMonth()) {
             val date = current.month.atDay(day)
             if (date.isAfter(today)) break
-            val due = statusIndex.filter { (stats, _) -> isDue(stats, date) }
+            // A rest day is neutral: it leaves the day's denominator, as it does in Stats.
+            val due = statusIndex.filter { (stats, statuses) ->
+                isDue(stats, date) && statuses[date] != CompletionStatus.SKIPPED
+            }
             if (due.isEmpty()) continue
             val done = due.count { (_, statuses) -> statuses[date] == CompletionStatus.DONE }
             counts[date] = done to due.size
