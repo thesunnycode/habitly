@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -60,6 +61,7 @@ fun MonthGrid(
     val primary = MaterialTheme.colorScheme.primary
     val onSurface = MaterialTheme.colorScheme.onSurface
     val cellShape = RoundedCornerShape(10.dp)
+    val selectedDay = selected
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             (0 until 7).forEach { i ->
@@ -101,7 +103,10 @@ fun MonthGrid(
                                         onLongClick = onDayLongClick?.let { { it(date) } },
                                     ),
                                 )
-                                .clearAndSetSemantics { contentDescription = dayDescription(date) },
+                                .clearAndSetSemantics {
+                                    contentDescription = dayDescription(date)
+                                    this.selected = date == selectedDay
+                                },
                             contentAlignment = Alignment.Center,
                         ) {
                             Text(

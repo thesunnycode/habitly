@@ -119,15 +119,25 @@ fun HabitlyNavHost(
             InsightsScreen(
                 tab = tab,
                 onTabChange = { tab = it },
-                statsContent = {
+                windowWidthSizeClass = windowWidthSizeClass,
+                stats = {
                     val viewModel = habitlyViewModel { StatsViewModel(repository) }
                     val uiState by viewModel.uiState.collectAsState()
                     StatsScreen(uiState = uiState, onPeriodChange = viewModel::onPeriodChange)
                 },
-                calendarContent = {
-                    val viewModel = habitlyViewModel { CalendarViewModel(repository) }
+                calendar = {
+                    val context = LocalContext.current
+                    val viewModel = habitlyViewModel {
+                        CalendarViewModel(repository, weekStart = SettingsPrefs(context).weekStart)
+                    }
                     val uiState by viewModel.uiState.collectAsState()
-                    CalendarScreen(uiState = uiState, onMonthChange = viewModel::onMonthChange)
+                    CalendarScreen(
+                        uiState = uiState,
+                        onMonthChange = viewModel::onMonthChange,
+                        onDaySelected = viewModel::onDaySelected,
+                        onDayDismissed = viewModel::onDayDismissed,
+                        onToggleHabitOnDay = viewModel::onToggleHabitOnDay,
+                    )
                 },
             )
         }

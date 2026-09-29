@@ -1,11 +1,11 @@
 package com.habitly.app.ui.components
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,41 +14,37 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.habitly.app.domain.CompletionStatus
+import com.habitly.app.ui.theme.LocalHabitlyColors
+import com.habitly.app.ui.theme.LocalReduceMotion
 
 /**
- * Rounded, gradient-filled bars that spring up in sequence when the chart appears.
- *
- * Replaces a flat `drawRect` chart. The differences that matter: pill caps, a vertical gradient so a
- * bar has depth, an always-visible track behind each bar so a zero reads as "nothing yet" rather
- * than as a missing bar, and one bar that can be tinted to carry a point (the weakest weekday).
+ * Rounded bars that spring up in sequence when the chart appears, each over an always-visible
+ * track so a zero reads as "nothing yet" rather than as a missing bar. One bar can be tinted to
+ * carry a point (the weakest weekday).
  */
 @Composable
 fun MiniBars(
@@ -58,10 +54,10 @@ fun MiniBars(
     highlightIndex: Int? = null,
     highlightColor: Color = MaterialTheme.colorScheme.error,
     barColor: Color = MaterialTheme.colorScheme.primary,
-    height: androidx.compose.ui.unit.Dp = 132.dp,
+    height: Dp = 132.dp,
 ) {
     val peak = values.maxOrNull()?.takeIf { it > 0f } ?: 1f
-    val trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.045f)
+    val trackColor = LocalHabitlyColors.current.gridEmpty
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
@@ -84,9 +80,8 @@ fun MiniBars(
                     fraction = grown,
                     color = color,
                     trackColor = trackColor,
-                    // weight() only distributes width in a Row. Without fillMaxHeight the Box
-                    // wrapped its (empty) content to zero height, so every bar collapsed into a
-                    // black circle: the gradient was being asked for a zero-height span.
+                    // weight() only distributes width in a Row; without fillMaxHeight the bar
+                    // would wrap its empty content to zero height.
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                 )
             }
@@ -123,108 +118,102 @@ private fun Bar(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .then(
-                Modifier.drawWithCache {
-                    val radius = CornerRadius(size.width / 2f)
-                    // A non-zero value always gets at least a pill's worth of height, so a small
-                    // count is still visible, but never more than the space available.
-                    val minimum = if (fraction > 0f) size.width.coerceAtMost(size.height) else 0f
-                    val fillHeight = (size.height * fraction).coerceIn(minimum, size.height)
-                    val brush = Brush.verticalGradient(
-                        colors = listOf(color, color.copy(alpha = 0.72f)),
-                        startY = size.height - fillHeight,
-                        endY = size.height,
-                    )
-                    onDrawBehind {
-                        // The track keeps every slot visible, so an empty day is a shape, not a gap.
-                        drawRoundRect(color = trackColor, cornerRadius = radius)
-                        if (fillHeight > 0f) {
-                            drawRoundRect(
-                                brush = brush,
-                                topLeft = Offset(0f, size.height - fillHeight),
-                                size = Size(size.width, fillHeight),
-                                cornerRadius = radius,
-                            )
-                        }
+            .drawWithCache {
+                val radius = CornerRadius(size.width / 2f)
+                // A non-zero value always gets at least a pill's worth of height, so a small
+                // count is still visible, but never more than the space available.
+                val minimum = if (fraction > 0f) size.width.coerceAtMost(size.height) else 0f
+                val fillHeight = (size.height * fraction).coerceIn(minimum, size.height)
+                onDrawBehind {
+                    drawRoundRect(color = trackColor, cornerRadius = radius)
+                    if (fillHeight > 0f) {
+                        drawRoundRect(
+                            color = color,
+                            topLeft = Offset(0f, size.height - fillHeight),
+                            size = Size(size.width, fillHeight),
+                            cornerRadius = radius,
+                        )
                     }
                 }
-            ),
+            },
     )
 }
 
 /**
- * A week as seven pills.
+ * The hero's period chart: one bar per day on a 0..100% scale with a dashed average line. The
+ * weakest bar is drawn in `error` so the chart carries a point, not just a shape.
  *
- * This is what replaced the 7-point completion-rate line chart. With seven binary days a line can
- * only take eight values, so it drew a staircase and called it a trend; pills say the same thing
- * without pretending to be continuous, and they carry the rest-day and miss states too.
+ * With one label per bar, labels sit under each bar; otherwise only the first and last are shown
+ * at the chart's edges, which keeps a 30-bar month readable.
  */
 @Composable
-fun DayPills(
-    statuses: List<CompletionStatus?>,
+fun PeriodBars(
+    values: List<Float>,
     labels: List<String>,
     modifier: Modifier = Modifier,
-    todayIndex: Int? = null,
-    color: Color = MaterialTheme.colorScheme.primary,
-    /** Ink for empty slots, labels and the today ring — set this when drawing on a dark surface. */
-    onSurface: Color = MaterialTheme.colorScheme.onSurface,
-    checkColor: Color = MaterialTheme.colorScheme.surface,
-    size: androidx.compose.ui.unit.Dp = 38.dp,
+    weakestIndex: Int? = null,
+    height: Dp = 112.dp,
+    description: String,
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        statuses.forEachIndexed { index, status ->
-            Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally,
+    val barColor = MaterialTheme.colorScheme.primary
+    val weakColor = MaterialTheme.colorScheme.error
+    val trackColor = LocalHabitlyColors.current.gridEmpty
+    val averageColor = LocalHabitlyColors.current.onSurfaceFaint
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val reduceMotion = LocalReduceMotion.current
+    val grow = remember { Animatable(if (reduceMotion) 1f else 0f) }
+    LaunchedEffect(Unit) { if (!reduceMotion) grow.animateTo(1f, tween(600)) }
+    val average = if (values.isEmpty()) 0f else values.average().toFloat()
+    val gap = if (values.size > 14) 3.dp else 8.dp
+
+    Column(modifier = modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = description }) {
+        Canvas(modifier = Modifier.fillMaxWidth().height(height)) {
+            if (values.isEmpty()) return@Canvas
+            val gapPx = gap.toPx()
+            val barWidth = (size.width - gapPx * (values.size - 1)) / values.size
+            val radius = CornerRadius(6.dp.toPx().coerceAtMost(barWidth / 2f))
+            values.forEachIndexed { i, value ->
+                val x = i * (barWidth + gapPx)
+                drawRoundRect(trackColor, Offset(x, 0f), Size(barWidth, size.height), radius)
+                val h = size.height * value.coerceIn(0f, 1f) * grow.value
+                if (h > 0f) {
+                    drawRoundRect(
+                        color = if (i == weakestIndex) weakColor else barColor,
+                        topLeft = Offset(x, size.height - h),
+                        size = Size(barWidth, h),
+                        cornerRadius = radius,
+                    )
+                }
+            }
+            val y = size.height * (1f - average.coerceIn(0f, 1f))
+            drawLine(
+                color = averageColor,
+                start = Offset(0f, y),
+                end = Offset(size.width, y),
+                strokeWidth = 1.5.dp.toPx(),
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx())),
+            )
+        }
+        if (labels.size == values.size && values.size <= 14) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(gap),
             ) {
-                val fill = when (status) {
-                    CompletionStatus.DONE -> color
-                    CompletionStatus.PARTIAL -> color.copy(alpha = 0.45f)
-                    CompletionStatus.SKIPPED -> onSurface.copy(alpha = 0.22f)
-                    else -> onSurface.copy(alpha = 0.12f)
+                labels.forEachIndexed { i, label ->
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelSmall,
+                        textAlign = TextAlign.Center,
+                        color = if (i == weakestIndex) weakColor else muted,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
-                Box(
-                    modifier = Modifier
-                        .size(size)
-                        .clip(CircleShape)
-                        .background(fill)
-                        .then(
-                            // Today gets an outline, so the row can be read as a position in time
-                            // rather than seven interchangeable circles.
-                            if (index == todayIndex) {
-                                Modifier.border(2.dp, onSurface.copy(alpha = 0.55f), CircleShape)
-                            } else {
-                                Modifier
-                            }
-                        ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    when (status) {
-                        CompletionStatus.DONE -> Icon(
-                            imageVector = Icons.Filled.Check,
-                            contentDescription = null,
-                            tint = checkColor,
-                            modifier = Modifier.size(size * 0.5f),
-                        )
-                        CompletionStatus.SKIPPED -> Icon(
-                            imageVector = Icons.Filled.Remove,
-                            contentDescription = null,
-                            tint = onSurface.copy(alpha = 0.7f),
-                            modifier = Modifier.size(size * 0.45f),
-                        )
-                        else -> Unit
-                    }
-                }
-                Text(
-                    text = labels.getOrElse(index) { "" },
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = if (index == todayIndex) FontWeight.Bold else FontWeight.Normal,
-                    color = onSurface.copy(alpha = 0.75f),
-                    modifier = Modifier.padding(top = 4.dp),
-                )
+            }
+        } else if (labels.isNotEmpty()) {
+            Row(modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                Text(labels.first(), style = MaterialTheme.typography.labelSmall, color = muted)
+                Box(Modifier.weight(1f))
+                Text(labels.last(), style = MaterialTheme.typography.labelSmall, color = muted)
             }
         }
     }
@@ -270,73 +259,5 @@ fun Sparkline(
                 join = StrokeJoin.Round,
             ),
         )
-    }
-}
-
-/** A percentage rendered large enough to be the thing you read first. */
-@Composable
-fun HeroPercent(
-    value: Float,
-    modifier: Modifier = Modifier,
-    color: Color = MaterialTheme.colorScheme.onSurface,
-) {
-    val animated by animateFloatAsState(
-        targetValue = value,
-        animationSpec = spring(stiffness = Spring.StiffnessLow),
-        label = "hero",
-    )
-    Text(
-        text = "${(animated * 100).toInt()}%",
-        fontSize = 56.sp,
-        lineHeight = 60.sp,
-        fontWeight = FontWeight.Bold,
-        color = color,
-        modifier = modifier,
-    )
-}
-
-/**
- * A thick open arc with a rounded cap, used as the hero's shape.
- *
- * Drawn rather than composed so the sweep can animate from zero on arrival — a ring that grows is
- * most of what separates a screen that feels alive from one that merely displays a number.
- */
-@Composable
-fun ProgressArc(
-    progress: Float,
-    modifier: Modifier = Modifier,
-    color: Color = MaterialTheme.colorScheme.primary,
-    trackColor: Color = color.copy(alpha = 0.25f),
-    strokeWidth: androidx.compose.ui.unit.Dp = 9.dp,
-) {
-    val swept by animateFloatAsState(
-        targetValue = progress.coerceIn(0f, 1f),
-        animationSpec = spring(stiffness = Spring.StiffnessVeryLow),
-        label = "arc",
-    )
-    Canvas(modifier = modifier) {
-        val stroke = Stroke(width = strokeWidth.toPx(), cap = StrokeCap.Round)
-        val inset = strokeWidth.toPx() / 2f
-        val arcSize = Size(size.width - strokeWidth.toPx(), size.height - strokeWidth.toPx())
-        drawArc(
-            color = trackColor,
-            startAngle = -90f,
-            sweepAngle = 360f,
-            useCenter = false,
-            topLeft = Offset(inset, inset),
-            size = arcSize,
-            style = stroke,
-        )
-        if (swept > 0f) {
-            drawArc(
-                color = color,
-                startAngle = -90f,
-                sweepAngle = 360f * swept,
-                useCenter = false,
-                topLeft = Offset(inset, inset),
-                size = arcSize,
-                style = stroke,
-            )
-        }
     }
 }

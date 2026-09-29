@@ -1,22 +1,24 @@
 package com.habitly.app.ui.stats
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -29,25 +31,25 @@ import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import com.habitly.app.ui.theme.LocalHabitlyColors
-import androidx.compose.ui.unit.sp
 import com.habitly.app.domain.Insight
-import com.habitly.app.ui.components.DayPills
+import com.habitly.app.ui.components.HabitGrid
+import com.habitly.app.ui.components.HeroCard
 import com.habitly.app.ui.components.MiniBars
-import com.habitly.app.ui.components.MiniStatTile
-import com.habitly.app.ui.components.OutlinedSectionCard
-import com.habitly.app.ui.components.ProgressArc
-import com.habitly.app.ui.components.ScreenHeader
+import com.habitly.app.ui.components.PeriodBars
+import com.habitly.app.ui.components.SectionLabel
 import com.habitly.app.ui.components.Sparkline
+import com.habitly.app.ui.components.StatTile
+import com.habitly.app.ui.theme.LocalHabitlyColors
+import com.habitly.app.ui.theme.habitTones
 import java.time.DayOfWeek
 import java.time.format.TextStyle
 import java.util.Locale
@@ -56,6 +58,8 @@ import java.util.Locale
 private const val DAYS_FOR_WEEKDAYS = 14
 private const val DAYS_FOR_VERDICTS = 7
 
+private val CARD_SHAPE = RoundedCornerShape(20.dp)
+
 @Composable
 fun StatsScreen(
     uiState: StatsUiState,
@@ -63,32 +67,23 @@ fun StatsScreen(
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        // Clear of the floating nav bar.
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 120.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item {
-            ScreenHeader(
-                title = "Stats",
-                subtitle = if (uiState.hasAnyHistory) {
-                    "${uiState.daysOfHistory} days of history"
-                } else {
-                    "Nothing tracked yet"
-                },
-            )
-        }
-
         if (!uiState.hasAnyHistory) {
             item { NothingYetCard() }
             return@LazyColumn
         }
+
+        item { PeriodTabs(selected = uiState.period, onSelect = onPeriodChange) }
 
         // The insight leads, because a sentence about your own behaviour beats a chart of it.
         if (uiState.insights.isNotEmpty()) {
             item { InsightsCard(uiState.insights) }
         }
 
-        // The one dark block on the screen. Everything below it is deliberately quieter.
-        item { HeroBlock(uiState = uiState, onPeriodChange = onPeriodChange) }
+        item { CompletionHero(uiState) }
 
         item { RecordTiles(uiState) }
 
@@ -120,220 +115,191 @@ fun StatsScreen(
     }
 }
 
+/** Week / Month / Year as text tabs: the selected one in full ink over a brand underline. */
+@Composable
+private fun PeriodTabs(selected: StatsPeriod, onSelect: (StatsPeriod) -> Unit) {
+    val primary = MaterialTheme.colorScheme.primary
+    Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+        StatsPeriod.entries.forEach { period ->
+            val active = period == selected
+            Column(
+                modifier = Modifier
+                    .heightIn(min = 48.dp)
+                    .widthIn(min = 48.dp)
+                    .selectable(selected = active, role = Role.Tab, onClick = { onSelect(period) }),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    text = period.label,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (active) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(4.dp))
+                Box(
+                    Modifier
+                        .width(24.dp)
+                        .height(2.dp)
+                        .background(if (active) primary else Color.Transparent, RoundedCornerShape(1.dp)),
+                )
+            }
+        }
+    }
+}
+
+/** The standard Insights block: a surface card, outlined in light mode where there is no tonal step. */
+@Composable
+private fun StatsCard(
+    modifier: Modifier = Modifier,
+    title: String? = null,
+    subtitle: String? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = CARD_SHAPE,
+        color = MaterialTheme.colorScheme.surface,
+        border = if (LocalHabitlyColors.current.isDark) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            if (title != null) {
+                Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+            }
+            if (subtitle != null) {
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (title != null || subtitle != null) Spacer(Modifier.height(14.dp))
+            content()
+        }
+    }
+}
+
 @Composable
 private fun InsightsCard(insights: List<Insight>) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            // Intrinsic height so the accent edge measures itself against the text beside it,
-            // rather than being given a guessed fixed height.
-            .height(IntrinsicSize.Min)
-            .clip(RoundedCornerShape(20.dp))
-            .background(MaterialTheme.colorScheme.primaryContainer),
-    ) {
-        // An accent edge rather than another full grey box, so this reads as a note, not a chart.
-        Box(
-            modifier = Modifier
-                .width(4.dp)
-                .fillMaxHeight()
-                .background(MaterialTheme.colorScheme.primary),
-        )
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Filled.AutoAwesome,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(16.dp),
-                )
-                Text(
-                    text = "WHAT WE NOTICED",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.padding(start = 8.dp),
-                )
-            }
-            insights.forEach { insight ->
-                Text(
-                    text = insight.text,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.padding(top = 10.dp),
-                )
-            }
+    StatsCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.AutoAwesome,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp),
+            )
+            Text(
+                text = "WHAT WE NOTICED",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 8.dp),
+            )
+        }
+        insights.forEach { insight ->
+            Text(
+                text = insight.text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(top = 10.dp),
+            )
         }
     }
 }
 
 /**
- * The focal point: a dark gradient block carrying the headline number, its comparison, an arc, and
- * the week. Previously all of this sat in the same pale grey card as everything else, which is what
- * made the screen read as a stack of slabs with nothing to look at first.
+ * The focal point: completion for the period, its comparison, and the period itself — daily bars
+ * for Week and Month, a year of all-habits activity for Year.
  */
 @Composable
-private fun HeroBlock(uiState: StatsUiState, onPeriodChange: (StatsPeriod) -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(28.dp))
-            .background(Brush.linearGradient(listOf(LocalHabitlyColors.current.heroContainer, LocalHabitlyColors.current.heroContainer)))
-            .padding(20.dp),
+private fun CompletionHero(uiState: StatsUiState) {
+    val percent = (uiState.completionRate * 100).toInt()
+    val delta = uiState.delta?.takeIf { uiState.showDelta }
+    HeroCard(
+        label = "Completion",
+        value = "$percent%",
+        delta = delta?.let {
+            "${if (it >= 0f) "+" else ""}${(it * 100).toInt()}% vs previous ${uiState.period.label.lowercase()}"
+        },
+        deltaPositive = delta?.let { it >= 0f },
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "COMPLETION",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp,
-                color = Color.White.copy(alpha = 0.75f),
-            )
-            PeriodPills(selected = uiState.period, onSelect = onPeriodChange)
-        }
-
-        Spacer(modifier = Modifier.height(18.dp))
-
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "${(uiState.completionRate * 100).toInt()}%",
-                    fontSize = 60.sp,
-                    lineHeight = 62.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                )
-                Text(
-                    text = "of due days kept",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.7f),
-                )
-                if (uiState.showDelta) {
-                    DeltaChip(
-                        delta = uiState.delta ?: 0f,
-                        basis = "vs previous ${uiState.period.label.lowercase()}",
-                        modifier = Modifier.padding(top = 10.dp),
-                    )
-                }
-            }
-            ProgressArc(
-                progress = uiState.completionRate,
-                color = Color.White,
-                trackColor = Color.White.copy(alpha = 0.22f),
-                modifier = Modifier.size(96.dp),
-            )
-        }
-
-        Spacer(modifier = Modifier.height(22.dp))
         Text(
-            text = "LAST 7 DAYS",
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.sp,
-            color = Color.White.copy(alpha = 0.6f),
-            modifier = Modifier.padding(bottom = 10.dp),
+            text = "of due days kept",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        DayPills(
-            statuses = uiState.weekStatuses,
-            labels = uiState.weekLabels,
-            todayIndex = uiState.todayIndex,
-            color = Color.White,
-            onSurface = Color.White,
-            checkColor = LocalHabitlyColors.current.heroContainer,
-            size = 34.dp,
-        )
-    }
-}
-
-/** Compact pills rather than a full segmented control — less chrome on a dark surface. */
-@Composable
-private fun PeriodPills(selected: StatsPeriod, onSelect: (StatsPeriod) -> Unit) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(Color.White.copy(alpha = 0.14f))
-            .padding(3.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        StatsPeriod.entries.forEach { period ->
-            val active = period == selected
-            Text(
-                text = period.label,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
-                color = if (active) LocalHabitlyColors.current.heroContainer else Color.White.copy(alpha = 0.85f),
+        Spacer(Modifier.height(16.dp))
+        if (uiState.period == StatsPeriod.YEAR) {
+            // Inset on a surface so the palest brand step never melts into the hero's own tint.
+            Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(if (active) Color.White else Color.Transparent)
-                    .clickable { onSelect(period) }
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(10.dp),
+            ) {
+                HabitGrid(
+                    levels = uiState.yearLevels,
+                    colorHex = null,
+                    weeks = 52,
+                    endDate = uiState.today,
+                    summary = { weeks -> "Activity across all habits for the last $weeks weeks" },
+                )
+            }
+        } else {
+            val bars = uiState.periodBars
+            // Today is still running, so it is never called the weakest day.
+            val weakest = bars.dropLast(1).withIndex()
+                .takeIf { bars.size > 1 && bars.min() < bars.max() }
+                ?.minByOrNull { it.value }?.index
+            PeriodBars(
+                values = bars,
+                labels = uiState.periodBarLabels,
+                weakestIndex = weakest,
+                description = buildString {
+                    append("Daily completion for the last ${bars.size} days, average ")
+                    append("${(bars.average().takeIf { !it.isNaN() } ?: 0.0).times(100).toInt()}%")
+                    if (weakest != null) append(", weakest day ${(bars[weakest] * 100).toInt()}%")
+                },
             )
         }
-    }
-}
-
-/** A delta is never shown bare — the thing it is measured against travels with it. */
-@Composable
-private fun DeltaChip(delta: Float, basis: String, modifier: Modifier = Modifier) {
-    val rising = delta >= 0f
-    val tint = if (rising) Color.White else Color(0xFFFFC4BC)
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(50))
-            .background(Color.White.copy(alpha = 0.16f))
-            .padding(horizontal = 10.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = if (rising) Icons.Filled.ArrowUpward else Icons.Filled.ArrowDownward,
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(13.dp),
-        )
-        Text(
-            text = "${if (rising) "+" else ""}${(delta * 100).toInt()}%  $basis",
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Medium,
-            color = tint,
-            modifier = Modifier.padding(start = 4.dp),
-        )
     }
 }
 
 @Composable
 private fun RecordTiles(uiState: StatsUiState) {
+    val extras = LocalHabitlyColors.current
     Column {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            MiniStatTile(
-                icon = Icons.Filled.LocalFireDepartment,
-                label = "Current\nstreak",
+            StatTile(
                 value = "${uiState.currentStreak}",
-                accent = LocalHabitlyColors.current.warning,
+                label = "Current streak",
+                icon = Icons.Filled.LocalFireDepartment,
+                iconTint = extras.warning,
+                animateFrom = 0,
                 modifier = Modifier.weight(1f),
             )
-            MiniStatTile(
-                icon = Icons.Filled.EmojiEvents,
-                label = "Best\never",
+            StatTile(
                 value = "${uiState.bestStreak}",
-                accent = LocalHabitlyColors.current.warning,
+                label = "Best ever",
+                icon = Icons.Filled.EmojiEvents,
+                iconTint = extras.warning,
+                animateFrom = 0,
                 modifier = Modifier.weight(1f),
             )
-            MiniStatTile(
-                icon = Icons.Filled.Star,
-                label = "Perfect\ndays",
+            StatTile(
                 value = "${uiState.perfectDays}",
-                accent = MaterialTheme.colorScheme.tertiary,
+                label = "Perfect days",
+                icon = Icons.Filled.Star,
+                iconTint = MaterialTheme.colorScheme.primary,
+                animateFrom = 0,
                 modifier = Modifier.weight(1f),
             )
-            MiniStatTile(
-                icon = Icons.Filled.CheckCircle,
-                label = "Total\ndone",
+            StatTile(
                 value = "${uiState.totalCompletions}",
-                accent = MaterialTheme.colorScheme.primary,
+                label = "Total done",
+                icon = Icons.Filled.CheckCircle,
+                iconTint = extras.success,
+                animateFrom = 0,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -345,13 +311,13 @@ private fun RecordTiles(uiState: StatsUiState) {
                 Icon(
                     imageVector = Icons.Filled.EmojiEvents,
                     contentDescription = null,
-                    tint = LocalHabitlyColors.current.warning,
+                    tint = extras.warning,
                     modifier = Modifier.size(16.dp),
                 )
                 Text(
                     text = "This is your longest run so far.",
                     style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(start = 8.dp),
                 )
             }
@@ -365,7 +331,7 @@ private fun WeekdayCard(uiState: StatsUiState) {
     val counts = weekdays.map { (uiState.completionsByWeekday[it] ?: 0).toFloat() }
     val weakIndex = uiState.weakestWeekday?.let { weekdays.indexOf(it) }
 
-    OutlinedSectionCard(
+    StatsCard(
         title = "Your weekly pattern",
         subtitle = uiState.weakestWeekday?.let {
             "${it.getDisplayName(TextStyle.FULL, Locale.getDefault())} is your weakest day"
@@ -383,56 +349,52 @@ private fun WeekdayCard(uiState: StatsUiState) {
 
 @Composable
 private fun VerdictCard(uiState: StatsUiState) {
-    OutlinedSectionCard(title = "Habit by habit", subtitle = "Sorted by how they are going") {
+    StatsCard(title = "Habit by habit", subtitle = "Sorted by how they are going") {
         VerdictGroup.entries.forEach { group ->
             val rows = uiState.habitVerdicts.filter { it.group == group }
             if (rows.isEmpty()) return@forEach
-            GroupChip(group)
+            GroupLabel(group)
             rows.forEach { VerdictRow(it) }
         }
     }
 }
 
 @Composable
-private fun GroupChip(group: VerdictGroup) {
-    val (text, tint) = when (group) {
-        VerdictGroup.GOING_WELL -> "GOING WELL" to MaterialTheme.colorScheme.primary
-        VerdictGroup.SLIPPING -> "SLIPPING" to MaterialTheme.colorScheme.error
-        VerdictGroup.NOT_ENOUGH_DATA -> "NOT ENOUGH DATA" to MaterialTheme.colorScheme.onSurfaceVariant
+private fun GroupLabel(group: VerdictGroup) {
+    val extras = LocalHabitlyColors.current
+    val (text, dot) = when (group) {
+        VerdictGroup.GOING_WELL -> "Going well" to extras.success
+        VerdictGroup.SLIPPING -> "Slipping" to MaterialTheme.colorScheme.error
+        VerdictGroup.NOT_ENOUGH_DATA -> "Not enough data" to extras.onSurfaceFaint
     }
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelSmall,
-        fontWeight = FontWeight.Bold,
-        letterSpacing = 0.8.sp,
-        color = tint,
-        modifier = Modifier
-            .padding(top = 14.dp, bottom = 2.dp)
-            .clip(RoundedCornerShape(50))
-            .background(tint.copy(alpha = 0.12f))
-            .padding(horizontal = 8.dp, vertical = 3.dp),
-    )
+    Row(
+        modifier = Modifier.padding(top = 14.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
+        SectionLabel(text = text, modifier = Modifier.padding(start = 8.dp))
+    }
 }
 
 @Composable
 private fun VerdictRow(verdict: HabitVerdict) {
-    val color = runCatching {
-        Color(android.graphics.Color.parseColor(verdict.colorHex))
-    }.getOrDefault(MaterialTheme.colorScheme.primary)
+    val tones = habitTones(verdict.colorHex)
+    val extras = LocalHabitlyColors.current
 
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(color))
+        Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(tones.full))
         Text(
             text = verdict.name,
             style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f).padding(start = 10.dp),
         )
         Sparkline(
             values = verdict.spark,
-            color = color,
+            color = tones.full,
             modifier = Modifier.width(52.dp).height(20.dp),
         )
         Text(
@@ -441,20 +403,16 @@ private fun VerdictRow(verdict: HabitVerdict) {
             } else {
                 "${(verdict.rate * 100).toInt()}%"
             },
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(start = 12.dp),
         )
         // No arrow on a habit we have just said we cannot judge yet.
         verdict.delta?.takeIf { verdict.group != VerdictGroup.NOT_ENOUGH_DATA }?.let { delta ->
             Icon(
                 imageVector = if (delta >= 0f) Icons.Filled.ArrowUpward else Icons.Filled.ArrowDownward,
-                contentDescription = null,
-                tint = if (delta >= 0f) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.error
-                },
+                contentDescription = if (delta >= 0f) "Rising" else "Falling",
+                tint = if (delta >= 0f) extras.success else MaterialTheme.colorScheme.error,
                 modifier = Modifier.size(14.dp),
             )
         }
@@ -462,19 +420,19 @@ private fun VerdictRow(verdict: HabitVerdict) {
 }
 
 /**
- * A card that has not earned its data yet. It shows what it will become and when, following Apple's
- * "Needs More Data" bucket — the screen is never broken, just partly not-yet-unlocked.
+ * A card that has not earned its data yet. It shows what it will become and when — the screen is
+ * never broken, just partly not-yet-unlocked.
  */
 @Composable
 private fun LockedCard(title: String, detail: String, daysNeeded: Int, daysSoFar: Int) {
-    OutlinedSectionCard(
+    StatsCard(
         title = title,
         subtitle = "$detail Unlocks on day $daysNeeded — $daysSoFar so far.",
     ) {
         MiniBars(
             values = listOf(0.5f, 0.8f, 0.35f, 0.65f, 0.9f, 0.45f, 0.7f),
             labels = List(7) { "" },
-            barColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f),
+            barColor = MaterialTheme.colorScheme.outline,
             height = 72.dp,
         )
     }
@@ -482,7 +440,7 @@ private fun LockedCard(title: String, detail: String, daysNeeded: Int, daysSoFar
 
 @Composable
 private fun NothingYetCard() {
-    OutlinedSectionCard(title = "No stats yet", subtitle = "Tick off a habit and this screen fills in") {
+    StatsCard(title = "No stats yet", subtitle = "Tick off a habit and this screen fills in") {
         Text(
             text = "Your completion rate, streak records and weekly pattern all appear here once " +
                 "you have a few days of history.",

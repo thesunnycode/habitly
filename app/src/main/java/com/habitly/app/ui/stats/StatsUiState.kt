@@ -48,6 +48,12 @@ data class StatsUiState(
     val completionsByWeekday: Map<DayOfWeek, Int> = emptyMap(),
     val weakestWeekday: DayOfWeek? = null,
     val habitVerdicts: List<HabitVerdict> = emptyList(),
+    /** All-habits contribution shading (0..4) per day, for the Year view's grid. */
+    val yearLevels: Map<LocalDate, Int> = emptyMap(),
+    /** Completion rate of each day in the Week/Month window, oldest first, ending today. */
+    val periodBars: List<Float> = emptyList(),
+    /** One label per entry of [periodBars]. */
+    val periodBarLabels: List<String> = emptyList(),
     val today: LocalDate = LocalDate.now(),
     val isLoading: Boolean = true,
 ) {

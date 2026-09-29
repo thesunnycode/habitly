@@ -6,6 +6,7 @@ import com.habitly.app.data.repository.HabitDataSource
 import com.habitly.app.data.repository.HabitWithStats
 import com.habitly.app.domain.CompletionRecord
 import com.habitly.app.domain.CompletionStatus
+import com.habitly.app.domain.ContributionLevels
 import com.habitly.app.domain.HabitHistory
 import com.habitly.app.domain.HabitSchedule
 import com.habitly.app.domain.InsightEngine
@@ -153,10 +154,28 @@ class StatsViewModel(
             completionsByWeekday = byWeekday,
             weakestWeekday = WeekdayBreakdown.weakestWeekday(byWeekday),
             habitVerdicts = verdicts(pairs, period, now, daysOfHistory),
+            yearLevels = ContributionLevels.forAllHabits(
+                completionsByDate = allRecords.filter { it.status == CompletionStatus.DONE }
+                    .groupingBy { it.date }.eachCount(),
+                habitCount = pairs.size,
+            ),
+            periodBars = barDays(period, now).map { rateOver(pairs, it, it) },
+            periodBarLabels = barDays(period, now).map { day ->
+                if (period == StatsPeriod.WEEK) {
+                    day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()).take(1)
+                } else {
+                    "${day.dayOfMonth}"
+                }
+            },
             today = now,
             isLoading = false,
         )
     }
+
+    /** The days the hero bars cover: each day of the window, oldest first. Year shows a grid instead. */
+    private fun barDays(period: StatsPeriod, now: LocalDate): List<LocalDate> =
+        if (period == StatsPeriod.YEAR) emptyList()
+        else (period.days - 1 downTo 0).map { now.minusDays(it.toLong()) }
 
     /** Share of due days across all habits that were kept, over a window. */
     private fun rateOver(

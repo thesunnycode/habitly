@@ -252,4 +252,31 @@ class StatsViewModelTest {
         advanceUntilIdle()
         assertEquals(1f, vm.uiState.value.completionRate, 0.001f)
     }
+
+    @Test
+    fun yearLevelsShadeEachDayByTheShareOfHabitsKept() = runTest {
+        val yesterday = TODAY.minusDays(1)
+        val records = mapOf(
+            1L to done(TODAY, yesterday),
+            2L to done(TODAY),
+        )
+        val vm = viewModel(listOf(habit(1, "Water"), habit(2, "Gym")), records)
+        advanceUntilIdle()
+        val levels = vm.uiState.value.yearLevels
+        assertEquals(4, levels[TODAY])
+        assertEquals(2, levels[yesterday])
+    }
+
+    @Test
+    fun weekBarsAreOneDailyRatePerDayEndingToday() = runTest {
+        val records = mapOf(
+            1L to done(*daysBack(TODAY, 7).toTypedArray()),
+            2L to done(TODAY),
+        )
+        val vm = viewModel(listOf(habit(1, "Water"), habit(2, "Gym")), records)
+        advanceUntilIdle()
+        val bars = vm.uiState.value.periodBars
+        assertEquals(7, bars.size)
+        assertEquals(1f, bars.last(), 0.001f)
+    }
 }
