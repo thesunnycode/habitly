@@ -22,11 +22,10 @@ import androidx.navigation.compose.rememberNavController
 import com.habitly.app.data.prefs.OnboardingPrefs
 import com.habitly.app.data.prefs.SettingsPrefs
 import com.habitly.app.data.prefs.ThemeMode
-import com.habitly.app.ui.navigation.Destination
 import com.habitly.app.ui.navigation.HabitlyNavHost
 import com.habitly.app.ui.navigation.HabitlyScaffold
+import com.habitly.app.ui.navigation.resolveStartRoute
 import com.habitly.app.ui.theme.HabitlyTheme
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -38,8 +37,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         splash.setKeepOnScreenCondition { startRoute == null }
         lifecycleScope.launch {
-            val done = OnboardingPrefs(this@MainActivity).hasCompletedOnboarding.first()
-            startRoute = if (done) Destination.Today.route else Destination.Onboarding.route
+            startRoute = resolveStartRoute(OnboardingPrefs(this@MainActivity).hasCompletedOnboarding)
         }
         enableEdgeToEdge()
         setContent {
