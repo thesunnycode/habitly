@@ -52,7 +52,7 @@ cloud sync, accounts, AI capture (CA3 scope).
 | `brand` (active tab, hero, focus) | `#9B8CFF` | `#6A55F0` |
 | `brandContainer` | `#2A2640` | `#ECE8FF` |
 | `heroContainer` (Insights hero) | `#1D1A33` | `#ECE8FF` |
-| `success` / `danger` / `warning` | `#51CF66` / `#FF6B6B` / `#FCC419` | `#2F9E44` / `#E03131` / `#E67700` |
+| `success` / `danger` / `warning` | `#51CF66` / `#FF6B6B` / `#FCC419` | `#2F9E44` / `#E03131` / `#E67600` (nudged from #E67700 to clear 3:1 on white) |
 | Primary button | `#F2F3F5` on-text `#0E0F12` | `#111317` on-text `#FFFFFF` |
 
 Implemented as a Material 3 `ColorScheme` plus a `HabitlyColors` `CompositionLocal` for the roles
