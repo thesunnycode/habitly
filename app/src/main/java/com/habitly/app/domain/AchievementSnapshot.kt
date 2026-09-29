@@ -22,6 +22,12 @@ data class AchievementSnapshot(
     val restDays: Int = 0,
 )
 
+/**
+ * How far back the day-by-day rules (perfect days, best month, comebacks) look. It bounds the
+ * build: a habit whose createdAt is 0 (1970) would otherwise walk twenty thousand days per call.
+ */
+internal const val MAX_LOOKBACK_DAYS = 400L
+
 object AchievementSnapshotBuilder {
     fun build(habits: List<HabitEntity>, logs: List<HabitLogEntity>, today: LocalDate, zone: ZoneId = ZoneId.systemDefault()): AchievementSnapshot {
         if (habits.isEmpty()) return AchievementSnapshot()
@@ -45,8 +51,10 @@ object AchievementSnapshotBuilder {
             StreakCalculator.bestStreak((byHabit[h.id] ?: emptyList()).map { CompletionRecord(LocalDate.parse(it.date), it.status) })
         }
 
+        // Day-by-day rules start at the earliest habit start, and never more than MAX_LOOKBACK_DAYS ago.
+        val first = maxOf(startOf.values.min(), today.minusDays(MAX_LOOKBACK_DAYS))
+
         // Perfect days: every habit due that day kept, at least one actually done.
-        val first = startOf.values.min()
         var perfectDays = 0; var run = 0; var longestRun = 0
         var d = first
         while (!d.isAfter(today)) {
@@ -76,7 +84,7 @@ object AchievementSnapshotBuilder {
         var comebacks = 0
         active.forEach { h ->
             var streak = 0; var armed = false
-            var day = startOf.getValue(h.id)
+            var day = maxOf(startOf.getValue(h.id), first)
             while (day.isBefore(today)) {
                 if (schedules.getValue(h.id).isDue(day)) {
                     when (statusOf[h.id to day]) {

@@ -63,6 +63,21 @@ class AchievementSnapshotTest {
         val s = AchievementSnapshotBuilder.build(listOf(habit(1), habit(2, archived = true)), logs, LocalDate.of(2026, 9, 29), zone)
         assertEquals(100, s.bestMonthPercent)
     }
+    @Test fun aHabitCreatedAtEpochZeroBuildsQuicklyAndOnlyLooksBackBoundedDays() {
+        val today = LocalDate.of(2026, 9, 29)
+        val ancient = List(6) { i -> habit(i + 1L).copy(createdAt = 0L) }
+        // Perfect days both far outside and inside the look-back window.
+        val logs = ancient.flatMap { h ->
+            listOf(log(h.id, LocalDate.of(1990, 1, 1)), log(h.id, today.minusDays(10)), log(h.id, today.minusDays(11)))
+        }
+        val startNs = System.nanoTime()
+        val s = AchievementSnapshotBuilder.build(ancient, logs, today, zone)
+        val ms = (System.nanoTime() - startNs) / 1_000_000
+        assertEquals(2, s.perfectDays)
+        assertEquals(18, s.totalCheckIns) // log-based counts are not windowed
+        // Generous: the bounded walk is a few milliseconds even on a slow CI machine.
+        assert(ms < 1_000) { "build took ${ms}ms" }
+    }
     @Test fun habitCountsSeparateActiveFromEver() {
         val s = AchievementSnapshotBuilder.build(listOf(habit(1), habit(2, archived = true)), emptyList(), start, zone)
         assertEquals(2, s.habitsEver); assertEquals(1, s.activeHabits)
