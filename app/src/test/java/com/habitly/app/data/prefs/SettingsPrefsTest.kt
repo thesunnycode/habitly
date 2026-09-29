@@ -24,9 +24,9 @@ class SettingsPrefsTest {
     }
 
     @Test
-    fun themeModeDefaultsToSystem() = runBlocking {
+    fun themeModeDefaultsToDark() = runBlocking {
         val prefs = SettingsPrefs(ApplicationProvider.getApplicationContext())
-        assertEquals(ThemeMode.SYSTEM, prefs.themeMode.first())
+        assertEquals(ThemeMode.DARK, prefs.themeMode.first())
     }
 
     @Test

@@ -14,7 +14,7 @@ private val NOTIFICATIONS_KEY = booleanPreferencesKey("notifications_enabled")
 class SettingsPrefs(private val context: Context) {
 
     val themeMode = context.habitlyDataStore.data.map { prefs ->
-        prefs[THEME_KEY]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.SYSTEM
+        prefs[THEME_KEY]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.DARK
     }
 
     val notificationsEnabled = context.habitlyDataStore.data.map { it[NOTIFICATIONS_KEY] ?: true }

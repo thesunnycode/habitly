@@ -26,7 +26,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val windowSizeClass = calculateWindowSizeClass(this)
             val systemDark = isSystemInDarkTheme()
-            val themeMode by remember { SettingsPrefs(this).themeMode }.collectAsState(initial = ThemeMode.SYSTEM)
+            val themeMode by remember { SettingsPrefs(this).themeMode }.collectAsState(initial = ThemeMode.DARK)
             val darkTheme = when (themeMode) {
                 ThemeMode.DARK -> true
                 ThemeMode.LIGHT -> false

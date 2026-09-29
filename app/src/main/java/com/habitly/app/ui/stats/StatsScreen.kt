@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.habitly.app.ui.theme.LocalHabitlyColors
 import androidx.compose.ui.unit.sp
 import com.habitly.app.domain.Insight
 import com.habitly.app.ui.components.DayPills
@@ -47,10 +48,6 @@ import com.habitly.app.ui.components.OutlinedSectionCard
 import com.habitly.app.ui.components.ProgressArc
 import com.habitly.app.ui.components.ScreenHeader
 import com.habitly.app.ui.components.Sparkline
-import com.habitly.app.ui.theme.CoralAccent
-import com.habitly.app.ui.theme.HeroDeep
-import com.habitly.app.ui.theme.HeroMid
-import com.habitly.app.ui.theme.StreakFlame
 import java.time.DayOfWeek
 import java.time.format.TextStyle
 import java.util.Locale
@@ -181,7 +178,7 @@ private fun HeroBlock(uiState: StatsUiState, onPeriodChange: (StatsPeriod) -> Un
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(28.dp))
-            .background(Brush.linearGradient(listOf(HeroMid, HeroDeep)))
+            .background(Brush.linearGradient(listOf(LocalHabitlyColors.current.heroContainer, LocalHabitlyColors.current.heroContainer)))
             .padding(20.dp),
     ) {
         Row(
@@ -246,7 +243,7 @@ private fun HeroBlock(uiState: StatsUiState, onPeriodChange: (StatsPeriod) -> Un
             todayIndex = uiState.todayIndex,
             color = Color.White,
             onSurface = Color.White,
-            checkColor = HeroDeep,
+            checkColor = LocalHabitlyColors.current.heroContainer,
             size = 34.dp,
         )
     }
@@ -268,7 +265,7 @@ private fun PeriodPills(selected: StatsPeriod, onSelect: (StatsPeriod) -> Unit) 
                 text = period.label,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
-                color = if (active) HeroDeep else Color.White.copy(alpha = 0.85f),
+                color = if (active) LocalHabitlyColors.current.heroContainer else Color.White.copy(alpha = 0.85f),
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
                     .background(if (active) Color.White else Color.Transparent)
@@ -315,14 +312,14 @@ private fun RecordTiles(uiState: StatsUiState) {
                 icon = Icons.Filled.LocalFireDepartment,
                 label = "Current\nstreak",
                 value = "${uiState.currentStreak}",
-                accent = StreakFlame,
+                accent = LocalHabitlyColors.current.warning,
                 modifier = Modifier.weight(1f),
             )
             MiniStatTile(
                 icon = Icons.Filled.EmojiEvents,
                 label = "Best\never",
                 value = "${uiState.bestStreak}",
-                accent = CoralAccent,
+                accent = LocalHabitlyColors.current.warning,
                 modifier = Modifier.weight(1f),
             )
             MiniStatTile(
@@ -348,7 +345,7 @@ private fun RecordTiles(uiState: StatsUiState) {
                 Icon(
                     imageVector = Icons.Filled.EmojiEvents,
                     contentDescription = null,
-                    tint = CoralAccent,
+                    tint = LocalHabitlyColors.current.warning,
                     modifier = Modifier.size(16.dp),
                 )
                 Text(
