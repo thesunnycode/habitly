@@ -131,10 +131,10 @@ class HabitsViewModelTest {
         assertEquals(listOf("Apple", "banana", "cherry"), vm.uiState.value.groups.single().habits.map { it.habit.name })
     }
 
-    @Test fun sortByCreatedPutsOldestFirst() = runTest {
+    @Test fun sortByCreatedPutsNewestFirst() = runTest {
         val vm = vmWith(active = listOf(h(1, "A", "X", createdAt = 30), h(2, "B", "X", createdAt = 10), h(3, "C", "X", createdAt = 20)))
         vm.onSortChange(HabitSort.CREATED); advanceUntilIdle()
-        assertEquals(listOf("B", "C", "A"), vm.uiState.value.groups.single().habits.map { it.habit.name })
+        assertEquals(listOf("A", "C", "B"), vm.uiState.value.groups.single().habits.map { it.habit.name })
     }
 
     @Test fun archiveAndRestoreMoveBetweenSegments() = runTest {

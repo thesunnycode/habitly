@@ -106,7 +106,7 @@ class HabitsViewModel(
             HabitSort.CUSTOM -> filtered
             HabitSort.NAME -> filtered.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.habit.name })
             HabitSort.STREAK -> filtered.sortedByDescending { it.currentStreak }
-            HabitSort.CREATED -> filtered.sortedBy { it.habit.createdAt }
+            HabitSort.CREATED -> filtered.sortedByDescending { it.habit.createdAt }
         }
         return sorted.groupBy { it.habit.category }
             .map { (category, habits) -> HabitGroup(category, habits) }
