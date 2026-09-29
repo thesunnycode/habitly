@@ -45,7 +45,7 @@ fun GoalSheet(
     var count by rememberSaveable { mutableIntStateOf((targetCount ?: 2).coerceIn(MIN_GOAL, MAX_GOAL)) }
     var unitText by rememberSaveable { mutableStateOf(unit.ifBlank { "times" }) }
 
-    HabitlySheet(onDismiss = onDismiss, title = "Daily goal") {
+    HabitlySheet(onDismiss = onDismiss, title = "Daily goal", skipPartiallyExpanded = true) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Center,

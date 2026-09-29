@@ -25,6 +25,8 @@ data class AddEditUiState(
     /** Whether any form field differs from what was loaded or prefilled. */
     val isDirty: Boolean = false,
     val isSaved: Boolean = false,
+    /** Editing a habit that no longer exists; the screen closes. */
+    val isNotFound: Boolean = false,
 ) {
     val canSave: Boolean
         get() = FrequencyValidator.validateName(name) &&

@@ -168,7 +168,7 @@ fun HabitlyNavHost(
             val context = LocalContext.current
             val prefs = remember { SettingsPrefs(context) }
             val weekStart by prefs.weekStart.collectAsState(initial = java.time.DayOfWeek.MONDAY)
-            if (uiState.isSaved) {
+            if (uiState.isSaved || uiState.isNotFound) {
                 LaunchedEffect(Unit) { navController.popBackStack() }
             }
             AddEditHabitScreen(

@@ -46,7 +46,12 @@ class AddEditHabitViewModel(
         }
         if (habitId != null) {
             viewModelScope.launch {
-                val habit = repository.getHabit(habitId) ?: return@launch
+                val habit = repository.getHabit(habitId)
+                if (habit == null) {
+                    // Deleted elsewhere: close rather than let a save create a new habit in its place.
+                    _uiState.value = _uiState.value.copy(isNotFound = true)
+                    return@launch
+                }
                 existing = habit
                 _uiState.value = _uiState.value.copy(
                     name = habit.name,
@@ -116,6 +121,8 @@ class AddEditHabitViewModel(
 
     fun onSave() {
         val state = _uiState.value
+        // Editing, but the habit hasn't loaded (or no longer exists): there is nothing to update.
+        if (state.habitId != null && existing == null) return
         if (!FrequencyValidator.validateName(state.name)) {
             _uiState.value = state.copy(nameError = if (state.name.isBlank()) NAME_REQUIRED else NAME_TOO_LONG)
             return
@@ -150,7 +157,7 @@ class AddEditHabitViewModel(
                 targetCount = state.targetCount?.takeIf { it > 1 },
                 unit = state.unit.trim().takeIf { it.isNotBlank() },
             )
-            if (existing == null) repository.addHabit(entity) else repository.updateHabit(entity)
+            if (state.habitId == null) repository.addHabit(entity) else repository.updateHabit(entity)
             _uiState.value = _uiState.value.copy(isSaved = true)
         }
     }
@@ -171,6 +178,7 @@ class AddEditHabitViewModel(
         nameError = null,
         isDirty = false,
         isSaved = false,
+        isNotFound = false,
     )
 
     private companion object {

@@ -34,7 +34,7 @@ fun IconPickerSheet(
     onSelect: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    HabitlySheet(onDismiss = onDismiss, title = "Choose an icon") {
+    HabitlySheet(onDismiss = onDismiss, title = "Choose an icon", skipPartiallyExpanded = true) {
         LazyVerticalGrid(
             columns = GridCells.Fixed(6),
             modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp).selectableGroup(),

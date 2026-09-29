@@ -227,4 +227,12 @@ class AddEditHabitViewModelTest {
         val vm = AddEditHabitViewModel(fake, habitId = null); advanceUntilIdle()
         assertEquals(listOf("Chores", "Health"), vm.uiState.value.existingCategories)
     }
+
+    @Test fun editingAnUnknownHabitClosesAndNeverAddsOne() = runTest {
+        val vm = AddEditHabitViewModel(fake, habitId = 42); advanceUntilIdle()
+        assertTrue(vm.uiState.value.isNotFound)
+        vm.onNameChange("Ghost"); vm.onSave(); advanceUntilIdle()
+        assertNull(fake.addedHabit)
+        assertNull(fake.updatedHabit)
+    }
 }
