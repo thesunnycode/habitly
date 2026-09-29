@@ -87,7 +87,12 @@ fun HabitlyScaffold(
         CompositionLocalProvider(LocalSnackbarHostState provides snackbarHostState) { content(padding) }
     }
 
-    // Once, above every screen: a badge earned anywhere is celebrated wherever the user is.
+    // Once, above every screen: a badge earned anywhere is celebrated wherever the user is — except
+    // during onboarding, where the starter habits' badges wait until the user lands on Today.
     val context = LocalContext.current
-    BadgeCelebrationHost(repository = rememberHabitRepository(), prefs = remember { SettingsPrefs(context.applicationContext) })
+    BadgeCelebrationHost(
+        repository = rememberHabitRepository(),
+        prefs = remember { SettingsPrefs(context.applicationContext) },
+        suspended = currentRoute == Destination.Onboarding.route,
+    )
 }

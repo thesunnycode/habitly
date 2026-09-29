@@ -1,5 +1,7 @@
 package com.habitly.app.domain
 
+import com.habitly.app.data.local.HabitEntity
+
 /**
  * A ready-made habit. The whole value of a template is that one tap fills the name, the icon, the
  * colour, the category *and* the schedule — a gallery that only fills the name saves nothing. The
@@ -21,6 +23,27 @@ data class HabitTemplate(
     val key: String
         get() = name.lowercase().replace(Regex("[^a-z0-9]+"), "_").trim('_')
 }
+
+/**
+ * The habit this template describes, ready to insert. `sortOrder` stays 0 so the repository places it
+ * after the existing habits.
+ */
+fun HabitTemplate.toEntity(createdAt: Long): HabitEntity = HabitEntity(
+    name = name,
+    icon = icon,
+    colorHex = colorHex,
+    category = category,
+    frequencyType = frequencyType,
+    frequencyDays = specificDays
+        .takeIf { frequencyType == FrequencyType.SPECIFIC_DAYS && it.isNotEmpty() }
+        ?.sorted()?.joinToString(",") { it.name },
+    intervalDays = null,
+    reminderTime = reminderTime,
+    createdAt = createdAt,
+    isArchived = false,
+    targetCount = targetCount?.takeIf { it > 1 },
+    unit = unit,
+)
 
 data class HabitTemplateGroup(val title: String, val templates: List<HabitTemplate>)
 

@@ -16,6 +16,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.habitly.app.data.local.AppDatabase
+import com.habitly.app.data.prefs.OnboardingPrefs
 import com.habitly.app.data.prefs.SettingsPrefs
 import com.habitly.app.data.seed.SeedDataProvider
 import com.habitly.app.domain.CompletionStatus
@@ -33,6 +34,8 @@ import com.habitly.app.ui.habits.HabitsSegment
 import com.habitly.app.ui.habits.HabitsViewModel
 import com.habitly.app.ui.insights.InsightsScreen
 import com.habitly.app.ui.onboarding.OnboardingScreen
+import com.habitly.app.ui.onboarding.OnboardingStore
+import com.habitly.app.ui.onboarding.OnboardingViewModel
 import com.habitly.app.ui.reminders.RemindersScreen
 import com.habitly.app.ui.reminders.RemindersViewModel
 import com.habitly.app.ui.settings.SettingsScreen
@@ -58,9 +61,31 @@ fun HabitlyNavHost(
 
     NavHost(navController = navController, startDestination = startDestination) {
         composable(Destination.Onboarding.route) {
-            OnboardingScreen(onFinished = {
-                navController.navigate(Destination.Today.route) { popUpTo(Destination.Onboarding.route) { inclusive = true } }
-            })
+            val viewModel = habitlyViewModel {
+                val onboardingPrefs = OnboardingPrefs(appContext)
+                OnboardingViewModel(
+                    repository,
+                    object : OnboardingStore {
+                        override suspend fun setUserName(name: String?) = prefs.setUserName(name)
+                        override suspend fun setCompleted() = onboardingPrefs.setCompleted()
+                    },
+                )
+            }
+            val uiState by viewModel.uiState.collectAsState()
+            if (uiState.isFinished) {
+                LaunchedEffect(Unit) {
+                    navController.navigate(Destination.Today.route) { popUpTo(Destination.Onboarding.route) { inclusive = true } }
+                }
+            }
+            OnboardingScreen(
+                uiState = uiState,
+                onNext = viewModel::onNext,
+                onBack = viewModel::onBack,
+                onNameChange = viewModel::onNameChange,
+                onToggleTemplate = viewModel::onToggleTemplate,
+                onSkip = viewModel::onSkip,
+                onFinish = viewModel::onFinish,
+            )
         }
         composable(Destination.Today.route) { backStackEntry ->
             ArchivedUndoEffect(backStackEntry.savedStateHandle, repository)

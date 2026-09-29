@@ -69,11 +69,11 @@ internal fun newlyUnlocked(
 
 /**
  * Watches for new badges from anywhere in the app and celebrates each one once, one at a time.
- * Placed once, in the app scaffold.
+ * Placed once, in the app scaffold. While [suspended] new badges keep queueing but none is shown.
  */
 @OptIn(FlowPreview::class)
 @Composable
-fun BadgeCelebrationHost(repository: HabitDataSource, prefs: SettingsPrefs) {
+fun BadgeCelebrationHost(repository: HabitDataSource, prefs: SettingsPrefs, suspended: Boolean = false) {
     val queue = remember { mutableStateListOf<AchievementType>() }
     // Everything ever queued this session, so a badge is not re-queued while its "seen" write is in flight.
     val handled = remember { mutableSetOf<AchievementType>() }
@@ -105,6 +105,7 @@ fun BadgeCelebrationHost(repository: HabitDataSource, prefs: SettingsPrefs) {
             }
     }
 
+    if (suspended) return
     val current = queue.firstOrNull() ?: return
     BadgeUnlockDialog(
         type = current,
