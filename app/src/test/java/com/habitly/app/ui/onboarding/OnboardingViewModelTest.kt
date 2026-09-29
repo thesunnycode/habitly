@@ -16,17 +16,21 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import java.time.LocalDate
 
-private class FakeOnboardingStore : OnboardingStore {
+private class FakeOnboardingStore(private var failuresLeft: Int = 0) : OnboardingStore {
     var name: String? = null
     var completed = false
     override suspend fun setUserName(name: String?) { this.name = name }
-    override suspend fun setCompleted() { completed = true }
+    override suspend fun setCompleted() {
+        if (failuresLeft > 0) { failuresLeft--; throw java.io.IOException("disk full") }
+        completed = true
+    }
 }
 
 private class RecordingDataSource : HabitDataSource {
@@ -65,6 +69,19 @@ class OnboardingViewModelTest {
         vm.onFinish(); advanceUntilIdle()
         assertEquals(listOf("Drink water", "Meditate"), repo.added.map { it.name })
         assertEquals("Sunny", store.name); assertTrue(store.completed); assertTrue(vm.uiState.value.isFinished)
+    }
+
+    @Test fun aFailedFinishCanBeRetriedWithoutDuplicatingHabits() = runTest {
+        val repo = RecordingDataSource(); val store = FakeOnboardingStore(failuresLeft = 1)
+        val vm = OnboardingViewModel(repo, store)
+        vm.onToggleTemplate("drink_water")
+        vm.onFinish(); advanceUntilIdle()
+        assertFalse(vm.uiState.value.isFinished)
+
+        vm.onFinish(); advanceUntilIdle()
+        assertTrue("the second tap is not swallowed by the guard", vm.uiState.value.isFinished)
+        assertTrue(store.completed)
+        assertEquals(listOf("Drink water"), repo.added.map { it.name })
     }
 
     @Test fun skipCompletesWithoutHabits() = runTest {

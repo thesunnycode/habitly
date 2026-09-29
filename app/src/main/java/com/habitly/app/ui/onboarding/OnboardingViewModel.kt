@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.habitly.app.data.repository.HabitDataSource
 import com.habitly.app.domain.HabitTemplates
 import com.habitly.app.domain.toEntity
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,6 +43,9 @@ class OnboardingViewModel(
     /** Guards a double tap on Finish/Skip creating the habits twice. */
     private var completing = false
 
+    /** Templates already turned into habits, so retrying after a failure does not add them twice. */
+    private val created = mutableSetOf<String>()
+
     fun onNext() = _uiState.update { it.copy(step = (it.step + 1).coerceAtMost(LAST_STEP)) }
 
     fun onBack() = _uiState.update { it.copy(step = (it.step - 1).coerceAtLeast(0)) }
@@ -62,16 +66,27 @@ class OnboardingViewModel(
         completing = true
         val state = _uiState.value
         viewModelScope.launch {
-            if (createHabits) {
-                val createdAt = now()
-                ONBOARDING_TEMPLATE_KEYS
-                    .filter { it in state.selected }
-                    .mapNotNull(HabitTemplates::byKey)
-                    .forEach { repository.addHabit(it.toEntity(createdAt)) }
+            try {
+                if (createHabits) {
+                    val createdAt = now()
+                    ONBOARDING_TEMPLATE_KEYS
+                        .filter { it in state.selected && it !in created }
+                        .forEach { key ->
+                            val template = HabitTemplates.byKey(key) ?: return@forEach
+                            repository.addHabit(template.toEntity(createdAt))
+                            created += key
+                        }
+                }
+                prefs.setUserName(state.name.trim().ifBlank { null })
+                prefs.setCompleted()
+                _uiState.update { it.copy(isFinished = true) }
+            } catch (e: CancellationException) {
+                completing = false
+                throw e
+            } catch (e: Exception) {
+                // A failed write leaves the user on the screen with Finish/Skip still working.
+                completing = false
             }
-            prefs.setUserName(state.name.trim().ifBlank { null })
-            prefs.setCompleted()
-            _uiState.update { it.copy(isFinished = true) }
         }
     }
 
