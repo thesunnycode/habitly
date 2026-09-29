@@ -71,7 +71,15 @@ class SettingsViewModel(
             // Archived habits too: "everything" includes what is out of sight.
             repository.observeAllHabits().first().forEach { repository.deleteHabit(it) }
             repository.clearAchievements()
+            // A true fresh start: badges and the all-done moment celebrate again.
+            prefs.clearSeenBadges()
+            prefs.clearLastCelebratedDate()
             _uiState.value = _uiState.value.copy(resetCompleted = true)
         }
+    }
+
+    /** The screen has announced the finished reset; don't announce it again. */
+    fun onResetMessageShown() {
+        _uiState.value = _uiState.value.copy(resetCompleted = false)
     }
 }

@@ -68,4 +68,12 @@ class SettingsPrefs(private val context: Context) : TodayPrefs, YouPrefs {
     suspend fun markBadgesSeen(keys: Set<String>) {
         context.habitlyDataStore.edit { it[SEEN_BADGES_KEY] = (it[SEEN_BADGES_KEY] ?: emptySet()) + keys }
     }
+
+    suspend fun clearSeenBadges() {
+        context.habitlyDataStore.edit { it.remove(SEEN_BADGES_KEY) }
+    }
+
+    suspend fun clearLastCelebratedDate() {
+        context.habitlyDataStore.edit { it.remove(LAST_CELEBRATED_KEY) }
+    }
 }

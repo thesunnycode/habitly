@@ -84,4 +84,20 @@ class SettingsPrefsTest {
         prefs.setUserName("   ")
         assertNull(prefs.userName.first())
     }
+
+    @Test
+    fun clearSeenBadgesForgetsEveryCelebratedBadge() = runBlocking {
+        val prefs = SettingsPrefs(ApplicationProvider.getApplicationContext())
+        prefs.markBadgesSeen(setOf("STREAK_7", "FIRST_HABIT"))
+        prefs.clearSeenBadges()
+        assertTrue(prefs.seenBadgeKeys.first().isEmpty())
+    }
+
+    @Test
+    fun clearLastCelebratedDateLetsTodayCelebrateAgain() = runBlocking {
+        val prefs = SettingsPrefs(ApplicationProvider.getApplicationContext())
+        prefs.setLastCelebratedDate("2026-09-29")
+        prefs.clearLastCelebratedDate()
+        assertNull(prefs.lastCelebratedDate.first())
+    }
 }

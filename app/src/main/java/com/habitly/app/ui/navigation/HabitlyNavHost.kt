@@ -219,6 +219,7 @@ fun HabitlyNavHost(
                 onLoadDemoData = viewModel::onLoadDemoData,
                 onResetAllData = viewModel::onResetAllData,
                 onBack = { navController.popBackStack() },
+                onResetMessageShown = viewModel::onResetMessageShown,
             )
         }
         composable(Destination.Reminders.route) {

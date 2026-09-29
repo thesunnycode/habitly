@@ -96,13 +96,30 @@ class SettingsViewModelTest {
     fun onResetAllDataDeletesEveryHabitIncludingArchivedAndClearsAwards() = runTest {
         val prefs = SettingsPrefs(ApplicationProvider.getApplicationContext())
         val fake = FakeHabitDataSource(listOf(habit(1), habit(2)), archived = listOf(habit(3).habit.copy(isArchived = true)))
+        prefs.markBadgesSeen(setOf("STREAK_7"))
+        prefs.setLastCelebratedDate("2026-09-29")
         val viewModel = SettingsViewModel(prefs, fake)
         advanceUntilIdle()
         viewModel.onResetAllData()
-        advanceUntilIdle()
+        // The prefs writes run on DataStore's own IO thread, so wait for the flag rather than idling.
+        viewModel.uiState.first { it.resetCompleted }
         assertEquals(setOf(1L, 2L, 3L), fake.deleted.toSet())
         assertTrue(fake.achievementsCleared)
+        assertTrue("a fresh start celebrates badges again", prefs.seenBadgeKeys.first().isEmpty())
+        assertEquals(null, prefs.lastCelebratedDate.first())
         assertTrue(viewModel.uiState.value.resetCompleted)
+    }
+
+    @Test
+    fun theResetConfirmationIsConsumedOnceShown() = runTest {
+        val prefs = SettingsPrefs(ApplicationProvider.getApplicationContext())
+        val viewModel = SettingsViewModel(prefs, FakeHabitDataSource(emptyList()))
+        advanceUntilIdle()
+        assertFalse("nothing to confirm before a reset", viewModel.uiState.value.resetCompleted)
+        viewModel.onResetAllData()
+        viewModel.uiState.first { it.resetCompleted }
+        viewModel.onResetMessageShown()
+        assertFalse(viewModel.uiState.value.resetCompleted)
     }
 
     @Test

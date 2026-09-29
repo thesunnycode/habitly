@@ -33,6 +33,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -85,6 +86,7 @@ fun SettingsScreen(
     onLoadDemoData: () -> Unit,
     onResetAllData: () -> Unit,
     onBack: () -> Unit,
+    onResetMessageShown: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -211,6 +213,15 @@ fun SettingsScreen(
         }
     }
 
+    // Announced only once the reset has actually finished, not when it was asked for.
+    LaunchedEffect(uiState.resetCompleted) {
+        if (uiState.resetCompleted) {
+            onResetMessageShown()
+            // Outside this effect, so consuming the flag doesn't cancel the snackbar it triggers.
+            scope.launch { snackbar.showSnackbar("Everything has been reset") }
+        }
+    }
+
     if (showResetConfirm) {
         ConfirmSheet(
             title = "Reset everything?",
@@ -219,7 +230,6 @@ fun SettingsScreen(
             onConfirm = {
                 showResetConfirm = false
                 onResetAllData()
-                scope.launch { snackbar.showSnackbar("Everything has been reset") }
             },
             onDismiss = { showResetConfirm = false },
         )
