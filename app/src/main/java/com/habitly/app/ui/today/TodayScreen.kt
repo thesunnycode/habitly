@@ -17,8 +17,10 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.animation.core.snap
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -36,6 +38,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -68,6 +72,9 @@ import com.habitly.app.ui.components.SectionLabel
 import com.habitly.app.ui.components.WeekStrip
 import com.habitly.app.ui.theme.HabitlyTheme
 import com.habitly.app.ui.theme.LocalHabitlyColors
+import com.habitly.app.ui.theme.LocalReduceMotion
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -76,6 +83,28 @@ import java.util.Locale
 
 private val EYEBROW_DATE = DateTimeFormatter.ofPattern("EEE d MMM")
 private val SPOKEN_DATE = DateTimeFormatter.ofPattern("EEEE d MMMM")
+
+/** How long a just-checked habit stays put in the due list showing its tick before moving to Done. */
+internal const val PIN_DURATION_MS = 1200L
+
+/**
+ * Splits today's habits into the (due, done) lists to render. A habit in [pinned] (id to its original index in
+ * the due list) that is now done stays in the due list at that index with its real status, so the tick is seen
+ * where the user tapped. Pinned habits that are not done (un-ticked, or a goal still in progress) are already
+ * in [due] and are left alone.
+ */
+internal fun arrangeToday(
+    due: List<HabitWithStats>,
+    done: List<HabitWithStats>,
+    pinned: Map<Long, Int>,
+): Pair<List<HabitWithStats>, List<HabitWithStats>> {
+    if (pinned.isEmpty()) return due to done
+    val (stay, moved) = done.partition { it.habit.id in pinned }
+    if (stay.isEmpty()) return due to done
+    val arranged = due.toMutableList()
+    stay.sortedBy { pinned.getValue(it.habit.id) }.forEach { arranged.add(pinned.getValue(it.habit.id).coerceIn(0, arranged.size), it) }
+    return arranged to moved
+}
 
 @Composable
 fun TodayScreen(
@@ -95,16 +124,34 @@ fun TodayScreen(
     var doneExpanded by rememberSaveable { mutableStateOf(true) }
     var notDueExpanded by rememberSaveable { mutableStateOf(false) }
 
+    val pinned = remember { mutableStateMapOf<Long, Int>() }
+    val scope = rememberCoroutineScope()
+    val (dueList, doneList) = arrangeToday(uiState.due, uiState.done, pinned)
+    val pinCheck: (HabitWithStats) -> Unit = { habit ->
+        val id = habit.habit.id
+        val index = uiState.due.indexOfFirst { it.habit.id == id }
+        if (index >= 0 && id !in pinned) {
+            pinned[id] = index
+            scope.launch {
+                delay(PIN_DURATION_MS)
+                pinned.remove(id)
+            }
+        }
+        onCheck(habit)
+    }
+
     val today = uiState.weekDays.lastOrNull() ?: uiState.selectedDate
     val lists: LazyListScope.() -> Unit = {
         habitSections(
             uiState = uiState,
+            dueList = dueList,
+            doneList = doneList,
             today = today,
             doneExpanded = doneExpanded,
             onToggleDone = { doneExpanded = !doneExpanded },
             notDueExpanded = notDueExpanded,
             onToggleNotDue = { notDueExpanded = !notDueExpanded },
-            onCheck = onCheck,
+            onCheck = pinCheck,
             onHabitClick = onHabitClick,
             onLongPress = { statusTargetId = it.habit.id },
             onAddHabit = onAddHabit,
@@ -190,6 +237,8 @@ fun TodayScreen(
 
 private fun LazyListScope.habitSections(
     uiState: TodayUiState,
+    dueList: List<HabitWithStats>,
+    doneList: List<HabitWithStats>,
     today: LocalDate,
     doneExpanded: Boolean,
     onToggleDone: () -> Unit,
@@ -206,18 +255,18 @@ private fun LazyListScope.habitSections(
         return
     }
 
-    items(uiState.due, key = { "due-${it.habit.id}" }) { habit ->
-        TodayCard(habit, dueCheckState(habit), today, uiState, onCheck, onHabitClick, onLongPress)
+    items(dueList, key = { it.habit.id }) { habit ->
+        TodayCard(habit, dueCheckState(habit), today, uiState, onCheck, onHabitClick, onLongPress, animatedItem())
     }
 
-    if (uiState.done.isNotEmpty()) {
+    if (doneList.isNotEmpty()) {
         item(key = "done-label") {
-            CollapsibleLabel("Done", uiState.done.size, doneExpanded, onToggleDone)
+            CollapsibleLabel("Done", doneList.size, doneExpanded, onToggleDone)
         }
         if (doneExpanded) {
-            items(uiState.done, key = { "done-${it.habit.id}" }) { habit ->
+            items(doneList, key = { it.habit.id }) { habit ->
                 val state = if (habit.todayStatus == CompletionStatus.SKIPPED) CheckState.SKIPPED else CheckState.DONE
-                TodayCard(habit, state, today, uiState, onCheck, onHabitClick, onLongPress)
+                TodayCard(habit, state, today, uiState, onCheck, onHabitClick, onLongPress, animatedItem())
             }
         }
     }
@@ -229,6 +278,7 @@ private fun LazyListScope.habitSections(
         if (notDueExpanded) {
             items(uiState.notDue, key = { "notdue-${it.habit.id}" }) { habit ->
                 HabitRow(
+                    modifier = animatedItem(),
                     name = habit.habit.name,
                     iconKey = habit.habit.icon,
                     colorHex = habit.habit.colorHex,
@@ -250,9 +300,11 @@ private fun TodayCard(
     onCheck: (HabitWithStats) -> Unit,
     onHabitClick: (Long) -> Unit,
     onLongPress: (HabitWithStats) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val isGoal = habit.habit.targetCount != null
     HabitGridCard(
+        modifier = modifier,
         name = habit.habit.name,
         iconKey = habit.habit.icon,
         colorHex = habit.habit.colorHex,
@@ -268,9 +320,16 @@ private fun TodayCard(
     )
 }
 
+/** Slides neighbours smoothly as cards move between sections; instant when the user prefers reduced motion. */
+@Composable
+private fun LazyItemScope.animatedItem(): Modifier =
+    if (LocalReduceMotion.current) Modifier.animateItem(fadeInSpec = null, placementSpec = snap(), fadeOutSpec = null)
+    else Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null)
+
 /** A due goal habit with some units logged is mid-way; anything else due is simply not done yet. */
 private fun dueCheckState(habit: HabitWithStats): CheckState =
-    if (habit.habit.targetCount != null && habit.todayProgress > 0) CheckState.IN_PROGRESS else CheckState.EMPTY
+    if (habit.todayStatus == CompletionStatus.DONE) CheckState.DONE  // pinned: just checked, not yet moved to Done
+    else if (habit.habit.targetCount != null && habit.todayProgress > 0) CheckState.IN_PROGRESS else CheckState.EMPTY
 
 /** "12 days · Daily", "Mon, Wed, Fri" (no streak yet) or, for a goal habit, "3 / 8 cups". */
 internal fun cardMeta(habit: HabitWithStats): String {
