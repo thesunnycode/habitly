@@ -76,7 +76,7 @@ fun CalendarScreen(
                     label = "Consistency so far",
                     value = "${if (daysElapsed == 0) 0 else completedDays.size * 100 / daysElapsed}%",
                     modifier = Modifier.weight(1f),
-                    accent = MaterialTheme.colorScheme.tertiary,
+                    valueColor = MaterialTheme.colorScheme.tertiary,
                 )
             }
         }

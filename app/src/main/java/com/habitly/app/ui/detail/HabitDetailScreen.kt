@@ -161,19 +161,19 @@ fun HabitDetailScreen(
                     label = "Current streak",
                     value = "${uiState.currentStreak}",
                     modifier = Modifier.weight(1f),
-                    accent = habitColor,
+                    valueColor = habitColor,
                 )
                 StatTile(
                     label = "Best streak",
                     value = "${uiState.bestStreak}",
                     modifier = Modifier.weight(1f),
-                    accent = habitColor,
+                    valueColor = habitColor,
                 )
                 StatTile(
                     label = "Completion",
                     value = "${(uiState.completionRate * 100).toInt()}%",
                     modifier = Modifier.weight(1f),
-                    accent = habitColor,
+                    valueColor = habitColor,
                 )
             }
         }

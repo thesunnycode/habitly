@@ -1,54 +1,64 @@
 package com.habitly.app.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.habitly.app.ui.theme.HabitlyTheme
+import com.habitly.app.ui.theme.LocalHabitlyColors
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
 
 /**
- * Seven tappable days ending today. Without this there is no way to record a habit you forgot
- * yesterday, which is the single capability every reference app has and this one did not.
+ * Seven tappable days. Without this there is no way to record a habit you forgot yesterday.
+ * [describe] supplies the spoken description (e.g. "Tuesday 29 September, 3 of 4 done").
  */
 @Composable
 fun WeekStrip(
     days: List<LocalDate>,
     selected: LocalDate,
+    completion: (LocalDate) -> Float,
+    describe: (LocalDate) -> String,
     onSelect: (LocalDate) -> Unit,
     modifier: Modifier = Modifier,
     today: LocalDate = LocalDate.now(),
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         days.forEach { day ->
             DayChip(
                 day = day,
                 isSelected = day == selected,
                 isToday = day == today,
+                completion = completion(day),
+                description = describe(day),
                 onClick = { onSelect(day) },
+                modifier = Modifier.weight(1f),
             )
         }
     }
@@ -59,57 +69,64 @@ private fun DayChip(
     day: LocalDate,
     isSelected: Boolean,
     isToday: Boolean,
+    completion: Float,
+    description: String,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
+    val extras = LocalHabitlyColors.current
+    val scheme = MaterialTheme.colorScheme
     val label = day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())
-    val description = if (isToday) "Today, ${day.dayOfMonth} ${day.month}" else "$label ${day.dayOfMonth} ${day.month}"
-
+    val dot = when {
+        completion >= 1f -> extras.success
+        completion > 0f -> lerp(scheme.primaryContainer, scheme.primary, 0.5f)
+        else -> extras.gridEmpty
+    }
     Column(
-        modifier = Modifier
-            .minimumInteractiveComponentSize()
-            .clip(RoundedCornerShape(16.dp))
-            .selectable(selected = isSelected, onClick = onClick)
-            .padding(horizontal = 6.dp, vertical = 6.dp)
+        modifier = modifier
+            .heightIn(min = 64.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (isSelected) extras.primaryButton else scheme.surface)
+            .selectable(selected = isSelected, role = Role.Tab, onClick = onClick)
+            .padding(vertical = 8.dp)
             .clearAndSetSemantics {
-                this.contentDescription = description
+                contentDescription = description
                 this.selected = isSelected
             },
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
         Text(
             text = label.take(3),
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (isSelected) extras.onPrimaryButton.copy(alpha = 0.7f) else extras.onSurfaceFaint,
         )
-        Column(
-            modifier = Modifier
-                .padding(top = 4.dp)
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(
-                    if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                )
-                .then(
-                    // Today keeps a ring even when another day is selected, so you never lose your place.
-                    if (isToday && !isSelected) {
-                        Modifier.border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                    } else {
-                        Modifier
-                    }
-                ),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text(
-                text = "${day.dayOfMonth}",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal,
-                color = if (isSelected) {
-                    MaterialTheme.colorScheme.onPrimary
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
-            )
-        }
+        Text(
+            text = "${day.dayOfMonth}",
+            style = MaterialTheme.typography.titleMedium,
+            color = if (isSelected) extras.onPrimaryButton else scheme.onSurface,
+            modifier = Modifier.padding(vertical = 2.dp),
+        )
+        Box(Modifier.size(5.dp).clip(CircleShape).background(dot))
     }
 }
+
+@Composable
+private fun WeekStripPreviewContent() {
+    val today = LocalDate.of(2026, 9, 29)
+    val days = (6 downTo 0).map { today.minusDays(it.toLong()) }
+    Surface(color = MaterialTheme.colorScheme.background) {
+        WeekStrip(
+            days = days,
+            selected = today,
+            completion = { if (it.dayOfMonth % 3 == 0) 1f else if (it.dayOfMonth % 2 == 0) 0.5f else 0f },
+            describe = { it.toString() },
+            onSelect = {},
+            today = today,
+            modifier = Modifier.padding(16.dp),
+        )
+    }
+}
+
+@Preview @Composable private fun WeekStripDarkPreview() = HabitlyTheme(darkTheme = true) { WeekStripPreviewContent() }
+@Preview @Composable private fun WeekStripLightPreview() = HabitlyTheme(darkTheme = false) { WeekStripPreviewContent() }

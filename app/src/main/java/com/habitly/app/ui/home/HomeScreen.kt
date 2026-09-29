@@ -34,7 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.habitly.app.domain.CompletionStatus
 import com.habitly.app.ui.components.HabitCard
-import com.habitly.app.ui.components.WeekStrip
+import com.habitly.app.ui.components.LegacyWeekStrip
 import com.habitly.app.ui.components.ProgressRing
 import java.time.LocalDate
 import java.time.LocalTime
@@ -69,7 +69,7 @@ fun HomeScreen(
             Row(modifier = outerPadding.padding(horizontal = 20.dp)) {
                 Column(modifier = Modifier.weight(1f).padding(end = 20.dp)) {
                     Greeting(now, today)
-                    WeekStrip(
+                    LegacyWeekStrip(
                         days = uiState.weekDays,
                         selected = uiState.selectedDate,
                         onSelect = onSelectDate,
@@ -104,7 +104,7 @@ fun HomeScreen(
             ) {
                 item { Greeting(now, today) }
                 item {
-                    WeekStrip(
+                    LegacyWeekStrip(
                         days = uiState.weekDays,
                         selected = uiState.selectedDate,
                         onSelect = onSelectDate,
