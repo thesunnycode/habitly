@@ -1,4 +1,4 @@
-package com.habitly.app.ui.home
+package com.habitly.app.ui.today
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -41,8 +41,8 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
 @Composable
-fun HomeScreen(
-    uiState: HomeUiState,
+fun TodayScreen(
+    uiState: TodayUiState,
     onToggleHabit: (Long) -> Unit,
     onAddHabit: () -> Unit,
     onHabitClick: (Long) -> Unit,
@@ -131,7 +131,7 @@ fun HomeScreen(
 }
 
 private fun LazyListScope.habitList(
-    uiState: HomeUiState,
+    uiState: TodayUiState,
     onToggleHabit: (Long) -> Unit,
     onHabitClick: (Long) -> Unit,
     onSetStatus: (Long, CompletionStatus?) -> Unit,

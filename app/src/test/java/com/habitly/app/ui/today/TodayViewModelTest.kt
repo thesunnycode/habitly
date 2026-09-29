@@ -1,4 +1,4 @@
-package com.habitly.app.ui.home
+package com.habitly.app.ui.today
 
 import com.habitly.app.MainDispatcherRule
 import com.habitly.app.data.local.AchievementEntity
@@ -66,14 +66,14 @@ private fun habit(id: Long, completed: Boolean) = HabitWithStats(
     currentStreak = 0, bestStreak = 0, completionRate = 0f, isCompletedToday = completed,
 )
 
-class HomeViewModelTest {
+class TodayViewModelTest {
 
     @get:Rule val mainDispatcherRule = MainDispatcherRule()
 
     @Test
     fun uiStateReflectsHabitsAndComputesCompletionPercent() = runTest {
         val fake = FakeHabitDataSource()
-        val viewModel = HomeViewModel(fake, today = { LocalDate.of(2026, 8, 22) })
+        val viewModel = TodayViewModel(fake, today = { LocalDate.of(2026, 8, 22) })
         fake.habits.value = listOf(habit(1, true), habit(2, false))
         advanceUntilIdle()
 
@@ -87,7 +87,7 @@ class HomeViewModelTest {
         // The primary tap goes through incrementProgress, which falls back to a plain toggle for a
         // habit with no numeric goal — so one path serves both kinds.
         val fake = FakeHabitDataSource()
-        val viewModel = HomeViewModel(fake, today = { LocalDate.of(2026, 8, 22) })
+        val viewModel = TodayViewModel(fake, today = { LocalDate.of(2026, 8, 22) })
         viewModel.onToggleHabit(42L)
         advanceUntilIdle()
         assertEquals(42L, fake.lastIncremented?.first)
@@ -96,7 +96,7 @@ class HomeViewModelTest {
     @Test
     fun completionPercentIsZeroWhenThereAreNoHabits() = runTest {
         val fake = FakeHabitDataSource()
-        val viewModel = HomeViewModel(fake, today = { LocalDate.of(2026, 8, 22) })
+        val viewModel = TodayViewModel(fake, today = { LocalDate.of(2026, 8, 22) })
         advanceUntilIdle()
         assertEquals(0f, viewModel.uiState.value.completionPercent, 0.001f)
     }
@@ -105,7 +105,7 @@ class HomeViewModelTest {
     fun theSelectedDayStartsAtTodayAndTheWeekEndsThere() = runTest {
         val fake = FakeHabitDataSource()
         val today = LocalDate.of(2026, 8, 22)
-        val viewModel = HomeViewModel(fake, today = { today })
+        val viewModel = TodayViewModel(fake, today = { today })
         advanceUntilIdle()
 
         val state = viewModel.uiState.value
@@ -119,7 +119,7 @@ class HomeViewModelTest {
     fun selectingAnEarlierDayRequeriesTheRepositoryForThatDay() = runTest {
         // Logging a day you forgot is the whole point: the list has to show that day's state.
         val fake = FakeHabitDataSource()
-        val viewModel = HomeViewModel(fake, today = { LocalDate.of(2026, 8, 22) })
+        val viewModel = TodayViewModel(fake, today = { LocalDate.of(2026, 8, 22) })
         advanceUntilIdle()
 
         viewModel.onSelectDate(LocalDate.of(2026, 8, 20))
@@ -132,7 +132,7 @@ class HomeViewModelTest {
     @Test
     fun togglingWhileViewingAnEarlierDayWritesToThatDay() = runTest {
         val fake = FakeHabitDataSource()
-        val viewModel = HomeViewModel(fake, today = { LocalDate.of(2026, 8, 22) })
+        val viewModel = TodayViewModel(fake, today = { LocalDate.of(2026, 8, 22) })
         advanceUntilIdle()
 
         viewModel.onSelectDate(LocalDate.of(2026, 8, 19))
@@ -145,7 +145,7 @@ class HomeViewModelTest {
     @Test
     fun settingAStatusWhileViewingAnEarlierDayWritesToThatDay() = runTest {
         val fake = FakeHabitDataSource()
-        val viewModel = HomeViewModel(fake, today = { LocalDate.of(2026, 8, 22) })
+        val viewModel = TodayViewModel(fake, today = { LocalDate.of(2026, 8, 22) })
         advanceUntilIdle()
 
         viewModel.onSelectDate(LocalDate.of(2026, 8, 18))
@@ -159,7 +159,7 @@ class HomeViewModelTest {
     fun aFutureDayCannotBeSelected() = runTest {
         val fake = FakeHabitDataSource()
         val today = LocalDate.of(2026, 8, 22)
-        val viewModel = HomeViewModel(fake, today = { today })
+        val viewModel = TodayViewModel(fake, today = { today })
         advanceUntilIdle()
 
         viewModel.onSelectDate(today.plusDays(1))
@@ -172,7 +172,7 @@ class HomeViewModelTest {
     fun isViewingTodayIsFalseOnlyWhenAnEarlierDayIsSelected() = runTest {
         val fake = FakeHabitDataSource()
         val today = LocalDate.of(2026, 8, 22)
-        val viewModel = HomeViewModel(fake, today = { today })
+        val viewModel = TodayViewModel(fake, today = { today })
         advanceUntilIdle()
         assertEquals(true, viewModel.uiState.value.isViewingToday)
 

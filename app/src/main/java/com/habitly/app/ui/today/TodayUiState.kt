@@ -1,9 +1,9 @@
-package com.habitly.app.ui.home
+package com.habitly.app.ui.today
 
 import com.habitly.app.data.repository.HabitWithStats
 import java.time.LocalDate
 
-data class HomeUiState(
+data class TodayUiState(
     val habits: List<HabitWithStats> = emptyList(),
     val completionPercent: Float = 0f,
     val isLoading: Boolean = true,

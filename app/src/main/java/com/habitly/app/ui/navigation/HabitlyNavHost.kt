@@ -27,8 +27,8 @@ import com.habitly.app.ui.calendar.CalendarViewModel
 import com.habitly.app.ui.components.NotificationPermissionPrompt
 import com.habitly.app.ui.detail.HabitDetailScreen
 import com.habitly.app.ui.detail.HabitDetailViewModel
-import com.habitly.app.ui.home.HomeScreen
-import com.habitly.app.ui.home.HomeViewModel
+import com.habitly.app.ui.today.TodayScreen
+import com.habitly.app.ui.today.TodayViewModel
 import com.habitly.app.ui.insights.InsightsScreen
 import com.habitly.app.ui.onboarding.OnboardingScreen
 import com.habitly.app.ui.reminders.RemindersScreen
@@ -53,10 +53,10 @@ fun HabitlyNavHost(
             })
         }
         composable(Destination.Today.route) {
-            val viewModel = habitlyViewModel { HomeViewModel(repository) }
+            val viewModel = habitlyViewModel { TodayViewModel(repository) }
             val uiState by viewModel.uiState.collectAsState()
             NotificationPermissionPrompt(hasLoggedSomething = uiState.habits.any { it.isCompletedToday })
-            HomeScreen(
+            TodayScreen(
                 uiState = uiState,
                 onToggleHabit = viewModel::onToggleHabit,
                 onSetStatus = viewModel::onSetStatus,

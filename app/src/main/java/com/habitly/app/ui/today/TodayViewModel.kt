@@ -1,4 +1,4 @@
-package com.habitly.app.ui.home
+package com.habitly.app.ui.today
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class HomeViewModel(
+class TodayViewModel(
     private val repository: HabitDataSource,
     private val today: () -> LocalDate = { LocalDate.now() },
 ) : ViewModel() {
@@ -21,9 +21,9 @@ class HomeViewModel(
     private val selectedDate = MutableStateFlow(today())
 
     private val _uiState = MutableStateFlow(
-        HomeUiState(selectedDate = today(), weekDays = weekEndingToday()),
+        TodayUiState(selectedDate = today(), weekDays = weekEndingToday()),
     )
-    val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+    val uiState: StateFlow<TodayUiState> = _uiState.asStateFlow()
 
     init {
         viewModelScope.launch {
