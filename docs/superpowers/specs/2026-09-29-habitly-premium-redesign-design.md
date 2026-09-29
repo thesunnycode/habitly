@@ -370,3 +370,41 @@ Each phase ends with a build, tests, an emulator check of the touched screens, a
 9. **You, Settings, Reminders** — prefs, CSV export, permission flow.
 10. **Onboarding** — 4 steps, template picker, seed moved to Settings.
 11. **Polish pass** — light theme, expanded width, 200% font, TalkBack, reduce motion, report screenshots.
+
+## 11. Addendum (2026-09-30) — Stats redesign: "heatmap hero" with habit colours
+
+User feedback after delivery: the Stats view "looks bad". Researched TickTick, Checker, Kann, Apple
+Fitness Trends, Duolingo, Todoist, Gentler Streak; the user chose direction A ("heatmap hero") with
+habit colours via **filter chips + colour stacks**. This section replaces §6.7.
+
+Top to bottom (Stats segment of Insights; the Calendar segment is unchanged):
+1. Header: "Insights" title with a compact `SegmentedPill` **W · M · Y** at the right; the
+   Stats/Calendar pill below as today. The old text period tabs are removed.
+2. **Habit chips** (horizontal scroll): `All` + one chip per active habit (colour dot + name).
+   Selected chip: habit `low` tone background, `full` text/outline; `All` selected uses brand tones.
+3. **Hero card** (`surface`, radius 24):
+   - Label (`labelMedium`): "All habits · Last 30 days" / "{habit} · Last 7 days" …
+   - Big % (`displaySmall`) + caption "of due days kept"; change chip (success/danger tint, arrow;
+     neutral "Same as before" at 0; hidden when there is no previous period).
+   - Grid of the window's days, laid out in weeks aligned to the week-start pref (weekday header
+     row). Window = the same rolling window the % uses: Week 7 days, Month 30 days, Year 52 weeks.
+     - **All + Week/Month:** each day cell is a **colour stack** — one equal slice per habit DONE
+       that day, in that habit's `full` tone, stacked bottom-up; empty = `gridEmpty`; a declared
+       rest day adds a slice in the habit's `low` tone.
+     - **Habit selected:** cells use that habit's tones (DONE full, PARTIAL mid, SKIPPED low).
+     - **Year:** a 52-week `HabitGrid` (8dp cells, horizontal scroll opened at the latest week);
+       All uses brand intensity (stacks are unreadable at that size), a habit uses its colour.
+     - Today outlined; days outside the habit's life / future days faint.
+     - Cell semantics: "24 September: Water, Read done" (grid exposes one summary node + per-cell
+       descriptions only in the Week view).
+   - One insight line under the grid (`bodyMedium` muted), from the first InsightEngine insight for
+     the current filter, e.g. "Best on Wednesdays · Sundays slip most".
+4. **2×2 tiles**: Current streak, Best ever, Perfect days, Total done — for the selected habit
+   (Perfect days → "Rest days" when a single habit is selected) or all habits.
+5. **Habits list** (`surface` card): per habit — `IconTile(32)`, name, a 4dp progress bar in the
+   habit's `full` tone showing its rate, the %, and a trend arrow (up success / down danger / none
+   at 0). Tapping a row opens that habit's Detail. Sorted by rate descending.
+
+Removed from Stats: the "What we noticed" paragraph card, the lavender hero with bar chart and red
+weakest bar, the weekly-pattern chart, the Going well / Slipping group labels, red "failure"
+colouring. Low-data states stay (locked copy when there is not enough history).

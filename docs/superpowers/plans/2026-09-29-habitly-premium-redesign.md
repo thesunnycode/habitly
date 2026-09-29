@@ -2029,3 +2029,27 @@ If a pair fails, adjust the **token value** (smallest change that passes), updat
 - Spec coverage: §3 → Tasks 1–2, 4; §4 → Tasks 5–6; §5 → Task 7; §6.1 → 4; §6.2 → 15; §6.3 → 8; §6.4 → 11; §6.5 → 9; §6.6 → 10; §6.7–6.8 → 12; §6.9, 6.11, 6.12 → 14; §6.10 → 13; §7 → 3, 13, 14; §8 → 5, 6, 16; §9 → tests in each task + 16; §10 → phase order.
 - Deviation recorded: `SECOND_CHANCE` = any rest day (repairs and rest days are indistinguishable in storage).
 - Type names used across tasks: `HabitTonesFactory.of`, `habitTones`, `LocalHabitlyColors`, `LocalReduceMotion`, `CheckState`, `GridMath`, `HabitGridCard`, `HabitRow`, `NavItem`, `TAB_DESTINATIONS`, `isTabRoute`, `rememberHabitRepository`, `habitlyViewModel`, `HabitTemplate.key`, `HabitTemplates.byKey`, `TodayPrefs`, `YouPrefs`, `OnboardingStore`, `AchievementProgress`, `AchievementSnapshot(Builder)`, `CsvExporter`.
+
+---
+
+## Addendum (2026-09-30) — Stats "heatmap hero" redesign (spec §11)
+
+### Task 17: Stats data — habit filter, day stacks, per-habit figures
+
+**Files:** Modify `ui/stats/StatsViewModel.kt`, `ui/stats/StatsUiState.kt`; Test `ui/stats/StatsViewModelTest.kt`.
+
+**Produces:**
+- `StatsUiState.selectedHabitId: Long?` (null = All); `StatsViewModel.onHabitFilterChange(id: Long?)`.
+- `StatsUiState.chips: List<HabitChip>` — `data class HabitChip(val id: Long, val name: String, val colorHex: String)`, active habits in repository order.
+- `StatsUiState.window: List<LocalDate>` — the days of the current rolling window (Week 7, Month 30, oldest first, ending today); Year keeps `yearLevels`.
+- `StatsUiState.dayStacks: Map<LocalDate, List<DaySlice>>` — `data class DaySlice(val colorHex: String, val rested: Boolean)`, one slice per habit DONE (rested=false) or SKIPPED (rested=true) that day, in chip order (All view).
+- `StatsUiState.habitLevels: Map<LocalDate, Int>` — ContributionLevels for the selected habit (window + year), empty for All.
+- For a selected habit, `completionRate`, `previousRate`, `currentStreak`, `bestStreak`, `totalCompletions`, `restDays` (new field) and `insights` are computed for that habit only; for All they are unchanged.
+- `HabitVerdict` gains nothing; the list is sorted by rate descending.
+- Existing tests keep passing (All behaviour unchanged). New tests: stacks list the right colours per day incl. rested slice; filter switches rate/streak/tiles to the habit; filter to an archived/removed id falls back to All; chips follow repository order.
+
+### Task 18: Stats UI — heatmap hero with chips and colour stacks
+
+**Files:** Replace `ui/stats/StatsScreen.kt` body (keep the file); small helpers may go in `ui/stats/StatsHero.kt`; delete now-unused chart code in `ui/components/Charts.kt` (grep first).
+
+Build exactly spec §11 using the component kit (SegmentedPill, HabitGrid, StatTile, IconTile, habitTones, LocalHabitlyColors, LocalReduceMotion). Colour stacks are drawn with one `Canvas` per grid (not composable-per-slice). Weekday header respects `weekStart`. Tap a habit row → `Destination.HabitDetail`. Chip row scrolls horizontally; selected chip scrolled into view. Light + dark previews. Remove the old InsightsCard, CompletionHero bar chart, WeekdayCard and GroupLabel.
