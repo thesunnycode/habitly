@@ -31,6 +31,7 @@ import com.habitly.app.ui.components.HabitlySheet
 import com.habitly.app.ui.components.HabitlySheetBody
 import com.habitly.app.ui.theme.HabitlyTheme
 import com.habitly.app.ui.theme.LocalHabitlyColors
+import java.util.Locale
 import kotlin.math.roundToInt
 
 private val LOOKS_AT = listOf(
@@ -70,7 +71,7 @@ private fun ForecastInfoContent(forecast: Forecast, now: Long) {
             val metrics = forecast.metrics
             if (metrics != null) {
                 Body(metricsLine(metrics))
-                metrics.baselineAuc?.let { Body("A simple guess (your usual rate) scores AUC ${"%.2f".format(it)}") }
+                metrics.baselineAuc?.let { Body("A simple guess (your usual rate) scores AUC ${twoDecimals(it)}") }
             } else {
                 Body("Not enough history to measure yet")
             }
@@ -102,10 +103,13 @@ private fun ForecastInfoContent(forecast: Forecast, now: Long) {
 }
 
 private fun metricsLine(m: ModelMetrics): String {
-    val auc = m.auc?.let { " · AUC ${"%.2f".format(it)}" }.orEmpty()
+    val auc = m.auc?.let { " · AUC ${twoDecimals(it)}" }.orEmpty()
     val span = if (m.folds == 1) "week" else "${m.folds} weeks"
     return "Accuracy ${(m.accuracy * 100).roundToInt()}%$auc over the last $span (${m.testRows} check-ins)"
 }
+
+/** Fixed to a dot decimal so the AUC reads the same on every device locale. */
+private fun twoDecimals(value: Double): String = String.format(Locale.US, "%.2f", value)
 
 @Composable
 private fun Heading(text: String) {

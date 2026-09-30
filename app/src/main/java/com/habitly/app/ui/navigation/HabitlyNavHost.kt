@@ -18,10 +18,10 @@ import androidx.navigation.navArgument
 import com.habitly.app.ai.AiServices
 import com.habitly.app.data.local.AppDatabase
 import com.habitly.app.data.prefs.OnboardingPrefs
-import com.habitly.app.ml.ForecastServices
 import com.habitly.app.data.prefs.SettingsPrefs
 import com.habitly.app.data.seed.SeedDataProvider
 import com.habitly.app.domain.CompletionStatus
+import com.habitly.app.ml.ForecastServices
 import com.habitly.app.reminder.NotificationHelper
 import com.habitly.app.ui.achievements.AchievementsScreen
 import com.habitly.app.ui.achievements.AchievementsViewModel

@@ -5,8 +5,13 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.work.ListenableWorker
 import androidx.work.testing.TestListenableWorkerBuilder
 import com.habitly.app.data.local.AppDatabase
+import com.habitly.app.ai.AiServices
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -16,26 +21,22 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class ForecastTrainWorkerTest {
 
-    // AppDatabase and ForecastServices keep static singletons that outlive Robolectric's per-test SQLite
-    // reset, so a database opened by an earlier test class would hand this one a dead connection.
+    // Both keep static singletons, and Robolectric resets SQLite between tests, so start and end fresh.
     @Before @After
     fun resetSingletons() {
-        (staticField(AppDatabase::class.java, "INSTANCE") as AppDatabase?)?.close()
-        setStatic(AppDatabase::class.java, "INSTANCE")
-        setStatic(ForecastServices::class.java, "instance")
-    }
-
-    private fun staticField(owner: Class<*>, name: String): Any? =
-        owner.getDeclaredField(name).apply { isAccessible = true }.get(null)
-
-    private fun setStatic(owner: Class<*>, name: String) {
-        owner.getDeclaredField(name).apply { isAccessible = true }.set(null, null)
+        AppDatabase.resetForTests()
+        ForecastServices.resetForTests()
     }
 
     @Test
     fun doWorkSucceedsOnAnEmptyDatabase() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
+        val startedAt = System.currentTimeMillis()
         val worker = TestListenableWorkerBuilder<ForecastTrainWorker>(context).build()
         assertEquals(ListenableWorker.Result.success(), worker.doWork())
+        val saved = AiServices.prefs(context).forecastModelJson.first()
+        assertNotNull(saved)
+        val model = Json { ignoreUnknownKeys = true }.decodeFromString(RiskModel.serializer(), saved!!)
+        assertTrue(model.trainedAt >= startedAt)
     }
 }

@@ -1,5 +1,6 @@
 package com.habitly.app.data.local
 
+import androidx.annotation.VisibleForTesting
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -104,5 +105,14 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext, AppDatabase::class.java, "habitly.db"
                 ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build().also { INSTANCE = it }
             }
+
+        /** Closes and forgets the shared database; Robolectric resets SQLite between tests, so a kept one goes stale. */
+        @VisibleForTesting
+        internal fun resetForTests() {
+            synchronized(this) {
+                INSTANCE?.close()
+                INSTANCE = null
+            }
+        }
     }
 }

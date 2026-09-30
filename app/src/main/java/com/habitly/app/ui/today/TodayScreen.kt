@@ -39,6 +39,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.rememberCoroutineScope
@@ -127,6 +128,8 @@ fun TodayScreen(
     var notDueExpanded by rememberSaveable { mutableStateOf(false) }
     var showForecastInfo by rememberSaveable { mutableStateOf(false) }
     val forecast = uiState.forecast?.takeIf { uiState.dueCount > 0 }
+    // Once the forecast goes away (past day, setting off, nothing due) the sheet must not reappear with it.
+    LaunchedEffect(forecast == null) { if (forecast == null) showForecastInfo = false }
 
     val pinned = remember { mutableStateMapOf<Long, Int>() }
     val scope = rememberCoroutineScope()

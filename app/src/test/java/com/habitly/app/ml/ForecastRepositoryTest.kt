@@ -12,6 +12,7 @@ import com.habitly.app.domain.CompletionStatus
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -24,6 +25,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.IOException
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.random.Random
@@ -31,7 +33,9 @@ import kotlin.random.Random
 private class FakeData(habits: List<HabitEntity>, logs: List<HabitLogEntity>) : HabitDataSource {
     val habits = MutableStateFlow(habits)
     val logs = MutableStateFlow(logs)
-    override fun observeAllHabits(): Flow<List<HabitEntity>> = habits
+    var failReads = false
+    override fun observeAllHabits(): Flow<List<HabitEntity>> =
+        if (failReads) flow { throw IOException("disk gone") } else habits
     override fun observeAllLogs(): Flow<List<HabitLogEntity>> = logs
 
     override fun observeHabitsWithStats(today: LocalDate): Flow<List<HabitWithStats>> = flowOf(emptyList())
@@ -63,10 +67,14 @@ class ForecastRepositoryTest {
     private val history = SyntheticHistory.mondaySkipper(today, 120, 3, Random(42))
     private val data = FakeData(history.first, history.second)
 
-    private fun TestScope.repo() = ForecastRepository(
-        data, stored, { stored.value = it },
+    private val warnings = mutableListOf<Throwable>()
+    private var saves = 0
+
+    private fun TestScope.repo(save: suspend (String) -> Unit = { saves++; stored.value = it }) = ForecastRepository(
+        data, stored, save,
         today = { today }, clock = { now }, zone = ZoneOffset.UTC,
         compute = StandardTestDispatcher(testScheduler),
+        logWarning = { _, e -> warnings += e },
     )
 
     private fun decoded(): RiskModel = json.decodeFromString(RiskModel.serializer(), stored.value!!)
@@ -118,5 +126,27 @@ class ForecastRepositoryTest {
         val expected = r.observeToday().first().items.associate { it.habitId to it.probability }
         assertEquals(3, expected.size)
         assertEquals(expected, r.todayRisks())
+    }
+
+    @Test fun refreshSwallowsAFailedSave() = runTest {
+        repo(save = { throw IOException("DataStore write failed") }).refreshIfStale()
+        assertEquals(1, warnings.size)
+        assertEquals(null, stored.value)
+    }
+
+    @Test fun refreshSwallowsAFailingDataSource() = runTest {
+        data.failReads = true
+        repo().refreshIfStale()
+        assertEquals(1, warnings.size)
+        assertEquals(null, stored.value)
+    }
+
+    @Test fun concurrentRefreshesTrainOnce() = runTest {
+        val r = repo()
+        val a = launch { r.refreshIfStale() }
+        val b = launch { r.refreshIfStale() }
+        a.join(); b.join()
+        assertEquals(1, saves)
+        assertTrue(warnings.isEmpty())
     }
 }
