@@ -21,7 +21,8 @@ object RiskExplainer {
             if (c[i] >= -MIN_CONTRIBUTION) break
             when {
                 i == F_STREAK && streakOf(x) >= 2 -> return "on a ${streakOf(x)}-day roll"
-                (i == F_RATE7 || i == F_RATE28) && z[i] > 0 -> return "a strong last week"
+                i == F_RATE7 && z[i] > 0 -> return "a strong last week"
+                i == F_RATE28 && z[i] > 0 -> return "a strong month"
             }
         }
         return "you're on track"

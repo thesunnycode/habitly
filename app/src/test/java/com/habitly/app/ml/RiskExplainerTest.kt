@@ -2,6 +2,7 @@ package com.habitly.app.ml
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -64,5 +65,29 @@ class RiskExplainerTest {
         val reason = RiskExplainer.reason(m, x(2 to 1.0), wednesday)
         assertFalse(reason, reason.contains("Tuesday"))
         assertEquals("you're on track", reason)
+    }
+
+    private val patchyReasons = setOf("a patchy last week", "it's slipped this month", "no streak going yet")
+
+    @Test fun starterPatchyWeekIsARiskReason() {
+        val starter = RiskModel.starter(0L)
+        val patchy = x(F_RATE7 to 0.29, F_RATE28 to 0.3, F_SAME_WEEKDAY to 0.25, F_STREAK to ln(4.0))
+        assertEquals("a patchy last week", RiskExplainer.reason(starter, patchy, date))
+        val noStreak = x(F_RATE7 to 0.29, F_RATE28 to 0.3, F_SAME_WEEKDAY to 0.25)
+        val reason = RiskExplainer.reason(starter, noStreak, date)
+        assertFalse(reason, reason == "a strong last week")
+        assertTrue(reason, reason in patchyReasons)
+    }
+
+    @Test fun starterStrongWeekIsPositive() {
+        val starter = RiskModel.starter(0L)
+        val strong = x(F_RATE7 to 0.95, F_RATE28 to 0.95, F_SAME_WEEKDAY to 0.95, F_STREAK to ln(8.0))
+        val reason = RiskExplainer.reason(starter, strong, date)
+        assertTrue(reason, reason == "on a 7-day roll" || reason == "a strong last week")
+    }
+
+    @Test fun strongMonthWording() {
+        val m = model(mapOf(F_RATE28 to -2.0), means = mapOf(F_RATE28 to 0.5))
+        assertEquals("a strong month", RiskExplainer.reason(m, x(F_RATE28 to 0.9), date))
     }
 }

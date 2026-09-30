@@ -108,7 +108,7 @@ class FeatureExtractorTest {
 
     @Test fun lookbackCapped() {
         val result = rows(listOf(habit(createdDaysAgo = 200)), emptyList())
-        assertTrue(result.minOf { it.date } >= today.minusDays(90))
+        assertEquals(today.minusDays(90), result.minOf { it.date })
     }
 
     @Test fun startIsEarlierOfCreationAndFirstLog() {
@@ -116,5 +116,36 @@ class FeatureExtractorTest {
         val result = rows(listOf(habit(createdDaysAgo = 10)), listOf(log(1, early, CompletionStatus.DONE)))
         assertTrue(result.any { it.date == early })
         assertEquals(0, result.first { it.date == early }.y)
+    }
+
+    @Test fun skippedDaysAreNeitherKeptNorMissed() {
+        val d = today.minusDays(1)
+        val logs = listOf(
+            log(1, d.minusDays(3), CompletionStatus.DONE),
+            log(1, d.minusDays(2), CompletionStatus.SKIPPED),
+            log(1, d.minusDays(1), CompletionStatus.DONE),
+        )
+        val x = featuresFor(habit(createdDaysAgo = 4), logs, d)
+        assertEquals(ln(3.0), x[F_STREAK], 1e-12)
+        assertEquals(1.0, x[F_RATE7], 0.0)
+    }
+
+    @Test fun nonDueDaysAreIgnored() {
+        // Created on a Friday, so no Monday is due before the first Monday row.
+        val friday = LocalDate.of(2026, 9, 25)
+        val h = habit(createdDaysAgo = 5, type = FrequencyType.SPECIFIC_DAYS, days = "MONDAY,FRIDAY")
+        val monday = LocalDate.of(2026, 9, 28)
+        val x = featuresFor(h, listOf(log(1, friday, CompletionStatus.DONE)), monday)
+        assertEquals(1.0, x[F_RATE7], 0.0)
+        assertEquals(0.5, x[F_SAME_WEEKDAY], 0.0)
+    }
+
+    @Test fun intervalAnchorsOnCreationDayNotBackfilledLog() {
+        val h = habit(createdDaysAgo = 6, type = FrequencyType.INTERVAL).copy(intervalDays = 2)
+        // Created Sep 24; the backfill on Sep 21 has the opposite parity, so anchoring on it would
+        // make Sep 21/23/25/27/29 due instead.
+        val backfill = log(1, today.minusDays(9), CompletionStatus.DONE)
+        val dates = rows(listOf(h), listOf(backfill)).map { it.date }
+        assertEquals(listOf(24, 26, 28).map { LocalDate.of(2026, 9, it) }, dates)
     }
 }

@@ -3,6 +3,7 @@ package com.habitly.app.ml
 import kotlinx.serialization.Serializable
 import java.time.LocalDate
 import kotlin.math.exp
+import kotlin.math.ln
 import kotlin.math.sqrt
 
 @Serializable
@@ -31,12 +32,29 @@ data class RiskModel(
 
         private fun sigmoid(z: Double) = 1.0 / (1.0 + exp(-z))
 
-        /** Hand-set weights used until there is enough personal history (>= 40 rows, both classes). */
+        /**
+         * Hand-set model used until there is enough personal history (>= 40 rows, both classes).
+         * Reference means/stds are neutral typical values so explanations read the right way round
+         * (a patchy week is below the mean, a strong one above). The weights are the raw-space
+         * coefficients below scaled by each std, with the bias absorbing the means.
+         */
         fun starter(now: Long): RiskModel {
-            val w = DoubleArray(FEATURE_COUNT)
-            w[F_RATE7] = -2.5; w[F_RATE28] = -1.0; w[F_SAME_WEEKDAY] = -1.0; w[F_STREAK] = -0.4; w[F_MISSED_PREV] = 1.2
-            return RiskModel(w.toList(), bias = 1.6, means = List(FEATURE_COUNT) { 0.0 }, stds = List(FEATURE_COUNT) { 1.0 },
-                trainedAt = now, rows = 0, isStarter = true)
+            val means = DoubleArray(FEATURE_COUNT)
+            val stds = DoubleArray(FEATURE_COUNT) { 1.0 }
+            for (i in 0..6) { means[i] = 1.0 / 7; stds[i] = 0.35 }
+            means[F_RATE7] = 0.5; stds[F_RATE7] = 0.25
+            means[F_RATE28] = 0.5; stds[F_RATE28] = 0.25
+            means[F_SAME_WEEKDAY] = 0.5; stds[F_SAME_WEEKDAY] = 0.25
+            means[F_STREAK] = ln(4.0); stds[F_STREAK] = 0.8
+            means[F_MISSED_PREV] = 0.3; stds[F_MISSED_PREV] = 0.46
+            means[F_AGE] = ln(31.0); stds[F_AGE] = 1.0
+            means[F_REMINDER] = 0.5; stds[F_REMINDER] = 0.5
+            means[F_WEEKEND] = 2.0 / 7; stds[F_WEEKEND] = sqrt(2.0 / 7 * 5.0 / 7)
+            val raw = DoubleArray(FEATURE_COUNT)
+            raw[F_RATE7] = -2.5; raw[F_RATE28] = -1.0; raw[F_SAME_WEEKDAY] = -1.0; raw[F_STREAK] = -0.4; raw[F_MISSED_PREV] = 1.2
+            val weights = List(FEATURE_COUNT) { raw[it] * stds[it] }
+            val bias = 1.6 + (0 until FEATURE_COUNT).sumOf { raw[it] * means[it] }
+            return RiskModel(weights, bias, means.toList(), stds.toList(), trainedAt = now, rows = 0, isStarter = true)
         }
 
         /** L2-regularised batch gradient descent on z-scored features. Deterministic. */

@@ -19,7 +19,7 @@ data class HabitHistory(
 )
 
 object FeatureExtractor {
-    private const val WALK_BACK_DAYS = 120L
+    private const val WALK_BACK_DAYS = 400L
 
     fun histories(habits: List<HabitEntity>, logs: List<HabitLogEntity>, zone: ZoneId = ZoneId.systemDefault()): List<HabitHistory> {
         val byHabit = logs.groupBy { it.habitId }
@@ -53,6 +53,7 @@ object FeatureExtractor {
     /** Uses only data strictly before [date]. */
     fun features(h: HabitHistory, date: LocalDate): DoubleArray {
         val previous = ArrayList<Boolean>(28) // most recent first; true = kept
+        // Walk back until 28 judged due days are found or the habit starts; the cap bounds sparse schedules.
         val stop = maxOf(h.start, date.minusDays(WALK_BACK_DAYS))
         var d = date.minusDays(1)
         while (!d.isBefore(stop) && previous.size < 28) {
