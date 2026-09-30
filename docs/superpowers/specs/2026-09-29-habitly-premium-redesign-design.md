@@ -388,6 +388,8 @@ Top to bottom (Stats segment of Insights; the Calendar segment is unchanged):
      neutral "Same as before" at 0; hidden when there is no previous period).
    - Grid of the window's days, laid out in weeks aligned to the week-start pref (weekday header
      row). Window = the same rolling window the % uses: Week 7 days, Month 30 days, Year 52 weeks.
+     The Week view is a single rolling 7-day row ending today; its header shows each day's own
+     weekday rather than the week-start order (Month rows are aligned to the week-start pref).
      - **All + Week/Month:** each day cell is a **colour stack** — one equal slice per habit DONE
        that day, in that habit's `full` tone, stacked bottom-up; empty = `gridEmpty`; a declared
        rest day adds a slice in the habit's `low` tone.

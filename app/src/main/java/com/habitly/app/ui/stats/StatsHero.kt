@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -94,14 +95,42 @@ internal object StatsGridMath {
     fun stackOrder(slices: List<DaySlice>): List<DaySlice> =
         slices.filter { !it.rested } + slices.filter { it.rested }
 
-    /** (top, bottom) of each of [count] equal slices in a cell of [height], bottom slice first. */
-    fun sliceBands(count: Int, height: Float, gap: Float): List<Pair<Float, Float>> {
-        if (count <= 0) return emptyList()
-        val slice = (height - gap * (count - 1)) / count
-        return (0 until count).map { i ->
+    /**
+     * (top, bottom) of the first [count] of [total] equal slots in a cell of [height], bottom slot
+     * first. One slot per active habit, so 1 of 4 kept fills a quarter and 4 of 4 fills the cell.
+     */
+    fun sliceBands(count: Int, total: Int, height: Float, gap: Float): List<Pair<Float, Float>> {
+        if (count <= 0 || total <= 0) return emptyList()
+        val slice = (height - gap * (total - 1)) / total
+        return (0 until count.coerceAtMost(total)).map { i ->
             val bottom = height - i * (slice + gap)
             (bottom - slice) to bottom
         }
+    }
+
+    private fun dayLabel(day: LocalDate, locale: Locale) =
+        "${day.dayOfMonth} ${day.month.getDisplayName(TextStyle.FULL, locale)}"
+
+    /** A Week cell read aloud: "24 September: Water, Read done; Run rested". */
+    fun allDayDescription(day: LocalDate, slices: List<DaySlice>, locale: Locale = Locale.getDefault()): String {
+        val done = slices.filter { !it.rested }.map { it.name }
+        val rested = slices.filter { it.rested }.map { it.name }
+        val parts = buildList {
+            if (done.isNotEmpty()) add(done.joinToString(", ") + " done")
+            if (rested.isNotEmpty()) add(rested.joinToString(", ") + " rested")
+        }
+        return "${dayLabel(day, locale)}: " + (parts.joinToString("; ").ifEmpty { "nothing done" })
+    }
+
+    fun habitDayDescription(day: LocalDate, level: Int, beforeStart: Boolean, locale: Locale = Locale.getDefault()): String {
+        val what = when {
+            beforeStart -> "before this habit started"
+            level >= 4 -> "done"
+            level >= 2 -> "partly done"
+            level == 1 -> "rested"
+            else -> "not done"
+        }
+        return "${dayLabel(day, locale)}: $what"
     }
 
     fun allSummary(window: List<LocalDate>, stacks: Map<LocalDate, List<DaySlice>>): String {
@@ -126,22 +155,29 @@ internal data class GridModel(
     val stacks: Map<LocalDate, List<DaySlice>>,
     val levels: Map<LocalDate, Int>,
     val today: LocalDate,
+    /** One slot per active habit: the height of a full stack. */
+    val slotCount: Int,
+    /** The selected habit's first day; earlier days are drawn faint. */
+    val habitStart: LocalDate?,
 )
 
 internal fun StatsUiState.gridModel(): GridModel {
-    val chip = chips.firstOrNull { it.id == selectedHabitId }
+    // Built from what the data describes, never from a selection the data has not caught up with.
+    val chip = chips.firstOrNull { it.id == dataHabitId }
     return GridModel(
-        period = period,
+        period = dataPeriod,
         colorHex = chip?.colorHex,
         habitName = chip?.name,
         window = window,
         stacks = if (chip == null) dayStacks else emptyMap(),
         levels = when {
             chip != null -> habitLevels
-            period == StatsPeriod.YEAR -> yearLevels
+            dataPeriod == StatsPeriod.YEAR -> yearLevels
             else -> emptyMap()
         },
         today = today,
+        slotCount = chips.size,
+        habitStart = if (chip != null) selectedHabitStart else null,
     )
 }
 
@@ -161,10 +197,10 @@ internal fun StatsHeroCard(uiState: StatsUiState, weekStart: DayOfWeek, modifier
     val model = uiState.gridModel()
     val reduceMotion = LocalReduceMotion.current
     val scope = model.habitName ?: "All habits"
-    val span = when (uiState.period) {
+    val span = when (model.period) {
         StatsPeriod.WEEK -> "Last 7 days"
         StatsPeriod.MONTH -> "Last 30 days"
-        StatsPeriod.YEAR -> "Last 12 months"
+        StatsPeriod.YEAR -> "Last 52 weeks"
     }
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -194,7 +230,7 @@ internal fun StatsHeroCard(uiState: StatsUiState, weekStart: DayOfWeek, modifier
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (uiState.showDelta) {
-                uiState.delta?.let { DeltaChip(it, uiState.period, Modifier.padding(top = 10.dp)) }
+                uiState.delta?.let { DeltaChip(it, model.period, Modifier.padding(top = 10.dp)) }
             }
             Spacer(Modifier.height(16.dp))
             Crossfade(
@@ -264,8 +300,9 @@ private fun DeltaChip(delta: Float, period: StatsPeriod, modifier: Modifier = Mo
 
 /**
  * Week and Month: one square per day of the window, painted on a single Canvas. All habits: each day
- * is a stack of equal slices, one per habit kept (full tone) or rested (low tone). One habit: the
- * day in that habit's tones.
+ * is a stack of equal slots, one per active habit, filled bottom-up by the habits kept (full tone)
+ * then rested (low tone); the rest of the cell stays empty. One habit: the day in that habit's
+ * tones, with days before the habit existed drawn faint.
  */
 @Composable
 private fun WindowGrid(model: GridModel, weekStart: DayOfWeek) {
@@ -278,12 +315,19 @@ private fun WindowGrid(model: GridModel, weekStart: DayOfWeek) {
         model.stacks.values.flatten().map { it.colorHex }.distinct()
             .associateWith { HabitTonesFactory.of(it, extras.isDark) }
     }
+    val faint = extras.gridEmpty.copy(alpha = 0.4f)
     val todayRing = MaterialTheme.colorScheme.onSurface
+    // One path, reset for each stacked cell, rather than a fresh allocation per cell per frame.
+    val clip = remember { Path() }
+    // Week cells are big enough to be read one by one; Month gets one summary instead.
+    val perCell = model.period == StatsPeriod.WEEK
     val summary = if (model.colorHex != null) {
         StatsGridMath.habitSummary(model.habitName.orEmpty(), model.window, model.levels)
     } else {
         StatsGridMath.allSummary(model.window, model.stacks)
     }
+    val habitStart = model.habitStart
+    fun beforeStart(date: LocalDate) = habitStart != null && date.isBefore(habitStart)
 
     Column(Modifier.fillMaxWidth()) {
         Row(
@@ -307,7 +351,7 @@ private fun WindowGrid(model: GridModel, weekStart: DayOfWeek) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(height)
-                    .clearAndSetSemantics { contentDescription = summary },
+                    .clearAndSetSemantics { if (!perCell) contentDescription = summary },
             ) {
                 val gapPx = WINDOW_GAP.toPx()
                 val cellPx = (size.width - gapPx * 6) / 7
@@ -318,19 +362,28 @@ private fun WindowGrid(model: GridModel, weekStart: DayOfWeek) {
                     row.forEachIndexed { c, date ->
                         if (date == null) return@forEachIndexed
                         val topLeft = Offset(c * (cellPx + gapPx), r * (cellPx + gapPx))
-                        if (habitPalette != null) {
-                            val level = (model.levels[date] ?: 0).coerceIn(0, 4)
-                            drawRoundRect(habitPalette[level], topLeft, cellSize, radius)
+                        if (habitPalette != null && beforeStart(date)) {
+                            // Before the habit existed: a faint fill with a hairline, so it reads as
+                            // "not part of this habit's life" rather than as a missed day.
+                            val hairline = 1.dp.toPx()
+                            drawRoundRect(faint, topLeft, cellSize, radius)
+                            drawRoundRect(
+                                color = extras.gridEmpty,
+                                topLeft = Offset(topLeft.x + hairline / 2, topLeft.y + hairline / 2),
+                                size = Size(cellPx - hairline, cellPx - hairline),
+                                cornerRadius = radius,
+                                style = Stroke(hairline),
+                            )
+                        } else if (habitPalette != null) {
+                            drawRoundRect(habitPalette[(model.levels[date] ?: 0).coerceIn(0, 4)], topLeft, cellSize, radius)
                         } else {
+                            drawRoundRect(extras.gridEmpty, topLeft, cellSize, radius)
                             val slices = StatsGridMath.stackOrder(model.stacks[date].orEmpty())
-                            if (slices.isEmpty()) {
-                                drawRoundRect(extras.gridEmpty, topLeft, cellSize, radius)
-                            } else {
-                                val outline = Path().apply {
-                                    addRoundRect(RoundRect(topLeft.x, topLeft.y, topLeft.x + cellPx, topLeft.y + cellPx, radius))
-                                }
-                                val bands = StatsGridMath.sliceBands(slices.size, cellPx, sliceGap)
-                                clipPath(outline) {
+                            val bands = StatsGridMath.sliceBands(slices.size, model.slotCount, cellPx, sliceGap)
+                            if (bands.isNotEmpty()) {
+                                clip.reset()
+                                clip.addRoundRect(RoundRect(topLeft.x, topLeft.y, topLeft.x + cellPx, topLeft.y + cellPx, radius))
+                                clipPath(clip) {
                                     slices.zip(bands).forEach { (slice, band) ->
                                         val tones = sliceTones.getValue(slice.colorHex)
                                         drawRect(
@@ -352,6 +405,37 @@ private fun WindowGrid(model: GridModel, weekStart: DayOfWeek) {
                                 style = Stroke(stroke),
                             )
                         }
+                    }
+                }
+            }
+            if (perCell) {
+                // Transparent stand-ins over the painted row, so each day is its own screen-reader stop.
+                Row(Modifier.fillMaxWidth().height(cell), horizontalArrangement = Arrangement.spacedBy(WINDOW_GAP)) {
+                    rows.firstOrNull().orEmpty().forEach { date ->
+                        val description = when {
+                            date == null -> null
+                            model.colorHex != null -> StatsGridMath.habitDayDescription(
+                                date,
+                                model.levels[date] ?: 0,
+                                beforeStart(date),
+                            )
+                            else -> StatsGridMath.allDayDescription(
+                                date,
+                                StatsGridMath.stackOrder(model.stacks[date].orEmpty()),
+                            )
+                        }
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .then(
+                                    if (description != null) {
+                                        Modifier.clearAndSetSemantics { contentDescription = description }
+                                    } else {
+                                        Modifier
+                                    },
+                                ),
+                        )
                     }
                 }
             }

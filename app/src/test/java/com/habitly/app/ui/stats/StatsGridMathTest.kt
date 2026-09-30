@@ -5,6 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.util.Locale
 
 class StatsGridMathTest {
     private val today = LocalDate.of(2026, 9, 30) // a Wednesday
@@ -56,11 +57,39 @@ class StatsGridMathTest {
         assertEquals(listOf(water, run, readRest), StatsGridMath.stackOrder(listOf(water, readRest, run)))
     }
 
-    @Test fun `slice bands split the cell equally with gaps, bottom slice first`() {
-        val bands = StatsGridMath.sliceBands(count = 2, height = 10f, gap = 1f)
-        assertEquals(listOf(5.5f to 10f, 0f to 4.5f), bands)
-        assertEquals(listOf(0f to 10f), StatsGridMath.sliceBands(count = 1, height = 10f, gap = 1f))
-        assertEquals(emptyList<Pair<Float, Float>>(), StatsGridMath.sliceBands(count = 0, height = 10f, gap = 1f))
+    @Test fun `each slice is one active habit's share of the cell, bottom slice first`() {
+        // 4 habits, 10px cell, 2px gaps: each band is (10 - 2 * 3) / 4 = 1px.
+        assertEquals(listOf(9f to 10f), StatsGridMath.sliceBands(count = 1, total = 4, height = 10f, gap = 2f))
+        val full = StatsGridMath.sliceBands(count = 4, total = 4, height = 10f, gap = 2f)
+        assertEquals(listOf(9f to 10f, 6f to 7f, 3f to 4f, 0f to 1f), full)
+        assertEquals(listOf(5.5f to 10f, 0f to 4.5f), StatsGridMath.sliceBands(count = 2, total = 2, height = 10f, gap = 1f))
+    }
+
+    @Test fun `slice bands clamp to the slot count and handle nothing`() {
+        assertEquals(2, StatsGridMath.sliceBands(count = 5, total = 2, height = 10f, gap = 1f).size)
+        assertEquals(emptyList<Pair<Float, Float>>(), StatsGridMath.sliceBands(count = 0, total = 4, height = 10f, gap = 1f))
+        assertEquals(emptyList<Pair<Float, Float>>(), StatsGridMath.sliceBands(count = 1, total = 0, height = 10f, gap = 1f))
+    }
+
+    @Test fun `a week cell describes what was done and rested that day`() {
+        val day = LocalDate.of(2026, 9, 24)
+        val slices = listOf(
+            DaySlice("#4DABF7", rested = false, name = "Water"),
+            DaySlice("#9775FA", rested = false, name = "Read"),
+            DaySlice("#FF922B", rested = true, name = "Run"),
+        )
+        assertEquals("24 September: Water, Read done; Run rested", StatsGridMath.allDayDescription(day, slices, Locale.US))
+        assertEquals("24 September: Run rested", StatsGridMath.allDayDescription(day, slices.takeLast(1), Locale.US))
+        assertEquals("24 September: nothing done", StatsGridMath.allDayDescription(day, emptyList(), Locale.US))
+    }
+
+    @Test fun `a week cell in the habit view names its level`() {
+        val day = LocalDate.of(2026, 9, 24)
+        assertEquals("24 September: done", StatsGridMath.habitDayDescription(day, 4, beforeStart = false, Locale.US))
+        assertEquals("24 September: partly done", StatsGridMath.habitDayDescription(day, 2, beforeStart = false, Locale.US))
+        assertEquals("24 September: rested", StatsGridMath.habitDayDescription(day, 1, beforeStart = false, Locale.US))
+        assertEquals("24 September: not done", StatsGridMath.habitDayDescription(day, 0, beforeStart = false, Locale.US))
+        assertEquals("24 September: before this habit started", StatsGridMath.habitDayDescription(day, 0, beforeStart = true, Locale.US))
     }
 
     @Test fun `summary counts days with a habit kept, ignoring rest-only days`() {

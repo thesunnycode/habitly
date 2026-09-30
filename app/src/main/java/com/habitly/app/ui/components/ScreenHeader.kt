@@ -40,6 +40,8 @@ fun ScreenHeader(
     onBack: (() -> Unit)? = null,
     onClose: (() -> Unit)? = null,
     actions: (@Composable RowScope.() -> Unit)? = null,
+    /** Sits at the right of the title, centred on it (e.g. a compact segmented switch). */
+    titleTrailing: (@Composable () -> Unit)? = null,
 ) {
     Column(modifier = modifier.fillMaxWidth().padding(top = 8.dp, bottom = 12.dp)) {
         if (onBack != null || onClose != null || actions != null) {
@@ -67,11 +69,14 @@ fun ScreenHeader(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Text(
-            text = title,
-            style = MaterialTheme.typography.headlineMedium,
-            modifier = Modifier.semantics { heading() },
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.weight(1f).semantics { heading() },
+            )
+            titleTrailing?.invoke()
+        }
         if (subtitle != null) {
             Text(
                 text = subtitle,

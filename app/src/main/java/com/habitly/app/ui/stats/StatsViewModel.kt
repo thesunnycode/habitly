@@ -10,7 +10,6 @@ import com.habitly.app.domain.ContributionLevels
 import com.habitly.app.domain.HabitHistory
 import com.habitly.app.domain.HabitSchedule
 import com.habitly.app.domain.InsightEngine
-import com.habitly.app.domain.WeekdayBreakdown
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,8 +22,9 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.launch
 import kotlin.coroutines.CoroutineContext
-import java.time.DayOfWeek
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.TextStyle
 import java.time.temporal.ChronoUnit
 import java.util.Locale
@@ -93,7 +93,7 @@ class StatsViewModel(
         habitId: Long?,
     ): StatsUiState {
         val now = today()
-        if (pairs.isEmpty()) return StatsUiState(period = period, today = now, isLoading = false)
+        if (pairs.isEmpty()) return StatsUiState(period = period, dataPeriod = period, today = now, isLoading = false)
 
         // A filter to a habit that is no longer active (archived, deleted) falls back to all.
         val selected = habitId?.let { id -> pairs.firstOrNull { it.first.habit.id == id } }
@@ -132,7 +132,6 @@ class StatsViewModel(
                 .getDisplayName(TextStyle.SHORT, Locale.getDefault()).take(1)
         }
 
-        val byWeekday = WeekdayBreakdown.completionsByWeekday(allRecords)
         val currentStreak = scope.maxOfOrNull { it.first.currentStreak } ?: 0
         val bestStreak = scope.maxOfOrNull { it.first.bestStreak } ?: 0
 
@@ -152,6 +151,9 @@ class StatsViewModel(
         return StatsUiState(
             period = period,
             selectedHabitId = selected?.first?.habit?.id,
+            dataHabitId = selected?.first?.habit?.id,
+            dataPeriod = period,
+            selectedHabitStart = selected?.let { (stats, records) -> startOf(stats, records) },
             chips = pairs.map { (stats, _) ->
                 HabitChip(stats.habit.id, stats.habit.name, stats.habit.colorHex)
             },
@@ -171,8 +173,6 @@ class StatsViewModel(
             perfectDays = perfectDays(pairs, now),
             restDays = scopeRecords.count { it.status == CompletionStatus.SKIPPED },
             isPersonalBest = currentStreak > 0 && currentStreak >= bestStreak,
-            completionsByWeekday = byWeekday,
-            weakestWeekday = WeekdayBreakdown.weakestWeekday(byWeekday),
             habitVerdicts = verdicts(pairs, period, now),
             yearLevels = ContributionLevels.forAllHabits(
                 completionsByDate = allRecords.filter { it.status == CompletionStatus.DONE }
@@ -180,13 +180,6 @@ class StatsViewModel(
                 habitCount = pairs.size,
             ),
             periodBars = window.map { rateOver(pairs, it, it) },
-            periodBarLabels = window.map { day ->
-                if (period == StatsPeriod.WEEK) {
-                    day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()).take(1)
-                } else {
-                    "${day.dayOfMonth}"
-                }
-            },
             today = now,
             isLoading = false,
         )
@@ -206,13 +199,13 @@ class StatsViewModel(
         window: List<LocalDate>,
     ): Map<LocalDate, List<DaySlice>> {
         val index = pairs.map { (stats, records) ->
-            stats.habit.colorHex to records.associate { it.date to it.status }
+            stats.habit to records.associate { it.date to it.status }
         }
         return window.mapNotNull { day ->
-            val slices = index.mapNotNull { (colorHex, byDate) ->
+            val slices = index.mapNotNull { (habit, byDate) ->
                 when (byDate[day]) {
-                    CompletionStatus.DONE -> DaySlice(colorHex, rested = false)
-                    CompletionStatus.SKIPPED -> DaySlice(colorHex, rested = true)
+                    CompletionStatus.DONE -> DaySlice(habit.colorHex, rested = false, name = habit.name)
+                    CompletionStatus.SKIPPED -> DaySlice(habit.colorHex, rested = true, name = habit.name)
                     else -> null
                 }
             }
@@ -342,18 +335,18 @@ class StatsViewModel(
                 rate = rate,
                 delta = previous?.let { rate - it },
                 group = group,
-                spark = sparkFor(single, now),
                 iconKey = stats.habit.icon,
             )
         }.sortedWith(compareByDescending<HabitVerdict> { it.rate }.thenBy { it.group.ordinal })
     }
 
-    /** Six weekly rates, oldest first — enough to show a direction, not enough to invite reading. */
-    private fun sparkFor(
-        single: List<Pair<HabitWithStats, List<CompletionRecord>>>,
-        now: LocalDate,
-    ): List<Float> = (5 downTo 0).map { weeksBack ->
-        val end = now.minusWeeks(weeksBack.toLong())
-        rateOver(single, end.minusDays(6), end)
+    /**
+     * A habit's first day: when it was created, or its earliest record if history predates that
+     * (seeded and imported habits carry older logs than their creation time).
+     */
+    private fun startOf(stats: HabitWithStats, records: List<CompletionRecord>): LocalDate {
+        val created = Instant.ofEpochMilli(stats.habit.createdAt).atZone(ZoneId.systemDefault()).toLocalDate()
+        val earliest = records.minOfOrNull { it.date } ?: return created
+        return minOf(created, earliest)
     }
 }

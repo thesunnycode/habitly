@@ -43,6 +43,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -83,6 +88,12 @@ fun StatsScreen(
     onHabitClick: (Long) -> Unit = {},
     weekStart: DayOfWeek = DayOfWeek.MONDAY,
 ) {
+    // The chips flip the moment they are tapped, but the figures take a rebuild to catch up. Until
+    // they do, keep drawing the last state whose figures matched its own selection, so a habit's
+    // name never sits over another view's numbers.
+    var lastConsistent by remember { mutableStateOf(uiState) }
+    if (uiState.isConsistent) SideEffect { lastConsistent = uiState }
+    val shown = if (uiState.isConsistent) uiState else lastConsistent
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         // Clear of the floating nav bar. No side padding: the chip row scrolls edge to edge.
@@ -101,13 +112,13 @@ fun StatsScreen(
             item { HabitChipRow(uiState.chips, uiState.selectedHabitId, onHabitFilterChange) }
         }
 
-        item { StatsHeroCard(uiState, weekStart, margin) }
+        item { StatsHeroCard(shown, weekStart, margin) }
 
-        item { RecordTiles(uiState, margin) }
+        item { RecordTiles(shown, margin) }
 
         item {
             if (uiState.daysOfHistory >= DAYS_FOR_VERDICTS) {
-                HabitsCard(uiState.habitVerdicts, onHabitClick, margin.padding(top = 12.dp))
+                HabitsCard(shown.habitVerdicts, onHabitClick, margin.padding(top = 12.dp))
             } else {
                 StatsCard(margin.padding(top = 12.dp)) {
                     Text("Habit by habit", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
@@ -253,7 +264,7 @@ private fun RecordTiles(uiState: StatsUiState, modifier: Modifier = Modifier) {
             )
         }
         Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (uiState.selectedHabitId != null) {
+            if (uiState.dataHabitId != null) {
                 StatTile(
                     value = "${uiState.restDays}",
                     label = "Rest days",
@@ -405,12 +416,15 @@ private fun previewState(selected: Long?): StatsUiState {
     val window = (29 downTo 0).map { today.minusDays(it.toLong()) }
     val stacks = window.mapIndexedNotNull { i, day ->
         val slices = chips.filterIndexed { c, _ -> (i * 3 + c * 5) % 7 < 4 }
-            .mapIndexed { c, chip -> DaySlice(chip.colorHex, rested = (i + c) % 9 == 0) }
+            .mapIndexed { c, chip -> DaySlice(chip.colorHex, rested = (i + c) % 9 == 0, name = chip.name) }
         if (slices.isEmpty()) null else day to slices
     }.toMap()
     return StatsUiState(
         period = StatsPeriod.MONTH,
         selectedHabitId = selected,
+        dataHabitId = selected,
+        dataPeriod = StatsPeriod.MONTH,
+        selectedHabitStart = selected?.let { today.minusDays(11) },
         chips = chips,
         window = window,
         dayStacks = if (selected == null) stacks else emptyMap(),
@@ -425,10 +439,10 @@ private fun previewState(selected: Long?): StatsUiState {
         restDays = 3,
         totalCompletions = 184,
         habitVerdicts = listOf(
-            HabitVerdict(1, "Water", "#4DABF7", 0.93f, 0.05f, VerdictGroup.GOING_WELL, iconKey = "water_drop"),
-            HabitVerdict(2, "Read 20 min", "#9775FA", 0.8f, 0f, VerdictGroup.GOING_WELL, iconKey = "menu_book"),
-            HabitVerdict(3, "Run", "#FF922B", 0.52f, -0.12f, VerdictGroup.SLIPPING, iconKey = "run"),
-            HabitVerdict(4, "Meditate", "#51CF66", 0.4f, null, VerdictGroup.NOT_ENOUGH_DATA, iconKey = "self_improvement"),
+            HabitVerdict(1, "Water", "#4DABF7", 0.93f, 0.05f, VerdictGroup.GOING_WELL, "water_drop"),
+            HabitVerdict(2, "Read 20 min", "#9775FA", 0.8f, 0f, VerdictGroup.GOING_WELL, "menu_book"),
+            HabitVerdict(3, "Run", "#FF922B", 0.52f, -0.12f, VerdictGroup.SLIPPING, "run"),
+            HabitVerdict(4, "Meditate", "#51CF66", 0.4f, null, VerdictGroup.NOT_ENOUGH_DATA, "self_improvement"),
         ),
         today = today,
         isLoading = false,

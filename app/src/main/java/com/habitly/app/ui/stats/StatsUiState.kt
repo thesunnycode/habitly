@@ -2,7 +2,6 @@ package com.habitly.app.ui.stats
 
 import com.habitly.app.domain.CompletionStatus
 import com.habitly.app.domain.Insight
-import java.time.DayOfWeek
 import java.time.LocalDate
 
 enum class StatsPeriod(val label: String, val days: Int) {
@@ -22,8 +21,6 @@ data class HabitVerdict(
     /** Change against the previous period of the same length, or null when there isn't one. */
     val delta: Float?,
     val group: VerdictGroup,
-    /** A few points of recent history, purely for the row's sparkline. */
-    val spark: List<Float> = emptyList(),
     /** The habit's icon, for its row's icon tile. */
     val iconKey: String = "",
 )
@@ -32,12 +29,20 @@ data class HabitVerdict(
 data class HabitChip(val id: Long, val name: String, val colorHex: String)
 
 /** One habit's share of a day cell: kept (full tone) or a declared rest day (low tone). */
-data class DaySlice(val colorHex: String, val rested: Boolean)
+data class DaySlice(val colorHex: String, val rested: Boolean, val name: String = "")
 
 data class StatsUiState(
     val period: StatsPeriod = StatsPeriod.WEEK,
     /** The habit the figures are filtered to, or null for all habits. */
     val selectedHabitId: Long? = null,
+    /**
+     * The filter and period the figures below were actually built for. The selector flips at once
+     * while the rebuild runs, so for a moment these lag [selectedHabitId] and [period].
+     */
+    val dataHabitId: Long? = null,
+    val dataPeriod: StatsPeriod = StatsPeriod.WEEK,
+    /** The selected habit's first day (creation, or its earliest record if older); null for all. */
+    val selectedHabitStart: LocalDate? = null,
     /** Every active habit, in repository order, for the filter row. */
     val chips: List<HabitChip> = emptyList(),
     /** The days of the rolling Week/Month window, oldest first, ending today. Empty for Year. */
@@ -65,15 +70,11 @@ data class StatsUiState(
     val restDays: Int = 0,
     /** True when the live streak is the longest there has ever been. */
     val isPersonalBest: Boolean = false,
-    val completionsByWeekday: Map<DayOfWeek, Int> = emptyMap(),
-    val weakestWeekday: DayOfWeek? = null,
     val habitVerdicts: List<HabitVerdict> = emptyList(),
     /** All-habits contribution shading (0..4) per day, for the Year view's grid. */
     val yearLevels: Map<LocalDate, Int> = emptyMap(),
     /** Completion rate of each day in the Week/Month window, oldest first, ending today. */
     val periodBars: List<Float> = emptyList(),
-    /** One label per entry of [periodBars]. */
-    val periodBarLabels: List<String> = emptyList(),
     val today: LocalDate = LocalDate.now(),
     val isLoading: Boolean = true,
 ) {
@@ -83,4 +84,7 @@ data class StatsUiState(
     val showDelta: Boolean get() = delta != null && daysOfHistory >= period.days * 2
 
     val hasAnyHistory: Boolean get() = daysOfHistory > 0
+
+    /** True when the figures describe what is selected, not the previous selection. */
+    val isConsistent: Boolean get() = dataHabitId == selectedHabitId && dataPeriod == period
 }

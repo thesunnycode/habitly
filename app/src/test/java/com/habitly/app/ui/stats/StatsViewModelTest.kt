@@ -21,6 +21,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import java.time.LocalDate
+import java.time.ZoneId
 
 private val TODAY = LocalDate.of(2026, 8, 24) // a Monday
 
@@ -30,8 +31,9 @@ private fun habit(
     currentStreak: Int = 0,
     bestStreak: Int = 0,
     colorHex: String = "#6B9080",
+    createdAt: Long = 0L,
 ) = HabitWithStats(
-    habit = HabitEntity(id, name, "star", colorHex, "General", FrequencyType.DAILY, null, null, null, 0L, false),
+    habit = HabitEntity(id, name, "star", colorHex, "General", FrequencyType.DAILY, null, null, null, createdAt, false),
     currentStreak = currentStreak,
     bestStreak = bestStreak,
     completionRate = 0f,
@@ -334,13 +336,13 @@ class StatsViewModelTest {
         val stacks = vm.uiState.value.dayStacks
         assertEquals(
             listOf(
-                DaySlice("#333333", rested = false),
-                DaySlice("#111111", rested = false),
-                DaySlice("#222222", rested = true),
+                DaySlice("#333333", rested = false, name = "Gym"),
+                DaySlice("#111111", rested = false, name = "Water"),
+                DaySlice("#222222", rested = true, name = "Read"),
             ),
             stacks[TODAY],
         )
-        assertEquals(listOf(DaySlice("#111111", rested = false)), stacks[yesterday])
+        assertEquals(listOf(DaySlice("#111111", rested = false, name = "Water")), stacks[yesterday])
         assertTrue(stacks[TODAY.minusDays(2)].isNullOrEmpty())
     }
 
@@ -471,5 +473,81 @@ class StatsViewModelTest {
         vm.onHabitFilterChange(1L)
         advanceUntilIdle()
         assertEquals(1f, vm.uiState.value.previousRate ?: -1f, 0.001f)
+    }
+
+    @Test
+    fun theSelectedHabitStartIsItsCreationDayOrItsEarliestRecordIfOlder() = runTest {
+        val created = TODAY.minusDays(3).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val records = mapOf(
+            // Seeded history older than the habit's creation time.
+            1L to done(TODAY.minusDays(5)),
+            2L to emptyList(),
+        )
+        val vm = viewModel(
+            listOf(habit(1, "Water", createdAt = created), habit(2, "Read", createdAt = created)),
+            records,
+        )
+        advanceUntilIdle()
+        assertNull(vm.uiState.value.selectedHabitStart)
+
+        vm.onHabitFilterChange(1L)
+        advanceUntilIdle()
+        assertEquals(TODAY.minusDays(5), vm.uiState.value.selectedHabitStart)
+
+        vm.onHabitFilterChange(2L)
+        advanceUntilIdle()
+        assertEquals(TODAY.minusDays(3), vm.uiState.value.selectedHabitStart)
+    }
+
+    @Test
+    fun everyEmittedStateLabelsItsDataWithTheSelectionItWasBuiltFor() = runTest {
+        val records = mapOf(
+            1L to done(*daysBack(TODAY, 10).toTypedArray()),
+            2L to done(TODAY),
+        )
+        val vm = viewModel(listOf(habit(1, "Water"), habit(2, "Read")), records)
+        val seen = mutableListOf<StatsUiState>()
+        fun sample() = vm.uiState.value.also { seen += it }
+        advanceUntilIdle()
+        assertTrue(sample().isConsistent)
+
+        vm.onHabitFilterChange(1L)
+        // The chip flips at once, but the figures still describe all habits until the rebuild lands.
+        sample().let {
+            assertEquals(1L, it.selectedHabitId)
+            assertNull(it.dataHabitId)
+            assertFalse(it.isConsistent)
+        }
+        advanceUntilIdle()
+        assertTrue(sample().isConsistent)
+
+        vm.onPeriodChange(StatsPeriod.MONTH)
+        sample().let {
+            assertEquals(StatsPeriod.WEEK, it.dataPeriod)
+            assertFalse(it.isConsistent)
+        }
+        advanceUntilIdle()
+        sample().let {
+            assertTrue(it.isConsistent)
+            assertEquals(1L, it.dataHabitId)
+            assertEquals(StatsPeriod.MONTH, it.dataPeriod)
+        }
+
+        vm.onHabitFilterChange(null)
+        assertFalse(sample().isConsistent)
+        advanceUntilIdle()
+        assertTrue(sample().isConsistent)
+
+        // Whatever the selector says, the data fields always match the labels they carry.
+        seen.forEach { state ->
+            if (state.dataHabitId == null) {
+                assertTrue(state.habitLevels.isEmpty())
+                assertTrue(state.dayStacks.isNotEmpty())
+            } else {
+                assertTrue(state.dayStacks.isEmpty())
+                assertTrue(state.habitLevels.isNotEmpty())
+            }
+            assertEquals(state.dataPeriod.days, state.window.size)
+        }
     }
 }
