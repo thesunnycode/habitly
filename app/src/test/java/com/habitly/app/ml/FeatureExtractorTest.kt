@@ -59,15 +59,131 @@ class FeatureExtractorTest {
         assertEquals(1, byDate[today.minusDays(4)]) // no log
     }
 
+    private fun featuresWithOthers(habits: List<HabitEntity>, logs: List<HabitLogEntity>, id: Long, date: LocalDate): DoubleArray {
+        val histories = FeatureExtractor.histories(habits, logs, zone)
+        return FeatureExtractor.features(histories.first { it.habit.id == id }, date, DayTotals.of(histories, today))
+    }
+
     @Test fun noLookAhead() {
         val statuses = listOf(CompletionStatus.DONE, CompletionStatus.MISSED, CompletionStatus.SKIPPED, CompletionStatus.PARTIAL)
-        val logs = (1..30).map { log(1, today.minusDays(it.toLong()), statuses[it % statuses.size]) }
-        val h = habit(createdDaysAgo = 30)
+        val habits = listOf(habit(id = 1, createdDaysAgo = 30), habit(id = 2, createdDaysAgo = 30))
+        val logs = (1..30).map { log(1, today.minusDays(it.toLong()), statuses[it % statuses.size]) } +
+            (1..30).map { log(2, today.minusDays(it.toLong()), statuses[(it / 2) % statuses.size]) }
         for (back in 1..15) {
             val d = today.minusDays(back.toLong())
             val before = logs.filter { LocalDate.parse(it.date).isBefore(d) }
-            assertArrayEquals("day $d", featuresFor(h, before, d), featuresFor(h, logs, d), 0.0)
+            assertArrayEquals("day $d", featuresFor(habits[0], before, d), featuresFor(habits[0], logs, d), 0.0)
+            // Logs of the other habit on/after d must not change d's features either.
+            val othersBefore = logs.filter { it.habitId == 1L || LocalDate.parse(it.date).isBefore(d) }
+            assertArrayEquals("day $d", featuresWithOthers(habits, othersBefore, 1, d), featuresWithOthers(habits, logs, 1, d), 0.0)
+            assertArrayEquals("day $d", featuresWithOthers(habits, before, 1, d), featuresWithOthers(habits, logs, 1, d), 0.0)
         }
+    }
+
+    private val twoDaily = listOf(habit(id = 1, createdDaysAgo = 10), habit(id = 2, createdDaysAgo = 10))
+
+    private fun other(d: LocalDate, vararg statuses: CompletionStatus) =
+        statuses.mapIndexed { k, st -> log(2, d.minusDays(k + 1L), st) }
+
+    @Test fun momentumIsZeroWhenTheOtherHabitWasMissedTheLastThreeDays() {
+        val d = today.minusDays(1)
+        val logs = other(d, CompletionStatus.MISSED, CompletionStatus.MISSED, CompletionStatus.MISSED) + log(2, d.minusDays(4), CompletionStatus.DONE)
+        assertEquals(0.0, featuresWithOthers(twoDaily, logs, 1, d)[F_MOMENTUM], 0.0) // day 4 is outside the window
+    }
+
+    @Test fun momentumIsOneWhenTheOtherHabitWasKeptTheLastThreeDays() {
+        val d = today.minusDays(1)
+        val logs = other(d, CompletionStatus.DONE, CompletionStatus.DONE, CompletionStatus.DONE)
+        assertEquals(1.0, featuresWithOthers(twoDaily, logs, 1, d)[F_MOMENTUM], 0.0)
+    }
+
+    @Test fun momentumPoolsTheThreeDays() {
+        val d = today.minusDays(1)
+        // Kept yesterday, missed the day before, no log the day before that (a due day, so not kept).
+        val logs = other(d, CompletionStatus.DONE, CompletionStatus.MISSED)
+        assertEquals(1.0 / 3, featuresWithOthers(twoDaily, logs, 1, d)[F_MOMENTUM], 1e-12)
+    }
+
+    @Test fun momentumIsNeutralWhenNoOtherHabitWasDue() {
+        val d = today.minusDays(1) // Tuesday; the three days before are Mon, Sun, Sat
+        val habits = listOf(habit(id = 1, createdDaysAgo = 10), habit(id = 2, createdDaysAgo = 10, type = FrequencyType.SPECIFIC_DAYS, days = "FRIDAY"))
+        val x = featuresWithOthers(habits, listOf(log(1, d.minusDays(1), CompletionStatus.DONE)), 1, d)
+        assertEquals(0.5, x[F_MOMENTUM], 0.0)
+        // Resting the other habit on all three days also leaves nothing to judge.
+        val rested = other(d, CompletionStatus.SKIPPED, CompletionStatus.SKIPPED, CompletionStatus.SKIPPED)
+        assertEquals(0.5, featuresWithOthers(twoDaily, rested, 1, d)[F_MOMENTUM], 0.0)
+    }
+
+    @Test fun ownStatusNeverAffectsItsOwnMomentum() {
+        val d = today.minusDays(1)
+        val others = other(d, CompletionStatus.DONE, CompletionStatus.DONE, CompletionStatus.DONE)
+        for (own in listOf(null, CompletionStatus.DONE, CompletionStatus.MISSED, CompletionStatus.SKIPPED, CompletionStatus.PARTIAL)) {
+            val logs = others + listOfNotNull(own?.let { log(1, d.minusDays(1), it) }, own?.let { log(1, d.minusDays(2), it) })
+            assertEquals("own=$own", 1.0, featuresWithOthers(twoDaily, logs, 1, d)[F_MOMENTUM], 0.0)
+        }
+    }
+
+    @Test fun rowsCarryMomentum() {
+        val d = today.minusDays(1)
+        val result = rows(twoDaily, other(d, CompletionStatus.DONE, CompletionStatus.DONE, CompletionStatus.DONE))
+        assertEquals(1.0, result.single { it.habitId == 1L && it.date == d }.x[F_MOMENTUM], 0.0)
+        assertEquals(0.0, result.single { it.habitId == 2L && it.date == d.minusDays(1) }.x[F_MOMENTUM], 0.0)
+    }
+
+    @Test fun momentumDefaultsToNeutralWithoutTotals() {
+        val d = today.minusDays(1)
+        assertEquals(0.5, featuresFor(habit(createdDaysAgo = 10), emptyList(), d)[F_MOMENTUM], 0.0)
+    }
+
+    @Test fun daysSinceKept() {
+        val d = today.minusDays(1)
+        val h = habit(createdDaysAgo = 100)
+        assertEquals(ln(2.0), featuresFor(h, listOf(log(1, d.minusDays(1), CompletionStatus.DONE)), d)[F_SINCE_KEPT], 1e-12)
+        val tenAgo = listOf(log(1, d.minusDays(10), CompletionStatus.DONE), log(1, d.minusDays(3), CompletionStatus.MISSED))
+        assertEquals(ln(11.0), featuresFor(h, tenAgo, d)[F_SINCE_KEPT], 1e-12)
+        assertEquals(ln(6.0), featuresFor(habit(createdDaysAgo = 6), emptyList(), d)[F_SINCE_KEPT], 1e-12)
+        assertEquals(ln(61.0), featuresFor(h, emptyList(), d)[F_SINCE_KEPT], 1e-12)
+        assertEquals(ln(61.0), featuresFor(h, listOf(log(1, d.minusDays(70), CompletionStatus.DONE)), d)[F_SINCE_KEPT], 1e-12)
+    }
+
+    @Test fun trendIsPositiveAfterAGoodWeekFollowingAPoorMonth() {
+        val d = today.minusDays(1)
+        val logs = (1L..7L).map { log(1, d.minusDays(it), CompletionStatus.DONE) } +
+            (8L..28L).map { log(1, d.minusDays(it), CompletionStatus.MISSED) }
+        val x = featuresFor(habit(createdDaysAgo = 40), logs, d)
+        assertEquals(1.0 - 7.0 / 28, x[F_TREND], 1e-12)
+        assertTrue(x[F_TREND] > 0)
+    }
+
+    @Test fun sameWeekdayUsesTwentyWeeksSmoothedTowardsTheLongRunRate() {
+        val d = today.minusDays(1)
+        val logs = (1L..5L).map { log(1, d.minusWeeks(it), CompletionStatus.DONE) } +
+            (6L..20L).map { log(1, d.minusWeeks(it), CompletionStatus.MISSED) } +
+            log(1, d.minusWeeks(21), CompletionStatus.DONE) // outside the window
+        val x = featuresFor(habit(createdDaysAgo = 200), logs, d)
+        // Last 90 due days: the 5 kept same weekdays (weeks 1-5 are within 35 days), the rest not kept.
+        val rate90 = (5 + 1.0) / (90 + 2)
+        assertEquals(rate90, x[F_RATE90], 1e-12)
+        assertEquals((5 + 4 * rate90) / (20 + 4), x[F_SAME_WEEKDAY], 1e-12)
+    }
+
+    @Test fun rate90IsSmoothedAndCapped() {
+        val d = today.minusDays(1)
+        val logs = (1L..45L).map { log(1, d.minusDays(it), CompletionStatus.DONE) } +
+            (91L..100L).map { log(1, d.minusDays(it), CompletionStatus.DONE) } // beyond 90 due days
+        assertEquals(46.0 / 92, featuresFor(habit(createdDaysAgo = 200), logs, d)[F_RATE90], 1e-12)
+        val short = (1L..3L).map { log(1, d.minusDays(it), CompletionStatus.DONE) }
+        assertEquals(4.0 / 5, featuresFor(habit(createdDaysAgo = 4), short, d)[F_RATE90], 1e-12)
+    }
+
+    @Test fun restedPrevious() {
+        val d = today.minusDays(1) // Tuesday
+        val h = habit(createdDaysAgo = 20)
+        assertEquals(1.0, featuresFor(h, listOf(log(1, d.minusDays(1), CompletionStatus.SKIPPED)), d)[F_RESTED_PREV], 0.0)
+        assertEquals(0.0, featuresFor(h, listOf(log(1, d.minusDays(1), CompletionStatus.DONE), log(1, d.minusDays(2), CompletionStatus.SKIPPED)), d)[F_RESTED_PREV], 0.0)
+        // Only due days count: the previous due day of a Tuesday/Friday habit is last Friday.
+        val specific = habit(createdDaysAgo = 20, type = FrequencyType.SPECIFIC_DAYS, days = "TUESDAY,FRIDAY")
+        assertEquals(1.0, featuresFor(specific, listOf(log(1, d.minusDays(4), CompletionStatus.SKIPPED)), d)[F_RESTED_PREV], 0.0)
     }
 
     @Test fun defaultsWithoutHistory() {
@@ -75,6 +191,8 @@ class FeatureExtractorTest {
         assertEquals(0.5, first.x[F_RATE7], 0.0)
         assertEquals(0.5, first.x[F_RATE28], 0.0)
         assertEquals(0.5, first.x[F_SAME_WEEKDAY], 0.0)
+        assertEquals(0.5, first.x[F_RATE90], 0.0)
+        assertEquals(0.0, first.x[F_RESTED_PREV], 0.0)
         assertEquals(0.0, first.x[F_STREAK], 0.0)
         assertEquals(0.0, first.x[F_MISSED_PREV], 0.0)
     }
@@ -107,8 +225,8 @@ class FeatureExtractorTest {
     }
 
     @Test fun lookbackCapped() {
-        val result = rows(listOf(habit(createdDaysAgo = 200)), emptyList())
-        assertEquals(today.minusDays(90), result.minOf { it.date })
+        val result = rows(listOf(habit(createdDaysAgo = 300)), emptyList())
+        assertEquals(today.minusDays(180), result.minOf { it.date })
     }
 
     @Test fun startIsEarlierOfCreationAndFirstLog() {
@@ -137,7 +255,8 @@ class FeatureExtractorTest {
         val monday = LocalDate.of(2026, 9, 28)
         val x = featuresFor(h, listOf(log(1, friday, CompletionStatus.DONE)), monday)
         assertEquals(1.0, x[F_RATE7], 0.0)
-        assertEquals(0.5, x[F_SAME_WEEKDAY], 0.0)
+        // No Monday yet, so the same-weekday rate is just the prior: the long-run rate (1 + 1) / (1 + 2).
+        assertEquals(2.0 / 3, x[F_SAME_WEEKDAY], 1e-12)
     }
 
     @Test fun intervalAnchorsOnCreationDayNotBackfilledLog() {

@@ -216,13 +216,17 @@ accuracy (threshold 0.5), ROC AUC and Brier score, then retrained on all rows fo
 missed-previous → "missed last time"; low recent rate → "only {n} of the last 7"; long streak with
 negative contribution → "on a {n}-day roll"; reminder absent → "no reminder set".
 
-**Accuracy upgrade (2026-09-30, user request):** three more features — share of the user's other habits kept
-yesterday ("momentum"), days since last kept, and recent trend (rate7 − rate28); same-weekday window widened to 8
-weeks. Evaluation is rolling-origin cross-validation over the last 4 weeks (train on the past, test on the next
+**Accuracy upgrade (2026-09-30, user request):** more features — share of the user's other habits kept over
+the last 3 days ("momentum"), days since last kept, recent trend (rate7 − rate28), a smoothed 90-due-day keep rate
+((kept + 1)/(n + 2)), and "rested the previous due day"; the same-weekday rate covers the last 20 same weekdays and
+is smoothed towards the habit's own long-run rate ((kept + 4·rate90)/(n + 4)); training rows cover 180 days. Evaluation is rolling-origin cross-validation over the last 4 weeks (train on the past, test on the next
 week) instead of a single 7-day holdout, λ is chosen from {0.001…0.3} by cross-validated Brier score, gradient
 descent runs to convergence, and every metric is reported next to a baseline ("your usual keep rate") so the app
 and the report show whether the model actually adds value. A realistic simulator (weekday slumps, momentum, rough
-spells, rest days) must show the model beating the baseline by ≥ 0.05 AUC.
+spells, rest days) is measured against what is achievable: over seeds 1–20 an oracle scores the same pooled
+out-of-fold rows with the simulator's true probabilities, and the model must reach mean AUC ≥ 0.92 × oracle AUC,
+beat the baseline AUC on ≥ 17 of 20 seeds, and have mean Brier below the baseline's and ≤ oracle Brier + 0.02; the
+seed-7 run must beat the baseline by > 0.05 AUC with a lower Brier (controller, 2026-09-30).
 
 **UI (Today, top of the list):**
 - Card "Today's forecast" with ⓘ. Headline for the riskiest habit: "{Habit} needs attention —
