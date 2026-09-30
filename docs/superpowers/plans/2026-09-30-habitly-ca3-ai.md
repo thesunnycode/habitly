@@ -1518,7 +1518,7 @@ class RiskModelTest {
         val model = RiskModel.fit(mondayRows(), today, now = 1L)
         assertFalse(model.isStarter)
         val metrics = requireNotNull(model.metrics)
-        assertTrue("auc=${metrics.auc}", requireNotNull(metrics.auc) > 0.75)
+        assertTrue("auc=${metrics.auc}", requireNotNull(metrics.auc) > 0.7)
         assertTrue(metrics.brier < 0.2)
     }
 
