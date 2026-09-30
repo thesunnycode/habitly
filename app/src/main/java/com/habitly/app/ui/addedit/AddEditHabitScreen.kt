@@ -68,6 +68,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.habitly.app.domain.DEFAULT_CATEGORIES
 import com.habitly.app.domain.FrequencyType
 import com.habitly.app.domain.HabitSchedule
 import com.habitly.app.domain.label
@@ -95,8 +96,6 @@ import kotlin.random.Random
 private val COLOR_NAMES = listOf(
     "Orange", "Blue", "Violet", "Green", "Red", "Yellow", "Cyan", "Pink", "Lime", "Indigo", "Salmon", "Grey",
 )
-
-private val DEFAULT_CATEGORIES = listOf("Health", "Fitness", "Mind", "Learning", "Productivity", "General")
 
 private const val MIN_INTERVAL = 2
 private const val MAX_INTERVAL = 30
