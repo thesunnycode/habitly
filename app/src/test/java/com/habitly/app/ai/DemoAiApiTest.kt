@@ -64,11 +64,43 @@ class DemoAiApiTest {
         assertTrue(r.reply.startsWith("Everything"))
     }
 
-    @Test fun coachAnswersChipsAndFreeText() = runTest {
-        val habits = listOf(summary(1, "Read", risk = 0.5))
-        for (chip in listOf("Plan my day", "Why do I slip?", "Motivate me", "Which habit first?", "anything else")) {
-            val r = api.coach(CoachRequest("2026-09-30", habits, listOf(ChatMessageDto("user", chip)))).value()
-            assertTrue(chip, r.reply.isNotBlank())
-        }
+    @Test fun coachAnswersEachChipDistinctly() = runTest {
+        val habits = listOf(summary(1, "Read", streak = 3, missed = 2, risk = 0.5))
+        suspend fun reply(text: String) =
+            api.coach(CoachRequest("2026-09-30", habits, listOf(ChatMessageDto("user", text)))).value().reply
+        assertTrue(reply("Plan my day").contains("Start with Read"))
+        assertTrue(reply("Why do I slip?").contains("misses cluster"))
+        assertTrue(reply("Motivate me").contains("3-day streak"))
+        assertTrue(reply("Which habit first?").contains("most likely to slip"))
+        assertTrue(reply("anything else").startsWith("Good question"))
+    }
+
+    @Test fun coachPluralisesAndHandlesEdgeCases() = runTest {
+        val one = api.coach(CoachRequest("2026-09-30", listOf(summary(1, "Read")), emptyList())).value()
+        assertTrue(one.reply.contains("1 habit left today"))
+        val none = api.coach(CoachRequest("2026-09-30", emptyList(), emptyList())).value()
+        assertTrue(none.reply.startsWith("Add a habit"))
+        // Everything done but the user still asked something: answer it rather than repeating "all done".
+        val done = listOf(summary(1, "Read", streak = 2, today = "DONE"))
+        val r = api.coach(CoachRequest("2026-09-30", done, listOf(ChatMessageDto("user", "Motivate me")))).value()
+        assertTrue(r.reply.contains("2-day streak"))
+        assertTrue(r.actions.isEmpty())
+    }
+
+    @Test fun reviewAlwaysHasThreeOrFourTruthfulPages() = runTest {
+        val quiet = api.weeklyReview(ReviewRequest("2026-09-28", emptyList())).value().pages
+        assertTrue(quiet.size in 3..4)
+        assertEquals("A quiet week", quiet.first().headline)
+        val zero = listOf(summary(1, "Read", done = 0, missed = 0))
+        val pages = api.weeklyReview(ReviewRequest("2026-09-28", zero)).value().pages
+        assertTrue(pages.size in 3..4)
+        assertFalse(pages.any { it.headline.contains("0% kept") })
+    }
+
+    @Test fun intentMatchingUsesWholeWords() = runTest {
+        suspend fun intent(t: String) = api.suggestHabits(SuggestRequest(t, emptyList(), HABIT_ICON_KEYS, emptyList())).value().intent
+        assertEquals("other", intent("remind me to do great things"))
+        assertEquals("health", intent("I want to eat better"))
+        assertEquals("fitness", intent("I am running more"))
     }
 }

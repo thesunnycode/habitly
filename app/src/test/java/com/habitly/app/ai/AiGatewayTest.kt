@@ -33,6 +33,15 @@ class AiGatewayTest {
         assertEquals(AiResult.ConsentRequired, g.call { coach(req) })
         assertEquals(0, http.calls)
     }
+    @Test fun consentRequiredEvenWhenHttpMissing() = runTest {
+        assertEquals(AiResult.ConsentRequired, AiGateway(Settings(consent = false), null, Api("demo")).call { coach(req) })
+    }
+    @Test fun demoWinsOverConfiguredHttp() = runTest {
+        val http = Api("http")
+        val g = AiGateway(Settings(consent = true, demo = true), http, Api("demo"))
+        assertEquals("demo", (g.call { coach(req) } as AiResult.Success).value.reply)
+        assertEquals(0, http.calls)
+    }
     @Test fun notConfiguredWithoutHttp() = runTest {
         assertEquals(AiResult.NotConfigured, AiGateway(Settings(), null, Api("demo")).call { coach(req) })
     }

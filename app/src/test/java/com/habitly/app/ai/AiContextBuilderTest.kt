@@ -83,6 +83,33 @@ class AiContextBuilderTest {
         assertEquals(CountsDto(0, 0, 0, 0), s.prev7)
     }
 
+    @Test fun logBeforeCreationMovesStartEarlierForDailyHabit() {
+        // Created 09-25 but backfilled a DONE on 09-22: 09-22 and 09-23 now count as due.
+        val logs = listOf(log(asOf.minusDays(8), CompletionStatus.DONE))
+        val s = build(listOf(habit(createdDaysAgo = 5)), logs).single()
+        assertEquals(CountsDto(done = 1, rested = 0, missed = 1, due = 2), s.prev7)
+        assertEquals(CountsDto(done = 0, rested = 0, missed = 6, due = 7), s.last7)
+    }
+
+    @Test fun partialTodayIsNotMissed() {
+        val logs = listOf(log(asOf, CompletionStatus.PARTIAL, hour = null))
+        val s = build(listOf(habit(createdDaysAgo = 20)), logs).single()
+        // 09-24..09-29 are past and unlogged; today is still in progress.
+        assertEquals(CountsDto(done = 0, rested = 0, missed = 6, due = 7), s.last7)
+    }
+
+    @Test fun partialOnPastDayIsMissed() {
+        val logs = listOf(log(asOf.minusDays(1), CompletionStatus.PARTIAL, hour = null))
+        val s = build(listOf(habit(createdDaysAgo = 20)), logs).single()
+        assertEquals(6, s.last7.missed)
+    }
+
+    @Test fun invalidDayNamesAreDroppedAndOrdered() {
+        val s = build(listOf(habit(type = FrequencyType.SPECIFIC_DAYS, days = "FRIDAY,BOGUS,MONDAY")), emptyList()).single()
+        assertEquals(listOf("MONDAY", "FRIDAY"), s.frequency.days)
+        assertNull(build(listOf(habit()), emptyList()).single().frequency.days)
+    }
+
     @Test fun specificDaysFrequencyIsMapped() {
         val s = build(listOf(habit(type = FrequencyType.SPECIFIC_DAYS, days = "MONDAY,FRIDAY")), emptyList()).single()
         assertEquals(FrequencyDto("SPECIFIC_DAYS", listOf("MONDAY", "FRIDAY"), null), s.frequency)

@@ -4,6 +4,7 @@ import com.habitly.app.data.local.HabitEntity
 import com.habitly.app.data.local.HabitLogEntity
 import com.habitly.app.domain.CompletionRecord
 import com.habitly.app.domain.CompletionStatus
+import com.habitly.app.domain.FrequencyType
 import com.habitly.app.domain.HabitSchedule
 import com.habitly.app.domain.StreakCalculator
 import java.time.DayOfWeek
@@ -32,9 +33,11 @@ object AiContextBuilder {
             val habitLogs = byHabit[habit.id].orEmpty()
             val statuses = habitLogs.associate { LocalDate.parse(it.date) to it.status }
             val created = Instant.ofEpochMilli(habit.createdAt).atZone(zone).toLocalDate()
-            // Days before this were never the habit's; they are neither due nor missed.
+            // Days before this were never the habit's; they are neither due nor missed. A log dated
+            // before the creation day (backfilled) pulls the start earlier for DAILY/SPECIFIC_DAYS habits.
             val start = (statuses.keys + created).min()
-            // Same anchor as HabitRepository (creation day) so interval habits agree with the app.
+            // INTERVAL habits stay anchored on the creation day, never on `start`, matching
+            // HabitRepository, so their due days agree with the rest of the app.
             val schedule = HabitSchedule.parse(habit.frequencyType, habit.frequencyDays, habit.intervalDays, created)
             fun counts(from: LocalDate, to: LocalDate): CountsDto {
                 var done = 0; var rested = 0; var missed = 0; var due = 0
@@ -45,8 +48,8 @@ object AiContextBuilder {
                         when (statuses[d]) {
                             CompletionStatus.DONE -> done++
                             CompletionStatus.SKIPPED -> rested++
-                            null -> if (d.isBefore(asOf)) missed++
-                            else -> missed++
+                            // Today is still in progress: nothing, PARTIAL or MISSED on it is not a miss yet.
+                            else -> if (d.isBefore(asOf)) missed++
                         }
                     }
                     d = d.plusDays(1)
@@ -75,7 +78,9 @@ object AiContextBuilder {
                 id = habit.id, name = habit.name, category = habit.category,
                 frequency = FrequencyDto(
                     type = habit.frequencyType.name,
-                    days = habit.frequencyDays?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() },
+                    // Parsed through the schedule so only valid DayOfWeek names reach the wire.
+                    days = schedule.daysOfWeek.takeIf { habit.frequencyType == FrequencyType.SPECIFIC_DAYS }
+                        ?.sorted()?.map { it.name },
                     intervalDays = habit.intervalDays,
                 ),
                 targetCount = habit.targetCount, unit = habit.unit?.takeIf { it.isNotBlank() },
