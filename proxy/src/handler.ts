@@ -23,6 +23,13 @@ function safeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
+// Accept only finite positive integers; anything else (missing, "abc", "0", "-1") falls back,
+// so a misconfigured cap can never fail open.
+function parseLimit(raw: string | undefined, fallback: number): number {
+  const n = Number(raw);
+  return raw !== undefined && raw.trim() !== "" && Number.isInteger(n) && n > 0 ? n : fallback;
+}
+
 export async function handle(req: Request, env: Env, deps: Deps): Promise<Response> {
   const path = new URL(req.url).pathname;
   if (req.method === "GET" && path === "/v1/health") return json(200, { ok: true });
@@ -31,8 +38,9 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
 
   const auth = req.headers.get("authorization") ?? "";
   if (!env.APP_TOKEN || !safeEqual(auth, `Bearer ${env.APP_TOKEN}`)) return json(401, { error: "unauthorized" });
-  const deviceId = req.headers.get("x-device-id") ?? "";
-  if (!UUID.test(deviceId)) return json(400, { error: "bad_request" });
+  const rawDeviceId = req.headers.get("x-device-id") ?? "";
+  if (!UUID.test(rawDeviceId)) return json(400, { error: "bad_request" });
+  const deviceId = rawDeviceId.toLowerCase();
 
   const text = await req.text();
   if (new TextEncoder().encode(text).length > MAX_BODY) return json(400, { error: "bad_request" });
@@ -41,7 +49,7 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
 
   // The limit is consumed before the model call, so failed calls still count (abuse protection).
   const limit = await consume(env.AI_LIMITS, deviceId, deps.now(),
-    Number(env.DEVICE_DAILY_LIMIT), Number(env.GLOBAL_DAILY_LIMIT));
+    parseLimit(env.DEVICE_DAILY_LIMIT, 30), parseLimit(env.GLOBAL_DAILY_LIMIT, 500));
   if (!limit.ok) return json(429, { error: "rate_limited", resetAt: limit.resetAt });
 
   for (let attempt = 0; attempt < 2; attempt++) {
@@ -53,6 +61,7 @@ export async function handle(req: Request, env: Env, deps: Deps): Promise<Respon
       // Model-output problems are wrapped in UpstreamError by the Llm/routes; those and any
       // SDK/network error are retried once, then 502.
       if (e instanceof ZodError) return json(400, { error: "bad_request" });
+      console.error("[proxy]", path, e instanceof Error ? e.name + ": " + e.message : String(e));
     }
   }
   return json(502, { error: "upstream" });

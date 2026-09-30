@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { z } from "zod";
 import { handle } from "../src/handler";
 import { UpstreamError } from "../src/llm";
@@ -11,11 +11,14 @@ const echoRoutes = {
 };
 
 describe("handle", () => {
+  beforeEach(() => { vi.spyOn(console, "error").mockImplementation(() => {}); });
+
   it("health needs no auth and does not count", async () => {
     const env = fakeEnv();
     const res = await handle(new Request("https://proxy.test/v1/health"), env, { llm: llmReturning(), now, routes: echoRoutes });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
+    expect(env.AI_LIMITS && (env.AI_LIMITS as unknown as FakeKV).store.size).toBe(0);
   });
 
   it("unknown path is 404", async () => {
@@ -29,9 +32,33 @@ describe("handle", () => {
     expect(await res.json()).toEqual({ error: "unauthorized" });
   });
 
+  it("missing Authorization header is 401", async () => {
+    const r = new Request("https://proxy.test/v1/echo", { method: "POST", headers: { "x-device-id": DEVICE }, body: "{}" });
+    const res = await handle(r, fakeEnv(), { llm: llmReturning(), now, routes: echoRoutes });
+    expect(res.status).toBe(401);
+  });
+
   it("bad device id is 400", async () => {
     const res = await handle(req("/v1/echo", {}, { "x-device-id": "abc" }), fakeEnv(), { llm: llmReturning(), now, routes: echoRoutes });
     expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "bad_request" });
+  });
+
+  it("device id is lowercased before keying", async () => {
+    const kv = new FakeKV();
+    await handle(req("/v1/echo", {}, { "x-device-id": DEVICE.toUpperCase() }), fakeEnv(kv), { llm: llmReturning({ ok: true }), now, routes: echoRoutes });
+    expect([...kv.store.keys()]).toContain(`d:2026-09-30:${DEVICE}`);
+  });
+
+  it("invalid device limit config falls back to 30 instead of failing open", async () => {
+    const env = { ...fakeEnv(), DEVICE_DAILY_LIMIT: "abc", GLOBAL_DAILY_LIMIT: "" };
+    const llm = llmReturning(...Array.from({ length: 31 }, () => ({ ok: true })));
+    const deps = { llm, now, routes: echoRoutes };
+    let last!: Response;
+    for (let i = 0; i < 30; i++) last = await handle(req("/v1/echo", {}), env, deps);
+    expect(last.status).toBe(200);
+    expect(Number(last.headers.get("x-ai-remaining"))).toBe(0);
+    expect((await handle(req("/v1/echo", {}), env, deps)).status).toBe(429);
   });
 
   it("oversized or non-JSON body is 400", async () => {
@@ -64,9 +91,11 @@ describe("handle", () => {
   });
 
   it("route validation errors are 400, not retried", async () => {
-    const routes = { "/v1/echo": async () => { throw new z.ZodError([]); } };
+    let calls = 0;
+    const routes = { "/v1/echo": async () => { calls++; throw new z.ZodError([]); } };
     const res = await handle(req("/v1/echo", {}), fakeEnv(), { llm: llmReturning(), now, routes });
     expect(res.status).toBe(400);
+    expect(calls).toBe(1);
   });
 
   it("per-device limit returns 429 with resetAt", async () => {
