@@ -3,6 +3,7 @@ package com.habitly.app.reminder
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalTime
 
 class ReminderDueCheckerTest {
 
@@ -29,5 +30,36 @@ class ReminderDueCheckerTest {
     @Test
     fun notDueWhenNowIsPastTheWindow() {
         assertFalse(ReminderDueChecker.isDue("08:00", isCompletedToday = false, nowHourMinute = 8 to 20))
+    }
+
+    @Test
+    fun streakNudgeFiresHalfAnHourAfterTheReminder() {
+        assertTrue(ReminderDueChecker.isStreakNudgeDue(LocalTime.of(18, 0), LocalTime.of(18, 35), streak = 3, doneToday = false, dueToday = true))
+        assertFalse(ReminderDueChecker.isStreakNudgeDue(LocalTime.of(18, 0), LocalTime.of(18, 10), 3, false, true))
+        assertFalse(ReminderDueChecker.isStreakNudgeDue(LocalTime.of(18, 0), LocalTime.of(18, 35), 1, false, true))
+        assertFalse(ReminderDueChecker.isStreakNudgeDue(LocalTime.of(18, 0), LocalTime.of(18, 35), 3, true, true))
+        assertFalse(ReminderDueChecker.isStreakNudgeDue(LocalTime.of(18, 0), LocalTime.of(18, 35), 3, false, false))
+    }
+
+    @Test
+    fun streakNudgeWindowIsHalfOpenFromThirtyToFortyFiveMinutes() {
+        assertTrue(ReminderDueChecker.isStreakNudgeDue(LocalTime.of(18, 0), LocalTime.of(18, 30), 2, false, true))
+        assertFalse(ReminderDueChecker.isStreakNudgeDue(LocalTime.of(18, 0), LocalTime.of(18, 45), 2, false, true))
+    }
+
+    @Test
+    fun streakNudgeNeverSpillsPastMidnightIntoTheNextDay() {
+        // 23:40 + 30 min is 00:10 tomorrow, when "today" and its streak are a different day.
+        assertFalse(ReminderDueChecker.isStreakNudgeDue(LocalTime.of(23, 40), LocalTime.of(0, 15), 5, false, true))
+    }
+
+    @Test
+    fun streakNudgeStaysQuietOnADeclaredRestDay() {
+        // A rest day keeps the streak intact, so there is nothing at risk to nudge about.
+        assertFalse(
+            ReminderDueChecker.isStreakNudgeDue(
+                LocalTime.of(18, 0), LocalTime.of(18, 35), streak = 3, doneToday = false, dueToday = true, restedToday = true,
+            ),
+        )
     }
 }

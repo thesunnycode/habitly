@@ -63,4 +63,15 @@ class HabitDaoTest {
         dao.delete(dao.getById(id)!!)
         assertEquals(0, dao.observeActiveHabits().first().size)
     }
+
+    @Test
+    fun updateSortOrdersNumbersTheHabitsInTheGivenOrder() = runBlocking {
+        val a = dao.insert(sampleHabit("A"))
+        val b = dao.insert(sampleHabit("B"))
+        val c = dao.insert(sampleHabit("C"))
+        dao.updateSortOrders(listOf(c, a, b))
+        val habits = dao.observeActiveHabits().first()
+        assertEquals(listOf("C", "A", "B"), habits.map { it.name })
+        assertEquals(listOf(1, 2, 3), habits.map { it.sortOrder })
+    }
 }

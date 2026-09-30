@@ -6,10 +6,14 @@ import com.habitly.app.data.local.AppDatabase
 import com.habitly.app.domain.AchievementType
 import com.habitly.app.domain.CompletionStatus
 import com.habitly.app.domain.FrequencyType
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -71,11 +75,65 @@ class HabitRepositoryTest {
     }
 
     @Test
-    fun toggleCompletionReturnsFirstHabitAchievementForTheFirstEverHabit() = runBlocking {
+    fun addingTheFirstHabitUnlocksFirstStep() = runBlocking {
+        repo.addHabit(newHabit())
+        val stored = repo.observeAchievements().first()
+        assertEquals(listOf(AchievementType.FIRST_HABIT.name), stored.map { it.type })
+        assertNull(stored.single().habitId)
+    }
+
+    /** Writes a habit with three done days straight to the DAOs, so nothing has been evaluated yet. */
+    private suspend fun insertUnevaluatedHistory() {
+        val id = db.habitDao().insert(newHabit())
+        (20..22).forEach { day ->
+            db.habitLogDao().upsert(
+                com.habitly.app.data.local.HabitLogEntity(0, id, "2026-08-$day", CompletionStatus.DONE, 1L, null)
+            )
+        }
+    }
+
+    @Test
+    fun reconcileStoresBadgesEarnedButNeverUnlocked() = runBlocking {
+        insertUnevaluatedHistory()
+        val stored = repo.reconcileAchievements()
+        assertTrue(AchievementType.FIRST_HABIT in stored && AchievementType.STREAK_3 in stored)
+        assertTrue(repo.reconcileAchievements().isEmpty())
+    }
+
+    @Test
+    fun concurrentEvaluationsStoreEachBadgeOnce() = runBlocking {
+        insertUnevaluatedHistory()
+        // Two repositories, as screens and workers each build their own.
+        val other = HabitRepository(db.habitDao(), db.habitLogDao(), db.achievementDao())
+        val jobs = List(4) { i ->
+            async(Dispatchers.IO) { (if (i % 2 == 0) repo else other).reconcileAchievements() }
+        }
+        jobs.awaitAll()
+        val types = repo.observeAchievements().first().map { it.type }
+        assertEquals(types.distinct(), types)
+        assertTrue(AchievementType.STREAK_3.name in types)
+    }
+
+    @Test
+    fun recordingARestDayUnlocksSecondChance() = runBlocking {
         val id = repo.addHabit(newHabit())
-        val today = LocalDate.of(2026, 8, 22)
-        val unlocked = repo.toggleCompletion(id, today, null)
-        assertTrue(AchievementType.FIRST_HABIT in unlocked)
+        val unlocked = repo.setStatus(id, LocalDate.of(2026, 8, 22), CompletionStatus.SKIPPED, null)
+        assertTrue(AchievementType.SECOND_CHANCE in unlocked)
+    }
+
+    @Test
+    fun achievementProgressCoversEveryBadgeWithUnlockTimesAndProgress() = runBlocking {
+        val id = repo.addHabit(newHabit())
+        repo.toggleCompletion(id, LocalDate.of(2026, 8, 21), null)
+        repo.toggleCompletion(id, LocalDate.of(2026, 8, 22), null)
+        val progress = repo.observeAchievementProgress(LocalDate.of(2026, 8, 23)).first()
+        assertEquals(16, progress.size)
+        val first = progress.first { it.type == AchievementType.FIRST_HABIT }
+        assertTrue(first.unlockedAt != null)
+        val streak3 = progress.first { it.type == AchievementType.STREAK_3 }
+        assertNull(streak3.unlockedAt)
+        assertEquals(2, streak3.progress)
+        assertEquals(2, progress.first { it.type == AchievementType.CHECKINS_10 }.progress)
     }
 
     @Test
@@ -202,5 +260,141 @@ class HabitRepositoryTest {
 
         val stats = repo.observeHabitsWithStats(LocalDate.of(2026, 8, 22)).first().first()
         assertEquals(1, stats.currentStreak)
+    }
+
+    @Test
+    fun archivedHabitsLeaveTheActiveListAndCanBeRestored() = runBlocking {
+        val id = repo.addHabit(newHabit("Read"))
+        repo.setArchived(id, true)
+        assertTrue(repo.observeHabitsWithStats(LocalDate.of(2026, 9, 29)).first().none { it.habit.id == id })
+        assertEquals(listOf(id), repo.observeArchivedHabits().first().map { it.id })
+        repo.setArchived(id, false)
+        assertTrue(repo.observeArchivedHabits().first().isEmpty())
+    }
+
+    @Test
+    fun reorderPersistsTheGivenOrder() = runBlocking {
+        val a = repo.addHabit(newHabit("A"))
+        val b = repo.addHabit(newHabit("B"))
+        val c = repo.addHabit(newHabit("C"))
+        repo.reorder(listOf(c, a, b))
+        val names = repo.observeHabitsWithStats(LocalDate.of(2026, 9, 29)).first().map { it.habit.name }
+        assertEquals(listOf("C", "A", "B"), names)
+    }
+
+    @Test
+    fun newHabitsAreAppendedToTheEnd() = runBlocking {
+        repo.addHabit(newHabit("A"))
+        repo.addHabit(newHabit("B"))
+        val orders = repo.observeHabitsWithStats(LocalDate.of(2026, 9, 29)).first().map { it.habit.sortOrder }
+        assertEquals(listOf(1, 2), orders)
+    }
+
+    @Test
+    fun setReminderUpdatesOnlyTheTime() = runBlocking {
+        val id = repo.addHabit(newHabit("Read"))
+        repo.setReminder(id, "21:30")
+        assertEquals("21:30", repo.getHabit(id)?.reminderTime)
+        repo.setReminder(id, null)
+        assertNull(repo.getHabit(id)?.reminderTime)
+    }
+
+    @Test
+    fun levelsCoverTheLast53WeeksWithADoneDayAtFullStrength() = runBlocking {
+        val id = repo.addHabit(newHabit("Read"))
+        val today = LocalDate.of(2026, 9, 29)
+        repo.setStatus(id, today.minusDays(1), CompletionStatus.DONE)
+        repo.setStatus(id, today.minusDays(2), CompletionStatus.SKIPPED)
+        repo.setStatus(id, today.minusWeeks(53), CompletionStatus.DONE)
+        repo.setStatus(id, today.minusWeeks(53).minusDays(1), CompletionStatus.DONE)
+        val levels = repo.observeHabitsWithStats(today).first().single().levels
+        assertEquals(4, levels[today.minusDays(1)])
+        assertEquals(1, levels[today.minusDays(2)])
+        assertEquals(4, levels[today.minusWeeks(53)])
+        assertNull(levels[today.minusWeeks(53).minusDays(1)])
+        assertEquals(3, levels.size)
+    }
+
+    @Test
+    fun observeAllHabitsIncludesArchivedAndObserveAllLogsCoversEveryHabit() = runBlocking {
+        val a = repo.addHabit(newHabit("A"))
+        val b = repo.addHabit(newHabit("B"))
+        repo.setArchived(b, true)
+        repo.setStatus(a, LocalDate.of(2026, 9, 28), CompletionStatus.DONE)
+        repo.setStatus(b, LocalDate.of(2026, 9, 27), CompletionStatus.DONE)
+        assertEquals(setOf(a, b), repo.observeAllHabits().first().map { it.id }.toSet())
+        assertEquals(setOf(a, b), repo.observeAllLogs().first().map { it.habitId }.toSet())
+    }
+
+    @Test
+    fun resetAllClearsHabitsArchivedHabitsLogsAndAchievements() = runBlocking {
+        val a = repo.addHabit(newHabit("A")) // unlocks FIRST_HABIT
+        val b = repo.addHabit(newHabit("B"))
+        repo.setArchived(b, true)
+        repo.setStatus(a, LocalDate.of(2026, 9, 28), CompletionStatus.DONE)
+        repo.setStatus(b, LocalDate.of(2026, 9, 27), CompletionStatus.DONE)
+        assertTrue(repo.observeAchievements().first().isNotEmpty())
+
+        repo.resetAll()
+
+        assertTrue(repo.observeAllHabits().first().isEmpty())
+        assertTrue(repo.observeArchivedHabits().first().isEmpty())
+        assertTrue(repo.observeAllLogs().first().isEmpty())
+        assertTrue(repo.observeAchievements().first().isEmpty())
+    }
+
+    @Test
+    fun anArchivedHabitStillHasItsStatsForItsOwnScreen() = runBlocking {
+        val id = repo.addHabit(newHabit("Read"))
+        val today = LocalDate.of(2026, 9, 29)
+        repo.setStatus(id, today.minusDays(1), CompletionStatus.DONE)
+        repo.setStatus(id, today, CompletionStatus.DONE, "felt good")
+        repo.setArchived(id, true)
+
+        assertTrue("archived habits leave the active list", repo.observeHabitsWithStats(today).first().isEmpty())
+        val stats = repo.observeHabitWithStats(id, today).first()
+        assertEquals("Read", stats?.habit?.name)
+        assertEquals(true, stats?.habit?.isArchived)
+        assertEquals(2, stats?.currentStreak)
+        assertEquals(mapOf(today to "felt good"), stats?.notes)
+        assertNull("an unknown id has no stats", repo.observeHabitWithStats(999L, today).first())
+    }
+
+    @Test
+    fun tickingADayKeepsTheNoteAlreadyOnIt() = runBlocking {
+        val id = repo.addHabit(newHabit())
+        val day = LocalDate.of(2026, 8, 22)
+        repo.setStatus(id, day, CompletionStatus.SKIPPED, "ill")
+        repo.toggleCompletion(id, day, null)
+        val log = db.habitLogDao().getLog(id, "2026-08-22")
+        assertEquals(CompletionStatus.DONE, log?.status)
+        assertEquals("ill", log?.note)
+    }
+
+    @Test
+    fun settingAStatusWithoutANoteKeepsTheExistingNote() = runBlocking {
+        val id = repo.addHabit(newHabit())
+        val day = LocalDate.of(2026, 8, 22)
+        repo.setStatus(id, day, CompletionStatus.DONE, "ran 5k")
+        repo.setStatus(id, day, CompletionStatus.SKIPPED)
+        assertEquals("ran 5k", db.habitLogDao().getLog(id, "2026-08-22")?.note)
+    }
+
+    @Test
+    fun aBlankNoteClearsTheExistingNote() = runBlocking {
+        val id = repo.addHabit(newHabit())
+        val day = LocalDate.of(2026, 8, 22)
+        repo.setStatus(id, day, CompletionStatus.DONE, "ran 5k")
+        repo.setStatus(id, day, CompletionStatus.DONE, "  ")
+        assertNull(db.habitLogDao().getLog(id, "2026-08-22")?.note)
+    }
+
+    @Test
+    fun anEditedNoteReplacesTheExistingNote() = runBlocking {
+        val id = repo.addHabit(newHabit())
+        val day = LocalDate.of(2026, 8, 22)
+        repo.setStatus(id, day, CompletionStatus.DONE, "ran 5k")
+        repo.setStatus(id, day, CompletionStatus.SKIPPED, " rest ")
+        assertEquals("rest", db.habitLogDao().getLog(id, "2026-08-22")?.note)
     }
 }

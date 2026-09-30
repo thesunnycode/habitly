@@ -21,4 +21,6 @@ data class HabitEntity(
     val targetCount: Int? = null,
     /** What one unit is called — "cups", "pages", "minutes". */
     val unit: String? = null,
+    /** Position in the user's custom order; lower comes first. */
+    val sortOrder: Int = 0,
 )

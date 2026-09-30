@@ -1,39 +1,36 @@
 package com.habitly.app.domain
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AchievementEvaluatorTest {
-
-    @Test
-    fun unlocksStreak7WhenBestStreakReaches7() {
-        val newly = AchievementEvaluator.evaluate(bestStreak = 7, isFirstHabitEver = false, alreadyUnlocked = emptySet())
-        assertEquals(setOf(AchievementType.STREAK_7), newly)
+    @Test fun `sixteen badges in four groups of four`() {
+        assertEquals(16, AchievementType.entries.size)
+        AchievementGroup.entries.forEach { g -> assertEquals(4, AchievementType.entries.count { it.group == g }) }
     }
-
-    @Test
-    fun unlocksStreak7And30TogetherWhenBestStreakJumpsPastBoth() {
-        val newly = AchievementEvaluator.evaluate(bestStreak = 30, isFirstHabitEver = false, alreadyUnlocked = emptySet())
-        assertEquals(setOf(AchievementType.STREAK_7, AchievementType.STREAK_30), newly)
+    @Test fun `existing stored keys are kept`() {
+        listOf("FIRST_HABIT", "STREAK_7", "STREAK_30", "STREAK_100").forEach { AchievementType.valueOf(it) }
     }
-
-    @Test
-    fun doesNotReUnlockAnAchievementAlreadyHeld() {
-        val newly = AchievementEvaluator.evaluate(
-            bestStreak = 7, isFirstHabitEver = false, alreadyUnlocked = setOf(AchievementType.STREAK_7)
-        )
-        assertEquals(emptySet<AchievementType>(), newly)
+    @Test fun `streak badges unlock at their thresholds`() {
+        val got = AchievementEvaluator.evaluate(AchievementSnapshot(bestStreak = 7), emptySet())
+        assertTrue(AchievementType.STREAK_3 in got && AchievementType.STREAK_7 in got)
+        assertFalse(AchievementType.STREAK_30 in got)
     }
-
-    @Test
-    fun unlocksFirstHabitAchievementIndependentlyOfStreak() {
-        val newly = AchievementEvaluator.evaluate(bestStreak = 0, isFirstHabitEver = true, alreadyUnlocked = emptySet())
-        assertEquals(setOf(AchievementType.FIRST_HABIT), newly)
+    @Test fun `already unlocked badges are not returned again`() {
+        val got = AchievementEvaluator.evaluate(AchievementSnapshot(bestStreak = 7), setOf(AchievementType.STREAK_3))
+        assertFalse(AchievementType.STREAK_3 in got)
     }
-
-    @Test
-    fun noUnlocksWhenBelowAllThresholds() {
-        val newly = AchievementEvaluator.evaluate(bestStreak = 3, isFirstHabitEver = false, alreadyUnlocked = emptySet())
-        assertEquals(emptySet<AchievementType>(), newly)
+    @Test fun `progress is capped at the target`() {
+        assertEquals(30, AchievementEvaluator.progress(AchievementType.STREAK_30, AchievementSnapshot(bestStreak = 45)))
+        assertEquals(12, AchievementEvaluator.progress(AchievementType.STREAK_30, AchievementSnapshot(bestStreak = 12)))
+    }
+    @Test fun `every badge maps to its snapshot field`() {
+        val s = AchievementSnapshot(perfectDays = 1, longestPerfectRun = 7, bestMonthPercent = 85, comebacks = 1,
+            totalCheckIns = 500, goalDaysMet = 10, habitsEver = 1, activeHabits = 5, earlyCheckIns = 10, restDays = 1)
+        val got = AchievementEvaluator.evaluate(s, emptySet())
+        (AchievementType.entries - setOf(AchievementType.STREAK_3, AchievementType.STREAK_7,
+            AchievementType.STREAK_30, AchievementType.STREAK_100)).forEach { assertTrue("$it", it in got) }
     }
 }
