@@ -190,7 +190,7 @@ safe reply.
 **Model:** binary logistic regression predicting P(miss) for a habit that is due on a day. One pooled
 model across the user's habits.
 
-**Training rows:** every past day (up to 90 days back) on which a habit was due, excluding days
+**Training rows:** every past day (up to 180 days back) on which a habit was due, excluding days
 before creation and SKIPPED (rest) days. Label 1 = MISSED, PARTIAL or unlogged; 0 = DONE.
 
 **Features (all computed only from data before that day; 20, indices in `ml/RiskFeatures.kt`):**

@@ -1,6 +1,7 @@
 package com.habitly.app.ui.today
 
 import com.habitly.app.data.repository.HabitWithStats
+import com.habitly.app.ml.Forecast
 import java.time.DayOfWeek
 import java.time.LocalDate
 
@@ -25,6 +26,8 @@ data class TodayUiState(
     val atRisk: HabitWithStats? = null,
     val showCelebration: Boolean = false,
     val weekStart: DayOfWeek = DayOfWeek.MONDAY,
+    /** Today's forecast; null on a past day, when turned off in Settings, or before it loads. */
+    val forecast: Forecast? = null,
 ) {
     val isViewingToday: Boolean get() = weekDays.isEmpty() || selectedDate == weekDays.last()
     val isEmpty: Boolean get() = !isLoading && due.isEmpty() && done.isEmpty() && notDue.isEmpty()

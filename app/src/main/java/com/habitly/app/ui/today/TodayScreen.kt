@@ -1,6 +1,8 @@
 package com.habitly.app.ui.today
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -123,6 +125,8 @@ fun TodayScreen(
     var statusTargetId by rememberSaveable { mutableStateOf<Long?>(null) }
     var doneExpanded by rememberSaveable { mutableStateOf(true) }
     var notDueExpanded by rememberSaveable { mutableStateOf(false) }
+    var showForecastInfo by rememberSaveable { mutableStateOf(false) }
+    val forecast = uiState.forecast?.takeIf { uiState.dueCount > 0 }
 
     val pinned = remember { mutableStateMapOf<Long, Int>() }
     val scope = rememberCoroutineScope()
@@ -163,11 +167,16 @@ fun TodayScreen(
         if (windowWidthSizeClass == WindowWidthSizeClass.Expanded) {
             Row(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
                 Column(
-                    modifier = Modifier.weight(0.45f).statusBarsPadding().padding(end = 20.dp),
+                    modifier = Modifier
+                        .weight(0.45f)
+                        .statusBarsPadding()
+                        .verticalScroll(rememberScrollState())
+                        .padding(end = 20.dp, bottom = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     TodayHeader(uiState, now)
                     TodayWeekStrip(uiState, today, onSelectDate)
+                    forecast?.let { ForecastStrip(it, onHabitClick = onHabitClick, onInfo = { showForecastInfo = true }) }
                     uiState.atRisk?.let { AtRiskBanner(it) }
                 }
                 LazyColumn(
@@ -185,6 +194,9 @@ fun TodayScreen(
             ) {
                 item(key = "header") { TodayHeader(uiState, now, Modifier.statusBarsPadding()) }
                 item(key = "week") { TodayWeekStrip(uiState, today, onSelectDate, Modifier.padding(top = 6.dp)) }
+                forecast?.let { f ->
+                    item(key = "forecast") { ForecastStrip(f, onHabitClick = onHabitClick, onInfo = { showForecastInfo = true }) }
+                }
                 uiState.atRisk?.let { habit -> item(key = "risk") { AtRiskBanner(habit) } }
                 lists()
             }
@@ -216,6 +228,10 @@ fun TodayScreen(
                 onTemplatePicked(template)
             },
         )
+    }
+
+    if (showForecastInfo && forecast != null) {
+        ForecastInfoSheet(forecast, onDismiss = { showForecastInfo = false })
     }
 
     val statusTarget = statusTargetId?.let { id ->

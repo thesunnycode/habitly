@@ -18,6 +18,7 @@ import androidx.navigation.navArgument
 import com.habitly.app.ai.AiServices
 import com.habitly.app.data.local.AppDatabase
 import com.habitly.app.data.prefs.OnboardingPrefs
+import com.habitly.app.ml.ForecastServices
 import com.habitly.app.data.prefs.SettingsPrefs
 import com.habitly.app.data.seed.SeedDataProvider
 import com.habitly.app.domain.CompletionStatus
@@ -107,7 +108,16 @@ fun HabitlyNavHost(
         }
         composable(Destination.Today.route) { backStackEntry ->
             ArchivedUndoEffect(backStackEntry.savedStateHandle, repository)
-            val viewModel = habitlyViewModel { TodayViewModel(repository, prefs, notifications = notifications) }
+            val forecastRepo = remember { ForecastServices.repository(appContext) }
+            // Retrains off the main thread only when the stored model is over a day old; check-ins just re-predict.
+            LaunchedEffect(Unit) { forecastRepo.refreshIfStale() }
+            val viewModel = habitlyViewModel {
+                TodayViewModel(
+                    repository, prefs, notifications = notifications,
+                    forecast = forecastRepo.observeToday(),
+                    showForecast = AiServices.prefs(appContext).showForecast,
+                )
+            }
             val uiState by viewModel.uiState.collectAsState()
             NotificationPermissionPrompt(
                 hasLoggedSomething = uiState.isViewingToday &&

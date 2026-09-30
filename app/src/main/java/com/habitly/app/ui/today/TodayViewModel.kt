@@ -7,14 +7,19 @@ import com.habitly.app.data.repository.HabitDataSource
 import com.habitly.app.data.repository.HabitWithStats
 import com.habitly.app.domain.CompletionStatus
 import com.habitly.app.domain.ContributionLevels
+import com.habitly.app.ml.Forecast
 import com.habitly.app.reminder.ReminderNotifications
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalTime
@@ -34,9 +39,15 @@ class TodayViewModel(
     private val today: () -> LocalDate = { LocalDate.now() },
     private val now: () -> LocalTime = { LocalTime.now() },
     private val notifications: ReminderNotifications = ReminderNotifications.None,
+    /** Today's on-device forecast; it re-emits on every check-in. */
+    private val forecast: Flow<Forecast?> = flowOf(null),
+    private val showForecast: Flow<Boolean> = flowOf(true),
 ) : ViewModel() {
 
     private val selectedDate = MutableStateFlow(today())
+
+    /** The list never waits on, or fails with, the forecast: until it arrives (or if it breaks) there is none. */
+    private val safeForecast: Flow<Forecast?> = forecast.onStart { emit(null) }.catch { emit(null) }
 
     private val _uiState = MutableStateFlow(
         TodayUiState(selectedDate = today(), weekDays = weekEndingToday()),
@@ -56,6 +67,9 @@ class TodayViewModel(
                 prefs.lastCelebratedDate,
             ) { (date, habits), name, weekStart, celebrated ->
                 buildState(date, habits, name, weekStart, celebrated)
+            }.combine(combine(safeForecast, showForecast) { f, show -> f.takeIf { show } }) { state, f ->
+                // The forecast is about today only; a past day shows none.
+                state.copy(forecast = f.takeIf { state.isViewingToday })
             }.collect { _uiState.value = it }
         }
     }
@@ -114,7 +128,8 @@ class TodayViewModel(
     fun onSelectDate(date: LocalDate) {
         if (date.isAfter(today())) return
         selectedDate.value = date
-        _uiState.value = _uiState.value.copy(selectedDate = date, weekDays = weekEndingToday())
+        val state = _uiState.value.copy(selectedDate = date, weekDays = weekEndingToday())
+        _uiState.value = if (state.isViewingToday) state else state.copy(forecast = null)
     }
 
     /** Ticks or un-ticks a plain habit on the selected day. */

@@ -13,6 +13,10 @@ import com.habitly.app.domain.FrequencyType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flowOf
+import com.habitly.app.ml.Forecast
+import com.habitly.app.ml.HabitRisk
+import com.habitly.app.ml.RiskLevel
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -311,5 +315,60 @@ class TodayViewModelTest {
         vm.onSelectDate(D.minusDays(2))
         advanceUntilIdle()
         assertFalse(vm.uiState.value.showCelebration)
+    }
+
+    private val sampleForecast = Forecast(
+        items = listOf(HabitRisk(1, "Read", "star", "#51CF66", 0.7, RiskLevel.HIGH, "missed last time")),
+        isLearning = false, dueToday = 1, trainedAt = 0L, rows = 50, metrics = null,
+    )
+
+    private fun forecastVm(show: Flow<Boolean> = flowOf(true)) = TodayViewModel(
+        FakeHabitDataSource(listOf(stats(id = 1, name = "Read", due = true, done = false))),
+        FakeTodayPrefs(), today = { D }, now = { LocalTime.NOON },
+        forecast = flowOf(sampleForecast), showForecast = show,
+    )
+
+    @Test
+    fun forecastPassesThroughWhenViewingToday() = runTest {
+        val vm = forecastVm()
+        advanceUntilIdle()
+        assertEquals(sampleForecast, vm.uiState.value.forecast)
+    }
+
+    @Test
+    fun forecastIsHiddenWhenTurnedOff() = runTest {
+        val vm = forecastVm(show = flowOf(false))
+        advanceUntilIdle()
+        assertNull(vm.uiState.value.forecast)
+    }
+
+    @Test
+    fun forecastIsHiddenOnAPastDay() = runTest {
+        val vm = forecastVm()
+        advanceUntilIdle()
+        vm.onSelectDate(D.minusDays(1))
+        advanceUntilIdle()
+        assertNull(vm.uiState.value.forecast)
+    }
+
+    @Test
+    fun listLoadsWhileTheForecastIsPendingOrBroken() = runTest {
+        val pending = TodayViewModel(
+            FakeHabitDataSource(listOf(stats(id = 1, name = "Read", due = true, done = false))),
+            FakeTodayPrefs(), today = { D }, now = { LocalTime.NOON },
+            forecast = kotlinx.coroutines.flow.flow<Forecast?> { kotlinx.coroutines.awaitCancellation() }, // never emits
+        )
+        advanceUntilIdle()
+        assertFalse(pending.uiState.value.isLoading)
+        assertNull(pending.uiState.value.forecast)
+
+        val broken = TodayViewModel(
+            FakeHabitDataSource(listOf(stats(id = 1, name = "Read", due = true, done = false))),
+            FakeTodayPrefs(), today = { D }, now = { LocalTime.NOON },
+            forecast = kotlinx.coroutines.flow.flow { throw IllegalStateException("boom") },
+        )
+        advanceUntilIdle()
+        assertFalse(broken.uiState.value.isLoading)
+        assertNull(broken.uiState.value.forecast)
     }
 }
