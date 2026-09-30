@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.Lock
@@ -53,7 +55,8 @@ fun ConsentSheet(onAllow: () -> Unit, onDismiss: () -> Unit, readOnly: Boolean =
 /** The body of [ConsentSheet]; separate so it can be previewed. */
 @Composable
 internal fun ConsentSheetContent(onAllow: () -> Unit, onDismiss: () -> Unit, readOnly: Boolean) {
-    Column {
+    // Scrolls at large font sizes so Allow and Not now are always reachable (the sheet itself clips).
+    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             ConsentRow(Icons.Rounded.Upload, "What's sent", CONSENT_TEXT_SENT)
             ConsentRow(Icons.Rounded.Lock, "Never sent", CONSENT_TEXT_NOT_SENT)

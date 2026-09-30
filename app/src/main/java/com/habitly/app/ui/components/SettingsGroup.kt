@@ -3,6 +3,7 @@ package com.habitly.app.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -30,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -42,7 +44,7 @@ import com.habitly.app.ui.theme.LocalHabitlyColors
 fun SettingsGroup(
     modifier: Modifier = Modifier,
     title: String? = null,
-    /** Makes the title tappable with no visual change (used for hidden developer switches). */
+    /** Makes the title tappable with no visual or spoken change (used for hidden developer switches). */
     onTitleClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -53,8 +55,10 @@ fun SettingsGroup(
                 title,
                 modifier = Modifier
                     .then(
+                        // Pointer input rather than clickable: no ripple and no semantics click action, so
+                        // the hidden tap target neither shows nor is announced by TalkBack.
                         if (onTitleClick != null) {
-                            Modifier.clickable(onClickLabel = null, role = null) { onTitleClick() }
+                            Modifier.pointerInput(onTitleClick) { detectTapGestures { onTitleClick() } }
                         } else {
                             Modifier
                         },

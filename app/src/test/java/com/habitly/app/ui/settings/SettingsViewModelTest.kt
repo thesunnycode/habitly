@@ -95,6 +95,7 @@ class SettingsViewModelTest {
      * tests write only after this. The theme is the marker: SYSTEM differs from the state's DARK default.
      */
     private suspend fun settled(prefs: SettingsPrefs, build: () -> SettingsViewModel): SettingsViewModel {
+        check(SettingsUiState().themeMode != ThemeMode.SYSTEM) { "the load marker must differ from the default" }
         prefs.setThemeMode(ThemeMode.SYSTEM)
         return build().also { viewModel -> viewModel.uiState.first { it.themeMode == ThemeMode.SYSTEM } }
     }
@@ -258,5 +259,17 @@ class SettingsViewModelTest {
         viewModel.onAiHeaderTapped()
         assertTrue(viewModel.uiState.value.demoAiRevealed)
         assertFalse("revealing the switch does not turn Demo AI on", ai.demoAi.first())
+    }
+
+    @Test
+    fun theDemoAiSwitchStaysVisibleAfterDemoAiIsTurnedOff() = runTest {
+        val prefs = SettingsPrefs(ApplicationProvider.getApplicationContext())
+        val ai = aiPrefs()
+        ai.setDemoAi(true)
+        val viewModel = settled(prefs) { SettingsViewModel(prefs, FakeHabitDataSource(emptyList()), ai) }
+        assertTrue("Demo AI on reveals its switch", viewModel.uiState.first { it.demoAi }.demoAiRevealed)
+        viewModel.onDemoAiToggle(false).join()
+        val state = viewModel.uiState.first { !it.demoAi }
+        assertTrue("turning Demo AI off keeps the switch to turn it back on", state.demoAiRevealed)
     }
 }

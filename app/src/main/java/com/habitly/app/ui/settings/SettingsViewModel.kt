@@ -86,8 +86,9 @@ class SettingsViewModel(
 
     /** Counts taps on the "AI features" heading; the fifth reveals the Demo AI switch. */
     fun onAiHeaderTapped() {
+        if (_uiState.value.demoAiRevealed) return
         aiHeaderTaps++
-        if (aiHeaderTaps >= 5 && !_uiState.value.demoAiRevealed) {
+        if (aiHeaderTaps >= 5) {
             _uiState.value = _uiState.value.copy(demoAiRevealed = true)
         }
     }

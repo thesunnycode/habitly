@@ -65,7 +65,7 @@ private fun errorIcon(result: AiResult<*>): ImageVector = when (result) {
 }
 
 /** Retrying cannot fix a switched-off, unconfigured or rate-limited AI, so those get no button. */
-private fun canRetry(result: AiResult<*>): Boolean =
+internal fun canRetry(result: AiResult<*>): Boolean =
     result !is AiResult.RateLimited && result != AiResult.Disabled && result != AiResult.NotConfigured
 
 /** An AI failure as a card: icon, the spec's copy, and "Try again" when retrying can help. */
