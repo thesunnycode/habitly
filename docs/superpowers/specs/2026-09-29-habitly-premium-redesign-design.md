@@ -132,7 +132,7 @@ New or replaced components. Each is a stateless composable with a `@Preview` for
 | `HabitRow` | Dense 64dp manage row: icon tile, name + schedule, 7-day mini strip, optional drag handle |
 | `IconTile` | Rounded square with `low` bg and `full` glyph, sizes 28/36/48dp |
 | `StatTile` (replaced) | Number in `stat` + caption in `label`, on `surface`; optional accent colour for the number |
-| `HeroCard` | Insights hero on `heroContainer`: label, display number, delta line, embedded chart slot |
+| ~~`HeroCard`~~ | Removed — superseded by the Stats hero in §11 |
 | `SegmentedPill` | 2–3 option pill switch (Active/Archived, Stats/Calendar, Light/Dark/Auto, Week/Month/Year) |
 | `SettingsGroup` / `SettingsRow` | Grouped rounded list; row = leading icon, label, optional supporting text, trailing value / chevron / switch |
 | `SectionLabel` | Uppercase tracked label with a count ("HEALTH · 2") |
@@ -390,9 +390,10 @@ Top to bottom (Stats segment of Insights; the Calendar segment is unchanged):
      row). Window = the same rolling window the % uses: Week 7 days, Month 30 days, Year 52 weeks.
      The Week view is a single rolling 7-day row ending today; its header shows each day's own
      weekday rather than the week-start order (Month rows are aligned to the week-start pref).
-     - **All + Week/Month:** each day cell is a **colour stack** — one equal slice per habit DONE
-       that day, in that habit's `full` tone, stacked bottom-up; empty = `gridEmpty`; a declared
-       rest day adds a slice in the habit's `low` tone.
+     - **All + Week/Month:** each day cell is a **colour stack** — each active habit owns 1/N of the
+       cell (N = active habits); a habit DONE that day fills its slice in its `full` tone, a declared
+       rest day in its `low` tone (rest slices on top), stacked bottom-up; the unfilled remainder
+       stays `gridEmpty`, so fill height shows how much of the day was kept.
      - **Habit selected:** cells use that habit's tones (DONE full, PARTIAL mid, SKIPPED low).
      - **Year:** a 52-week `HabitGrid` (8dp cells, horizontal scroll opened at the latest week);
        All uses brand intensity (stacks are unreadable at that size), a habit uses its colour.
