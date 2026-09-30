@@ -1748,45 +1748,50 @@ Task 6 (names/signatures), extends them compatibly. Task 7 consumes the extended
 - Create (test): `ml/RealisticHistory.kt`, `ml/ForecastBenchmarkTest.kt`
 - Modify (test): `ml/FeatureExtractorTest.kt`, `ml/RiskModelTest.kt`, `ml/RiskExplainerTest.kt`
 
-**Interfaces:**
+**Interfaces** (as built, commit 0f8da5f + fix round 1; Task 7 builds on exactly this):
 - Consumes: Task 6 as fixed in its fix round.
 - Produces:
-  - `FEATURE_COUNT = 18`; new indices `F_MOMENTUM = 15`, `F_SINCE_KEPT = 16`, `F_TREND = 17`; `FEATURE_NAMES` extended with "Other habits kept yesterday", "Days since last kept", "Recent trend".
-  - `FeatureExtractor.features(h: HabitHistory, date: LocalDate, totals: DayTotals = DayTotals.EMPTY): DoubleArray` and `class DayTotals(done: Map<LocalDate, Int>, due: Map<LocalDate, Int>) { companion object { val EMPTY; fun of(histories: List<HabitHistory>): DayTotals } }`; `rows(...)` builds `DayTotals.of(histories)` once and passes it.
+  - `FEATURE_COUNT = 20`. Indices: 0–6 weekday one-hot (Mon..Sun), `F_RATE7 = 7`, `F_RATE28 = 8`, `F_SAME_WEEKDAY = 9`, `F_STREAK = 10`, `F_MISSED_PREV = 11`, `F_AGE = 12`, `F_REMINDER = 13`, `F_WEEKEND = 14`, `F_MOMENTUM = 15`, `F_SINCE_KEPT = 16`, `F_TREND = 17`, `F_RATE90 = 18`, `F_RESTED_PREV = 19`. `FEATURE_NAMES` (size == `FEATURE_COUNT`, tested): "Monday" … "Sunday", "Last 7 due days kept", "Last 28 due days kept", "Same weekday, last 20 weeks (smoothed)", "Streak going in", "Missed the previous due day", "Habit age", "Has a reminder", "Weekend", "Other habits kept, last 3 days", "Scheduled days since last kept", "Recent trend", "Last 90 due days kept (smoothed)", "Rested the previous due day".
+  - `FeatureExtractor.rows(habits, logs, today, zone = systemDefault, lookbackDays = 180)`; `FeatureExtractor.features(h: HabitHistory, date: LocalDate, totals: DayTotals = DayTotals.EMPTY): DoubleArray`; `class DayTotals(val done: Map<LocalDate, Int>, val due: Map<LocalDate, Int>) { companion object { val EMPTY; fun of(histories: List<HabitHistory>, today: LocalDate): DayTotals } }` (`today` required, no clock default); `rows(...)` builds `DayTotals.of(histories, today)` once and passes it. `internal fun HabitHistory.isJudged(day)` = on/after start, due, not SKIPPED.
   - `@Serializable data class ModelMetrics(val accuracy: Double, val auc: Double?, val brier: Double, val testRows: Int, val baselineAuc: Double? = null, val baselineBrier: Double? = null, val folds: Int = 1, val lambda: Double? = null)`
-  - `RiskModel.fit(rows, today, now)` unchanged signature, new behaviour (below). New `RiskModel.crossValidate(rows: List<TrainingRow>, today: LocalDate, lambda: Double, folds: Int = 4): Pair<List<Double>, List<Int>>?` (pooled out-of-fold predictions + labels, null if no usable fold) and `RiskModel.baselinePredict(x: DoubleArray): Double`.
+  - `RiskModel.fit(rows, today, now)` unchanged signature, new behaviour (below); `RiskModel.train(rows, now, lambda = 0.01, maxEpochs = 3000, lr = 0.2, tolerance = 1e-5)`; `RiskModel.crossValidate(rows: List<TrainingRow>, today: LocalDate, lambda: Double, folds: Int = 4): Pair<List<Double>, List<Int>>?` (pooled out-of-fold predictions + labels, null if no usable fold); `RiskModel.baselinePredict(x: DoubleArray): Double`; test helpers `internal foldRanges(today, folds)`, `internal foldSplits(rows, today, folds)`, `internal LAMBDAS`.
 
-- [ ] **Step 1: New features (TDD in `FeatureExtractorTest`).**
-  - `F_MOMENTUM` — share of the user's *other* habits that were kept on `date − 1`: `(totals.done[d−1] − own done on d−1) / (totals.due[d−1] − own due on d−1)`, where "due" counts habits due and not SKIPPED that day (and on/after their start) and "done" counts DONE. Default 0.5 when the denominator is 0. `DayTotals.of` counts, for every history and every date from its start to the latest log/today, due-and-not-skipped and DONE.
-    Tests: two habits, the other one MISSED yesterday → momentum 0.0; DONE → 1.0; other habit not due yesterday → 0.5; own status never affects its own momentum.
-  - `F_SINCE_KEPT` — `ln(1 + min(60, days since the most recent DONE before date))`; if never kept, `ln(1 + min(60, days since start))`. Tests: DONE yesterday → ln 2; last DONE 10 days ago → ln 11; never kept, started 5 days ago → ln 6; cap at 60.
-  - `F_TREND` — `rate7 − rate28` (both as computed already). Test: 7/7 kept after a poor month → positive.
-  - `F_SAME_WEEKDAY` now uses the last **8** same weekdays (was 4). Update its test.
-  - All still strictly before `date`; extend `noLookAhead` to cover the new features (logs of *other* habits on/after D must not change D's features).
+- [x] **Step 1: New features (TDD in `FeatureExtractorTest`).** All strictly before `date`; walk back up to 90 judged due days, capped at 400 calendar days.
+  - `F_SAME_WEEKDAY` — last **20** same weekdays that were judged, smoothed: `(kept + 4·rate90)/(n + 4)`.
+  - `F_RATE90` — `(kept + 1)/(n + 2)` over the last 90 judged due days (0.5 with no history). `F_RATE7`/`F_RATE28` unchanged (first 7/28 of those days; 0.5 when empty).
+  - `F_MOMENTUM` — share of the user's *other* habits kept over the 3 days `date − 1 … date − 3`: Σ(totals.done − own done) / Σ(totals.due − own due), where "due" means judged; 0.5 when the denominator ≤ 0 (also with `DayTotals.EMPTY`). `DayTotals.of` counts, for every history and every date from its start to max(latest log, today), judged and DONE.
+  - `F_SINCE_KEPT` — `ln(1 + n)`, n = judged days after the most recent DONE and before `date`, capped at 30; never kept → judged days since start. (A perfectly kept Mon/Fri habit has n = 0 on a Friday.)
+  - `F_TREND` — `rate7 − rate28`.
+  - `F_RESTED_PREV` — 1 when the most recent due day (on/after start) before `date` was SKIPPED.
+  - `noLookAhead` covers two habits (logs of other habits on/after D do not change D's features).
 
-- [ ] **Step 2: Better training (TDD in `RiskModelTest`).**
-  - Replace the fixed 400 epochs with gradient descent until convergence: stop when the max absolute gradient component < 1e-5 or after 3000 epochs; learning rate 0.2. Still deterministic (no shuffling).
+- [x] **Step 2: Better training (TDD in `RiskModelTest`).**
+  - Gradient descent until the max absolute gradient component < 1e-5 or 3000 epochs; learning rate 0.2; deterministic (no shuffling); primitive arrays in the inner loop.
   - `baselinePredict(x) = (1 − x[F_RATE28]).coerceIn(0.02, 0.98)` — "you usually keep it N% of the time".
-  - `crossValidate`: rolling origin over the last `folds` weeks. Fold k = 1..folds: test = rows with date in `[today − 7k, today − 7(k−1))`, train = rows with date `< today − 7k`. Skip a fold whose train set has < `MIN_ROWS` rows or one class, or whose test set is empty. Train with `train(train, now, lambda)`, predict the test rows. Return pooled predictions/labels (null when no fold was usable).
+  - `crossValidate`: rolling origin over the last `folds` weeks. Fold k = 1..folds: test = rows with date in `[today − 7k, today − 7(k−1))`, train = rows with date `< today − 7k`. Skip a fold whose train set has < `MIN_ROWS` rows or one class, or whose test set is empty. Train with `train(train, 0L, lambda)`, predict the test rows. Return pooled predictions/labels (null when no fold was usable).
   - `fit`:
     1. `rows.size < MIN_ROWS` or one class → `starter(now)` (unchanged).
-    2. For each λ in `[0.001, 0.003, 0.01, 0.03, 0.1, 0.3]`, run `crossValidate`; pick the λ with the lowest pooled Brier (ties → larger λ). If no fold is usable, λ = 0.01 and metrics = null.
-    3. Metrics from the chosen λ's pooled predictions: accuracy (threshold 0.5), AUC, Brier, `testRows`, `folds` used, `lambda`, plus `baselineAuc`/`baselineBrier` computed from `baselinePredict` on the same pooled test rows.
+    2. For each λ in `[0.001, 0.003, 0.01, 0.03, 0.1, 0.3]`, cross-validate; pick the λ with the lowest pooled Brier (ties → larger λ). If no fold is usable, λ = 0.01 and metrics = null.
+    3. Metrics from the chosen λ's pooled predictions: accuracy (threshold 0.5), AUC, Brier, `testRows`, `folds` used, `lambda`, plus `baselineAuc`/`baselineBrier` from `baselinePredict` on the same pooled test rows. (The Brier is slightly optimistic because λ is chosen on the same folds: ≈ 0.0025 on the benchmark.)
     4. Final model = `train(allRows, now, λ).copy(metrics = metrics)`.
-  - Tests: CV folds never train on rows dated on/after their test window (construct rows where a leak would be detectable — e.g. assert via a spy lambda or by checking the fold boundaries with a small exposed helper `internal fun foldRanges(today, folds)`); λ selection picks the minimum-Brier value on a crafted dataset; metrics carry baseline values; `fit` with < 40 rows unchanged; JSON round-trip with the new fields; old JSON (without the new fields) still decodes.
+  - Tests: fold ranges; folds never train on rows on/after their window; unusable folds skipped; pooled OOF predictions; λ = the minimum-Brier value (Monday + noise data; noise picks 0.3); baseline on the same pooled rows; convergence; `fit` with < 40 rows unchanged; JSON round-trip with the new fields; old JSON still decodes.
 
-- [ ] **Step 3: Realistic benchmark (fixed before measuring — do not tune it to pass).** `RealisticHistory.generate(today, days = 150, random = Random(7))` produces 4 DAILY habits with these keep probabilities per due day (clamped to [0.02, 0.98]):
+- [x] **Step 3: Realistic benchmark (generator fixed before measuring — never tuned).** `RealisticHistory.generate(today, days = 150, random = Random(7)): RealisticHistory.Data(habits, logs, trueKeepProb: Map<Pair<Long, LocalDate>, Double>)` produces 4 DAILY habits with these keep probabilities per due day (clamped to [0.02, 0.98]):
   - Base: Water 0.90, Read 0.72, Workout 0.65, Meditate 0.80.
   - Weekday effects: Workout −0.35 on MONDAY and FRIDAY; Read −0.30 on SATURDAY and SUNDAY; Meditate −0.25 on SUNDAY; Water none.
-  - Momentum: −0.20 if this habit's previous due day was not DONE.
-  - Rough spells: each day starts a rough spell with probability 0.06; a spell lasts 2–4 days (uniform); during a spell every habit gets −0.35.
+  - Momentum: −0.20 if this habit's previous due day was not DONE (a rest day counts as not DONE; no penalty on the first day).
+  - Rough spells: when no spell is active, a day starts one with probability 0.06; it lasts 2–4 days (uniform, including the first); during a spell every habit gets −0.35.
   - Rest: 3 % of due days are SKIPPED (rest), decided before the keep draw.
   - A not-kept day is a MISSED log with probability 0.5, otherwise no log. DONE logs have `completedAt` at 19:00 UTC.
-  `ForecastBenchmarkTest`: rows via `FeatureExtractor.rows(…, ZoneOffset.UTC)`, `RiskModel.fit(rows, today, 1L)`; assert `metrics.folds >= 3`, `metrics.auc!! > metrics.baselineAuc!! + 0.05`, `metrics.brier < metrics.baselineBrier!!`, `metrics.auc!! > 0.75`. Print (via the test's report, not stdout noise) the measured numbers into the task report. If the assertions fail, do NOT modify the generator or thresholds — report DONE_WITH_CONCERNS with the numbers.
-  Also keep the Task 6 Monday test (threshold > 0.7) and add its baseline comparison assertion `auc > baselineAuc`.
+  `ForecastBenchmarkTest` (rows via `FeatureExtractor.rows(…, ZoneOffset.UTC)`, `RiskModel.fit(rows, today, 1L)`; the oracle scores the same pooled out-of-fold rows with 1 − trueKeepProb):
+  - Seed 7: `folds >= 3`, `auc > baselineAuc + 0.05`, `brier < baselineBrier`.
+  - Held-out seeds **101..120** only (features were chosen looking at seeds 1..20, which are in-sample): model AUC > baseline AUC on ≥ 17/20 seeds; mean Brier < mean baseline Brier; mean AUC ≥ 0.88 × mean oracle AUC — a **regression guard set after measurement (in-sample ratio 0.919)**, not an accuracy claim. The oracle-Brier gap and the fixed-λ (0.01) Brier are reported, not asserted.
+  - One full fit on the realistic dataset (~585 rows) takes < 5000 ms (measured ~0.6 s).
+  - The Task 6 Monday test (AUC > 0.7) also asserts `auc > baselineAuc`.
 
-  _Note (controller, 2026-09-30): the absolute `auc > 0.75` was replaced — the seed-7 Bayes ceiling is 0.710 — by an oracle-relative benchmark over seeds 1–20 (mean AUC ≥ 0.92 × oracle, ≥ 17/20 seeds beat the baseline AUC, mean Brier < baseline and ≤ oracle + 0.02; seed 7: folds ≥ 3, AUC > baseline + 0.05, Brier < baseline)._
-- [ ] **Step 4: Explanations for new features (`RiskExplainerTest`).** Risk-raising: `F_MOMENTUM` with z < 0 → "yesterday was a tough day"; `F_SINCE_KEPT` with z > 0 → "it's been {n} days since you last did it" (n from the feature, n ≥ 2); `F_TREND` with z < 0 → "it's been slipping lately". Protective: `F_MOMENTUM` z > 0 → "you're on a good run today"; `F_TREND` z > 0 → "you're picking it back up". Update the starter model to 18 features (new weights 0 except `F_SINCE_KEPT` +0.3 with neutral mean ln(3)/std 0.9, `F_MOMENTUM` −0.5 with mean 0.5/std 0.3) and keep `starterIsSensible` passing.
+  _Note (controller, 2026-09-30): the original absolute `auc > 0.75` was replaced — the seed-7 Bayes ceiling is 0.710 — first by an oracle-relative benchmark on seeds 1–20, then (fix round 1) by the held-out-seed assertions above._
+
+- [x] **Step 4: Explanations (`RiskExplainerTest`).** Risk-raising (largest positive contribution > 0.05 with a true phrase): `F_MOMENTUM` z < 0 → "the last few days have been tough"; `F_SINCE_KEPT` z > 0 → "not done in the last {n} scheduled days" (n ≥ 2, true whether or not the habit was ever kept); `F_TREND` z < 0 → "it's been slipping lately"; `F_RATE90` z < 0 → "it's been hard to keep up for a while" only when `x[F_AGE] ≥ ln(29)` (≥ 28 days old), otherwise fall through; `F_RESTED_PREV` = 1 → "coming back from a rest day"; `F_SAME_WEEKDAY` z < 0 → "{Weekday}s are often hard". Protective: `F_MOMENTUM` z > 0 → "you're on a good run lately"; `F_TREND` z > 0 → "you're picking it back up"; `F_RATE90` z > 0 → "a strong track record". Task 6 phrases otherwise unchanged. Starter model (20 features, raw weights scaled by std, bias absorbs the means): new weights 0 except `F_SINCE_KEPT` +0.4 (neutral mean ln 2, std 0.7) and `F_MOMENTUM` −0.5 (mean 0.5, std 0.3); neutral stats `F_TREND` 0/0.2, `F_RATE90` 0.5/0.25, `F_RESTED_PREV` 0.05/0.22; `starterIsSensible` passes.
 
 - [ ] **Step 5: Full suite + assembleDebug. Commit** `feat(ml): richer features, rolling-origin CV with baseline and lambda search`.
 

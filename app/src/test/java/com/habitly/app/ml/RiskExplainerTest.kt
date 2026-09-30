@@ -72,9 +72,9 @@ class RiskExplainerTest {
 
     @Test fun starterPatchyWeekIsARiskReason() {
         val starter = RiskModel.starter(0L)
-        val patchy = x(F_RATE7 to 0.29, F_RATE28 to 0.3, F_SAME_WEEKDAY to 0.25, F_STREAK to ln(4.0), F_MOMENTUM to 0.5, F_SINCE_KEPT to ln(3.0))
+        val patchy = x(F_RATE7 to 0.29, F_RATE28 to 0.3, F_SAME_WEEKDAY to 0.25, F_STREAK to ln(4.0), F_MOMENTUM to 0.5, F_SINCE_KEPT to ln(2.0))
         assertEquals("a patchy last week", RiskExplainer.reason(starter, patchy, date))
-        val noStreak = x(F_RATE7 to 0.29, F_RATE28 to 0.3, F_SAME_WEEKDAY to 0.25, F_MOMENTUM to 0.5, F_SINCE_KEPT to ln(3.0))
+        val noStreak = x(F_RATE7 to 0.29, F_RATE28 to 0.3, F_SAME_WEEKDAY to 0.25, F_MOMENTUM to 0.5, F_SINCE_KEPT to ln(2.0))
         val reason = RiskExplainer.reason(starter, noStreak, date)
         assertFalse(reason, reason == "a strong last week")
         assertTrue(reason, reason in patchyReasons)
@@ -82,7 +82,7 @@ class RiskExplainerTest {
 
     @Test fun starterStrongWeekIsPositive() {
         val starter = RiskModel.starter(0L)
-        val strong = x(F_RATE7 to 0.95, F_RATE28 to 0.95, F_SAME_WEEKDAY to 0.95, F_STREAK to ln(8.0), F_MOMENTUM to 0.5, F_SINCE_KEPT to ln(2.0))
+        val strong = x(F_RATE7 to 0.95, F_RATE28 to 0.95, F_SAME_WEEKDAY to 0.95, F_STREAK to ln(8.0), F_MOMENTUM to 0.5, F_SINCE_KEPT to 0.0)
         val reason = RiskExplainer.reason(starter, strong, date)
         assertTrue(reason, reason == "on a 7-day roll" || reason == "a strong last week")
     }
@@ -102,12 +102,27 @@ class RiskExplainerTest {
         assertEquals("you're on a good run lately", RiskExplainer.reason(m, x(F_MOMENTUM to 1.0), date))
     }
 
-    @Test fun daysSinceLastKept() {
-        val m = model(mapOf(F_SINCE_KEPT to 1.0), means = mapOf(F_SINCE_KEPT to ln(3.0)))
-        assertEquals("it's been 4 days since you last did it", RiskExplainer.reason(m, x(F_SINCE_KEPT to ln(5.0)), date))
-        // One day since is "yesterday", never "1 days".
+    @Test fun scheduledDaysSinceKept() {
+        val m = model(mapOf(F_SINCE_KEPT to 1.0), means = mapOf(F_SINCE_KEPT to ln(2.0)))
+        assertEquals("not done in the last 4 scheduled days", RiskExplainer.reason(m, x(F_SINCE_KEPT to ln(5.0)), date))
+        // One scheduled day is "missed last time" territory, never "the last 1 scheduled days".
         val low = model(mapOf(F_SINCE_KEPT to 1.0), means = mapOf(F_SINCE_KEPT to 0.0))
         assertEquals("you're on track", RiskExplainer.reason(low, x(F_SINCE_KEPT to ln(2.0)), date))
+    }
+
+    @Test fun neverKeptHabitIsNotToldSinceYouLastDidIt() {
+        val today = LocalDate.of(2026, 9, 30)
+        val habit = com.habitly.app.data.local.HabitEntity(
+            id = 1, name = "H", icon = "star", colorHex = "#FF922B", category = "Health",
+            frequencyType = com.habitly.app.domain.FrequencyType.DAILY, frequencyDays = null, intervalDays = null,
+            reminderTime = null, createdAt = today.minusDays(6).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(), isArchived = false,
+        )
+        val h = FeatureExtractor.histories(listOf(habit), emptyList(), ZoneOffset.UTC).single()
+        val features = FeatureExtractor.features(h, today)
+        val m = model(mapOf(F_SINCE_KEPT to 1.0), means = mapOf(F_SINCE_KEPT to ln(2.0)))
+        val reason = RiskExplainer.reason(m, features, today)
+        assertFalse(reason, reason.contains("since you last did it"))
+        assertEquals("not done in the last 6 scheduled days", reason)
     }
 
     @Test fun slippingAndPickingUp() {
@@ -118,15 +133,26 @@ class RiskExplainerTest {
 
     @Test fun starterReadsTheOtherHabitsLastFewDays() {
         val starter = RiskModel.starter(0L)
-        val neutral = arrayOf(F_RATE7 to 0.5, F_RATE28 to 0.5, F_SAME_WEEKDAY to 0.5, F_STREAK to ln(4.0), F_SINCE_KEPT to ln(3.0))
+        val neutral = arrayOf(F_RATE7 to 0.5, F_RATE28 to 0.5, F_SAME_WEEKDAY to 0.5, F_STREAK to ln(4.0), F_SINCE_KEPT to ln(2.0))
         assertEquals("the last few days have been tough", RiskExplainer.reason(starter, x(*neutral, F_MOMENTUM to 0.0), date))
         assertEquals("you're on a good run lately", RiskExplainer.reason(starter, x(*neutral, F_MOMENTUM to 1.0), date))
     }
 
     @Test fun longRunRate() {
         val m = model(mapOf(F_RATE90 to -1.0), means = mapOf(F_RATE90 to 0.6))
-        assertEquals("it's been hard to keep up for a while", RiskExplainer.reason(m, x(F_RATE90 to 0.3), date))
-        assertEquals("a strong few months", RiskExplainer.reason(m, x(F_RATE90 to 0.9), date))
+        val established = F_AGE to ln(29.0)
+        assertEquals("it's been hard to keep up for a while", RiskExplainer.reason(m, x(F_RATE90 to 0.3, established), date))
+        assertEquals("a strong track record", RiskExplainer.reason(m, x(F_RATE90 to 0.9, established), date))
+    }
+
+    @Test fun youngHabitIsNotToldItHasStruggledForAWhile() {
+        val m = model(mapOf(F_RATE90 to -1.0), means = mapOf(F_RATE90 to 0.6))
+        assertEquals("you're on track", RiskExplainer.reason(m, x(F_RATE90 to 0.3, F_AGE to ln(28.0)), date)) // 27 days old
+    }
+
+    @Test fun sameWeekdayWording() {
+        val m = model(mapOf(F_SAME_WEEKDAY to -1.0), means = mapOf(F_SAME_WEEKDAY to 0.7))
+        assertEquals("Mondays are often hard", RiskExplainer.reason(m, x(F_SAME_WEEKDAY to 0.2), date))
     }
 
     @Test fun restedLastTime() {

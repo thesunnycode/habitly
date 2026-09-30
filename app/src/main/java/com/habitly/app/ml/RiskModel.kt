@@ -63,13 +63,13 @@ data class RiskModel(
             means[F_REMINDER] = 0.5; stds[F_REMINDER] = 0.5
             means[F_WEEKEND] = 2.0 / 7; stds[F_WEEKEND] = sqrt(2.0 / 7 * 5.0 / 7)
             means[F_MOMENTUM] = 0.5; stds[F_MOMENTUM] = 0.3
-            means[F_SINCE_KEPT] = ln(3.0); stds[F_SINCE_KEPT] = 0.9
+            means[F_SINCE_KEPT] = ln(2.0); stds[F_SINCE_KEPT] = 0.7
             means[F_TREND] = 0.0; stds[F_TREND] = 0.2
             means[F_RATE90] = 0.5; stds[F_RATE90] = 0.25
             means[F_RESTED_PREV] = 0.05; stds[F_RESTED_PREV] = 0.22
             val raw = DoubleArray(FEATURE_COUNT)
             raw[F_RATE7] = -2.5; raw[F_RATE28] = -1.0; raw[F_SAME_WEEKDAY] = -1.0; raw[F_STREAK] = -0.4; raw[F_MISSED_PREV] = 1.2
-            raw[F_SINCE_KEPT] = 0.3; raw[F_MOMENTUM] = -0.5
+            raw[F_SINCE_KEPT] = 0.4; raw[F_MOMENTUM] = -0.5
             val weights = List(FEATURE_COUNT) { raw[it] * stds[it] }
             val bias = 1.6 + (0 until FEATURE_COUNT).sumOf { raw[it] * means[it] }
             return RiskModel(weights, bias, means.toList(), stds.toList(), trainedAt = now, rows = 0, isStarter = true)

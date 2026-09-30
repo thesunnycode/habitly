@@ -96,7 +96,7 @@ object FeatureExtractor {
             x[F_REMINDER] = if (h.habit.reminderTime != null) 1.0 else 0.0
             x[F_WEEKEND] = if (date.dayOfWeek == DayOfWeek.SATURDAY || date.dayOfWeek == DayOfWeek.SUNDAY) 1.0 else 0.0
             x[F_MOMENTUM] = momentum(h, date, totals)
-            x[F_SINCE_KEPT] = ln(1.0 + daysSinceKept(h, date))
+            x[F_SINCE_KEPT] = ln(1.0 + scheduledDaysSinceKept(h, date))
             x[F_TREND] = rate7 - rate28
             x[F_RATE90] = rate90
             x[F_RESTED_PREV] = if (restedPrev) 1.0 else 0.0
@@ -120,17 +120,23 @@ object FeatureExtractor {
         return if (due <= 0) 0.5 else done.coerceIn(0, due).toDouble() / due
     }
 
-    private fun daysSinceKept(h: HabitHistory, date: LocalDate): Long {
-        val stop = maxOf(h.start, date.minusDays(MAX_SINCE_KEPT))
+    /**
+     * Scheduled (due, not rested) days after the most recent DONE and before [date], capped at
+     * [MAX_SINCE_KEPT]; for a habit never kept, its scheduled days since the start.
+     */
+    private fun scheduledDaysSinceKept(h: HabitHistory, date: LocalDate): Int {
+        val stop = maxOf(h.start, date.minusDays(WALK_BACK_DAYS))
+        var count = 0
         var d = date.minusDays(1)
-        while (!d.isBefore(stop)) {
-            if (h.statuses[d] == CompletionStatus.DONE) return ChronoUnit.DAYS.between(d, date)
+        while (!d.isBefore(stop) && count < MAX_SINCE_KEPT) {
+            if (h.statuses[d] == CompletionStatus.DONE) break
+            if (h.isJudged(d)) count++
             d = d.minusDays(1)
         }
-        return minOf(MAX_SINCE_KEPT, ChronoUnit.DAYS.between(h.start, date))
+        return count
     }
 
-    private const val MAX_SINCE_KEPT = 60L
+    private const val MAX_SINCE_KEPT = 30
 }
 
 /** Due on [day], on/after the habit's start, and not a rest day. */
@@ -143,7 +149,7 @@ class DayTotals(val done: Map<LocalDate, Int>, val due: Map<LocalDate, Int>) {
         val EMPTY = DayTotals(emptyMap(), emptyMap())
 
         /** Counts every history from its start to its latest log or [today], whichever is later. */
-        fun of(histories: List<HabitHistory>, today: LocalDate = LocalDate.now()): DayTotals {
+        fun of(histories: List<HabitHistory>, today: LocalDate): DayTotals {
             val done = HashMap<LocalDate, Int>()
             val due = HashMap<LocalDate, Int>()
             for (h in histories) {

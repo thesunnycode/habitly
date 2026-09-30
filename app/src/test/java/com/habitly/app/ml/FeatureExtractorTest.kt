@@ -135,15 +135,39 @@ class FeatureExtractorTest {
         assertEquals(0.5, featuresFor(habit(createdDaysAgo = 10), emptyList(), d)[F_MOMENTUM], 0.0)
     }
 
-    @Test fun daysSinceKept() {
+    @Test fun scheduledDaysSinceKept() {
         val d = today.minusDays(1)
         val h = habit(createdDaysAgo = 100)
-        assertEquals(ln(2.0), featuresFor(h, listOf(log(1, d.minusDays(1), CompletionStatus.DONE)), d)[F_SINCE_KEPT], 1e-12)
-        val tenAgo = listOf(log(1, d.minusDays(10), CompletionStatus.DONE), log(1, d.minusDays(3), CompletionStatus.MISSED))
-        assertEquals(ln(11.0), featuresFor(h, tenAgo, d)[F_SINCE_KEPT], 1e-12)
+        assertEquals(0.0, featuresFor(h, listOf(log(1, d.minusDays(1), CompletionStatus.DONE)), d)[F_SINCE_KEPT], 0.0)
+        // Kept 10 days ago, then 9 judged days without a DONE; a rest day in between is not counted.
+        val tenAgo = listOf(
+            log(1, d.minusDays(10), CompletionStatus.DONE), log(1, d.minusDays(3), CompletionStatus.MISSED),
+            log(1, d.minusDays(5), CompletionStatus.SKIPPED),
+        )
+        assertEquals(ln(9.0), featuresFor(h, tenAgo, d)[F_SINCE_KEPT], 1e-12)
+        // Never kept: judged days since the start.
         assertEquals(ln(6.0), featuresFor(habit(createdDaysAgo = 6), emptyList(), d)[F_SINCE_KEPT], 1e-12)
-        assertEquals(ln(61.0), featuresFor(h, emptyList(), d)[F_SINCE_KEPT], 1e-12)
-        assertEquals(ln(61.0), featuresFor(h, listOf(log(1, d.minusDays(70), CompletionStatus.DONE)), d)[F_SINCE_KEPT], 1e-12)
+        assertEquals(ln(31.0), featuresFor(h, emptyList(), d)[F_SINCE_KEPT], 1e-12)
+        assertEquals(ln(31.0), featuresFor(h, listOf(log(1, d.minusDays(70), CompletionStatus.DONE)), d)[F_SINCE_KEPT], 1e-12)
+    }
+
+    @Test fun sinceKeptCountsOnlyScheduledDays() {
+        // A perfectly kept Monday/Friday habit: on a Friday, nothing scheduled was missed since Monday.
+        val friday = LocalDate.of(2026, 9, 25)
+        val h = habit(createdDaysAgo = 30, type = FrequencyType.SPECIFIC_DAYS, days = "MONDAY,FRIDAY")
+        val kept = (0L..4L).flatMap { w -> listOf(friday.minusWeeks(w).minusDays(4), friday.minusWeeks(w + 1)) }
+            .map { log(1, it, CompletionStatus.DONE) }
+        assertEquals(0.0, featuresFor(h, kept, friday)[F_SINCE_KEPT], 0.0)
+        // A weekly habit that missed the last two Wednesdays after keeping the one before.
+        val wednesday = LocalDate.of(2026, 9, 23)
+        val weekly = habit(createdDaysAgo = 60, type = FrequencyType.SPECIFIC_DAYS, days = "WEDNESDAY")
+        val logs = listOf(log(1, wednesday.minusWeeks(3), CompletionStatus.DONE), log(1, wednesday.minusWeeks(2), CompletionStatus.MISSED))
+        // Due Sep 16 (no log) and Sep 9 (MISSED) since the DONE on Sep 2: 2 scheduled days, not 21 calendar days.
+        assertEquals(ln(3.0), featuresFor(weekly, logs, wednesday)[F_SINCE_KEPT], 1e-12)
+    }
+
+    @Test fun featureNamesMatchTheCount() {
+        assertEquals(FEATURE_COUNT, FEATURE_NAMES.size)
     }
 
     @Test fun trendIsPositiveAfterAGoodWeekFollowingAPoorMonth() {

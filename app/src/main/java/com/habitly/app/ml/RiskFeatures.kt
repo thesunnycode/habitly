@@ -21,7 +21,7 @@ val FEATURE_NAMES: List<String> = listOf(
     "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
     "Last 7 due days kept", "Last 28 due days kept", "Same weekday, last 20 weeks (smoothed)", "Streak going in",
     "Missed the previous due day", "Habit age", "Has a reminder", "Weekend",
-    "Other habits kept, last 3 days", "Days since last kept", "Recent trend",
+    "Other habits kept, last 3 days", "Scheduled days since last kept", "Recent trend",
     "Last 90 due days kept (smoothed)", "Rested the previous due day",
 )
 
