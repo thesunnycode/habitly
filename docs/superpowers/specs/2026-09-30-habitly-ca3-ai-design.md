@@ -216,6 +216,14 @@ accuracy (threshold 0.5), ROC AUC and Brier score, then retrained on all rows fo
 missed-previous → "missed last time"; low recent rate → "only {n} of the last 7"; long streak with
 negative contribution → "on a {n}-day roll"; reminder absent → "no reminder set".
 
+**Accuracy upgrade (2026-09-30, user request):** three more features — share of the user's other habits kept
+yesterday ("momentum"), days since last kept, and recent trend (rate7 − rate28); same-weekday window widened to 8
+weeks. Evaluation is rolling-origin cross-validation over the last 4 weeks (train on the past, test on the next
+week) instead of a single 7-day holdout, λ is chosen from {0.001…0.3} by cross-validated Brier score, gradient
+descent runs to convergence, and every metric is reported next to a baseline ("your usual keep rate") so the app
+and the report show whether the model actually adds value. A realistic simulator (weekday slumps, momentum, rough
+spells, rest days) must show the model beating the baseline by ≥ 0.05 AUC.
+
 **UI (Today, top of the list):**
 - Card "Today's forecast" with ⓘ. Headline for the riskiest habit: "{Habit} needs attention —
   {reason}." Up to 3 tiles (habit colour dot/IconTile, "{p}%", "chance of missing", level word

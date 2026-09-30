@@ -1738,6 +1738,59 @@ object RiskExplainer {
 
 ---
 
+### Task 6b: Forecast accuracy upgrade — richer features, rolling-origin CV, baseline, λ search
+
+Added 2026-09-30 at the user's request ("I want good accuracy, not just for the CA"). Keeps every public API from
+Task 6 (names/signatures), extends them compatibly. Task 7 consumes the extended `ModelMetrics`.
+
+**Files:**
+- Modify: `ml/RiskFeatures.kt`, `ml/FeatureExtractor.kt`, `ml/RiskModel.kt`, `ml/RiskExplainer.kt`
+- Create (test): `ml/RealisticHistory.kt`, `ml/ForecastBenchmarkTest.kt`
+- Modify (test): `ml/FeatureExtractorTest.kt`, `ml/RiskModelTest.kt`, `ml/RiskExplainerTest.kt`
+
+**Interfaces:**
+- Consumes: Task 6 as fixed in its fix round.
+- Produces:
+  - `FEATURE_COUNT = 18`; new indices `F_MOMENTUM = 15`, `F_SINCE_KEPT = 16`, `F_TREND = 17`; `FEATURE_NAMES` extended with "Other habits kept yesterday", "Days since last kept", "Recent trend".
+  - `FeatureExtractor.features(h: HabitHistory, date: LocalDate, totals: DayTotals = DayTotals.EMPTY): DoubleArray` and `class DayTotals(done: Map<LocalDate, Int>, due: Map<LocalDate, Int>) { companion object { val EMPTY; fun of(histories: List<HabitHistory>): DayTotals } }`; `rows(...)` builds `DayTotals.of(histories)` once and passes it.
+  - `@Serializable data class ModelMetrics(val accuracy: Double, val auc: Double?, val brier: Double, val testRows: Int, val baselineAuc: Double? = null, val baselineBrier: Double? = null, val folds: Int = 1, val lambda: Double? = null)`
+  - `RiskModel.fit(rows, today, now)` unchanged signature, new behaviour (below). New `RiskModel.crossValidate(rows: List<TrainingRow>, today: LocalDate, lambda: Double, folds: Int = 4): Pair<List<Double>, List<Int>>?` (pooled out-of-fold predictions + labels, null if no usable fold) and `RiskModel.baselinePredict(x: DoubleArray): Double`.
+
+- [ ] **Step 1: New features (TDD in `FeatureExtractorTest`).**
+  - `F_MOMENTUM` — share of the user's *other* habits that were kept on `date − 1`: `(totals.done[d−1] − own done on d−1) / (totals.due[d−1] − own due on d−1)`, where "due" counts habits due and not SKIPPED that day (and on/after their start) and "done" counts DONE. Default 0.5 when the denominator is 0. `DayTotals.of` counts, for every history and every date from its start to the latest log/today, due-and-not-skipped and DONE.
+    Tests: two habits, the other one MISSED yesterday → momentum 0.0; DONE → 1.0; other habit not due yesterday → 0.5; own status never affects its own momentum.
+  - `F_SINCE_KEPT` — `ln(1 + min(60, days since the most recent DONE before date))`; if never kept, `ln(1 + min(60, days since start))`. Tests: DONE yesterday → ln 2; last DONE 10 days ago → ln 11; never kept, started 5 days ago → ln 6; cap at 60.
+  - `F_TREND` — `rate7 − rate28` (both as computed already). Test: 7/7 kept after a poor month → positive.
+  - `F_SAME_WEEKDAY` now uses the last **8** same weekdays (was 4). Update its test.
+  - All still strictly before `date`; extend `noLookAhead` to cover the new features (logs of *other* habits on/after D must not change D's features).
+
+- [ ] **Step 2: Better training (TDD in `RiskModelTest`).**
+  - Replace the fixed 400 epochs with gradient descent until convergence: stop when the max absolute gradient component < 1e-5 or after 3000 epochs; learning rate 0.2. Still deterministic (no shuffling).
+  - `baselinePredict(x) = (1 − x[F_RATE28]).coerceIn(0.02, 0.98)` — "you usually keep it N% of the time".
+  - `crossValidate`: rolling origin over the last `folds` weeks. Fold k = 1..folds: test = rows with date in `[today − 7k, today − 7(k−1))`, train = rows with date `< today − 7k`. Skip a fold whose train set has < `MIN_ROWS` rows or one class, or whose test set is empty. Train with `train(train, now, lambda)`, predict the test rows. Return pooled predictions/labels (null when no fold was usable).
+  - `fit`:
+    1. `rows.size < MIN_ROWS` or one class → `starter(now)` (unchanged).
+    2. For each λ in `[0.001, 0.003, 0.01, 0.03, 0.1, 0.3]`, run `crossValidate`; pick the λ with the lowest pooled Brier (ties → larger λ). If no fold is usable, λ = 0.01 and metrics = null.
+    3. Metrics from the chosen λ's pooled predictions: accuracy (threshold 0.5), AUC, Brier, `testRows`, `folds` used, `lambda`, plus `baselineAuc`/`baselineBrier` computed from `baselinePredict` on the same pooled test rows.
+    4. Final model = `train(allRows, now, λ).copy(metrics = metrics)`.
+  - Tests: CV folds never train on rows dated on/after their test window (construct rows where a leak would be detectable — e.g. assert via a spy lambda or by checking the fold boundaries with a small exposed helper `internal fun foldRanges(today, folds)`); λ selection picks the minimum-Brier value on a crafted dataset; metrics carry baseline values; `fit` with < 40 rows unchanged; JSON round-trip with the new fields; old JSON (without the new fields) still decodes.
+
+- [ ] **Step 3: Realistic benchmark (fixed before measuring — do not tune it to pass).** `RealisticHistory.generate(today, days = 150, random = Random(7))` produces 4 DAILY habits with these keep probabilities per due day (clamped to [0.02, 0.98]):
+  - Base: Water 0.90, Read 0.72, Workout 0.65, Meditate 0.80.
+  - Weekday effects: Workout −0.35 on MONDAY and FRIDAY; Read −0.30 on SATURDAY and SUNDAY; Meditate −0.25 on SUNDAY; Water none.
+  - Momentum: −0.20 if this habit's previous due day was not DONE.
+  - Rough spells: each day starts a rough spell with probability 0.06; a spell lasts 2–4 days (uniform); during a spell every habit gets −0.35.
+  - Rest: 3 % of due days are SKIPPED (rest), decided before the keep draw.
+  - A not-kept day is a MISSED log with probability 0.5, otherwise no log. DONE logs have `completedAt` at 19:00 UTC.
+  `ForecastBenchmarkTest`: rows via `FeatureExtractor.rows(…, ZoneOffset.UTC)`, `RiskModel.fit(rows, today, 1L)`; assert `metrics.folds >= 3`, `metrics.auc!! > metrics.baselineAuc!! + 0.05`, `metrics.brier < metrics.baselineBrier!!`, `metrics.auc!! > 0.75`. Print (via the test's report, not stdout noise) the measured numbers into the task report. If the assertions fail, do NOT modify the generator or thresholds — report DONE_WITH_CONCERNS with the numbers.
+  Also keep the Task 6 Monday test (threshold > 0.7) and add its baseline comparison assertion `auc > baselineAuc`.
+
+- [ ] **Step 4: Explanations for new features (`RiskExplainerTest`).** Risk-raising: `F_MOMENTUM` with z < 0 → "yesterday was a tough day"; `F_SINCE_KEPT` with z > 0 → "it's been {n} days since you last did it" (n from the feature, n ≥ 2); `F_TREND` with z < 0 → "it's been slipping lately". Protective: `F_MOMENTUM` z > 0 → "you're on a good run today"; `F_TREND` z > 0 → "you're picking it back up". Update the starter model to 18 features (new weights 0 except `F_SINCE_KEPT` +0.3 with neutral mean ln(3)/std 0.9, `F_MOMENTUM` −0.5 with mean 0.5/std 0.3) and keep `starterIsSensible` passing.
+
+- [ ] **Step 5: Full suite + assembleDebug. Commit** `feat(ml): richer features, rolling-origin CV with baseline and lambda search`.
+
+---
+
 ### Task 7: Forecast — repository, worker, Today strip, info sheet (spec §6)
 
 **Files:**
@@ -1877,7 +1930,7 @@ Call `ForecastScheduler.schedule(this)` in `HabitlyApp.onCreate` after `Reminder
 - [ ] **Step 8: `ForecastInfoSheet`** — `@Composable fun ForecastInfoSheet(forecast: Forecast, onDismiss: () -> Unit, now: Long = System.currentTimeMillis())` using `HabitlySheet(onDismiss, title = "How the forecast works")`:
   - Intro: "A small model on your phone learns from your own check-ins which habits you tend to miss, and when."
   - "What it looks at" (`titleSmall`) + bullet lines: "The day of the week", "How you've done lately (last 7 and 28 due days, and the same weekday)", "Your current streak and whether you missed last time", "How new the habit is", "Whether it has a reminder".
-  - "How good it is": `metrics != null` → "Accuracy ${(accuracy*100).roundToInt()}% · AUC ${"%.2f".format(auc)} on your last 7 days (${testRows} check-ins)" (omit the AUC part when null); else "Not enough history to measure yet".
+  - "How good it is": `metrics != null` → "Accuracy ${(accuracy*100).roundToInt()}% · AUC ${"%.2f".format(auc)} over the last ${folds} weeks (${testRows} check-ins)" and, when `baselineAuc != null`, a second line "A simple guess (your usual rate) scores AUC ${"%.2f".format(baselineAuc)}" (omit AUC parts when null); else "Not enough history to measure yet". Show honestly even when the model does not beat the baseline.
   - Learning → "Using starter settings until there are 40 past check-ins"; else "Trained on ${rows} past check-ins · updated ${DateUtils.getRelativeTimeSpanString(trainedAt, now, MINUTE_IN_MILLIS)}".
   - Footer row: `Icons.Rounded.Lock` + "Runs only on your phone. Nothing is sent anywhere."
 
