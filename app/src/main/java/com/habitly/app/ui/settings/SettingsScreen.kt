@@ -18,14 +18,17 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Alarm
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
@@ -47,6 +50,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import com.habitly.app.data.export.CsvExporter
+import com.habitly.app.ai.ui.ConsentSheet
 import com.habitly.app.data.prefs.ThemeMode
 import com.habitly.app.ui.components.ConfirmSheet
 import com.habitly.app.ui.components.HabitlySheet
@@ -87,12 +91,17 @@ fun SettingsScreen(
     onResetAllData: () -> Unit,
     onBack: () -> Unit,
     onResetMessageShown: () -> Unit = {},
+    onAiEnabledToggle: (Boolean) -> Unit = {},
+    onShowForecastToggle: (Boolean) -> Unit = {},
+    onDemoAiToggle: (Boolean) -> Unit = {},
+    onAiHeaderTapped: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = LocalSnackbarHostState.current
     var showResetConfirm by rememberSaveable { mutableStateOf(false) }
     var showLicences by rememberSaveable { mutableStateOf(false) }
+    var showShared by rememberSaveable { mutableStateOf(false) }
     var weekMenuOpen by remember { mutableStateOf(false) }
     val error = MaterialTheme.colorScheme.error
 
@@ -159,6 +168,37 @@ fun SettingsScreen(
                 onClick = onHabitReminders,
                 showDivider = true,
             )
+        }
+
+        SettingsGroup(title = "AI features", onTitleClick = onAiHeaderTapped) {
+            SettingsRow(
+                title = "AI features",
+                icon = Icons.Rounded.AutoAwesome,
+                supporting = "Create with AI, coach and weekly review",
+                trailing = { HabitlySwitch(uiState.aiEnabled, onAiEnabledToggle) },
+            )
+            SettingsRow(
+                title = "Show forecast",
+                icon = Icons.Rounded.Insights,
+                supporting = "Today's on-device risk forecast",
+                trailing = { HabitlySwitch(uiState.showForecast, onShowForecastToggle) },
+                showDivider = true,
+            )
+            SettingsRow(
+                title = "What's shared",
+                icon = Icons.Rounded.Shield,
+                onClick = { showShared = true },
+                showDivider = true,
+            )
+            if (uiState.demoAiRevealed) {
+                SettingsRow(
+                    title = "Demo AI",
+                    icon = Icons.Rounded.Science,
+                    supporting = "Canned answers for offline demos",
+                    trailing = { HabitlySwitch(uiState.demoAi, onDemoAiToggle) },
+                    showDivider = true,
+                )
+            }
         }
 
         SettingsGroup(title = "Data") {
@@ -236,6 +276,8 @@ fun SettingsScreen(
     }
 
     if (showLicences) LicencesSheet(onDismiss = { showLicences = false })
+
+    if (showShared) ConsentSheet(onAllow = {}, onDismiss = { showShared = false }, readOnly = true)
 }
 
 /** Switch in the brand colours: `primary` track, `onPrimary` thumb when on. */
@@ -300,7 +342,7 @@ private suspend fun shareCsv(context: Context, csv: String) {
 private fun SettingsPreviewContent() {
     Box(Modifier.background(MaterialTheme.colorScheme.background)) {
         SettingsScreen(
-            uiState = SettingsUiState(versionName = "1.0", isDebug = true),
+            uiState = SettingsUiState(versionName = "1.0", isDebug = true, demoAiRevealed = true),
             onThemeModeChange = {}, onWeekStartChange = {}, onNotificationsToggle = {}, onStreakNudgeToggle = {},
             onHabitReminders = {}, onExport = { "" }, onLoadDemoData = {}, onResetAllData = {}, onBack = {},
         )

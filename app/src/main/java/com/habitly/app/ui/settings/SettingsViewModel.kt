@@ -3,6 +3,7 @@ package com.habitly.app.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.habitly.app.BuildConfig
+import com.habitly.app.ai.AiPrefs
 import com.habitly.app.data.export.CsvExporter
 import com.habitly.app.data.prefs.SettingsPrefs
 import com.habitly.app.data.prefs.ThemeMode
@@ -22,6 +23,7 @@ import java.time.DayOfWeek
 class SettingsViewModel(
     private val prefs: SettingsPrefs,
     private val repository: HabitDataSource,
+    private val aiPrefs: AiPrefs,
     /** Seeds the demo habits (debug builds only); injected because seeding needs the concrete repository and DAO. */
     private val loadDemoData: suspend () -> Unit = {},
     versionName: String = BuildConfig.VERSION_NAME,
@@ -32,21 +34,39 @@ class SettingsViewModel(
     private val _uiState = MutableStateFlow(SettingsUiState(versionName = versionName, isDebug = isDebug))
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
+    /** Taps on the "AI features" heading; the fifth reveals the Demo AI switch. */
+    private var aiHeaderTaps = 0
+
     init {
         viewModelScope.launch {
-            combine(
+            val appPrefs = combine(
                 prefs.themeMode,
                 prefs.notificationsEnabled,
                 prefs.weekStart,
                 prefs.streakNudgeEnabled,
             ) { theme, notifications, weekStart, nudge ->
-                _uiState.value.copy(
-                    themeMode = theme,
-                    notificationsEnabled = notifications,
-                    weekStart = weekStart,
-                    streakNudgeEnabled = nudge,
-                )
-            }.collect { _uiState.value = it }
+                { state: SettingsUiState ->
+                    state.copy(
+                        themeMode = theme,
+                        notificationsEnabled = notifications,
+                        weekStart = weekStart,
+                        streakNudgeEnabled = nudge,
+                    )
+                }
+            }
+            val ai = combine(aiPrefs.aiEnabled, aiPrefs.showForecast, aiPrefs.demoAi) { enabled, forecast, demo ->
+                { state: SettingsUiState ->
+                    state.copy(
+                        aiEnabled = enabled,
+                        showForecast = forecast,
+                        demoAi = demo,
+                        // Once shown, the switch stays for this visit even after Demo AI is turned off.
+                        demoAiRevealed = state.demoAiRevealed || demo,
+                    )
+                }
+            }
+            combine(appPrefs, ai) { applyPrefs, applyAi -> applyAi(applyPrefs(_uiState.value)) }
+                .collect { _uiState.value = it }
         }
     }
 
@@ -57,6 +77,20 @@ class SettingsViewModel(
     fun onWeekStartChange(day: DayOfWeek) = viewModelScope.launch { prefs.setWeekStart(day) }
 
     fun onStreakNudgeToggle(enabled: Boolean) = viewModelScope.launch { prefs.setStreakNudgeEnabled(enabled) }
+
+    fun onAiEnabledToggle(enabled: Boolean) = viewModelScope.launch { aiPrefs.setAiEnabled(enabled) }
+
+    fun onShowForecastToggle(enabled: Boolean) = viewModelScope.launch { aiPrefs.setShowForecast(enabled) }
+
+    fun onDemoAiToggle(enabled: Boolean) = viewModelScope.launch { aiPrefs.setDemoAi(enabled) }
+
+    /** Counts taps on the "AI features" heading; the fifth reveals the Demo AI switch. */
+    fun onAiHeaderTapped() {
+        aiHeaderTaps++
+        if (aiHeaderTaps >= 5 && !_uiState.value.demoAiRevealed) {
+            _uiState.value = _uiState.value.copy(demoAiRevealed = true)
+        }
+    }
 
     /** Every habit and log as CSV text; the caller writes and shares the file. */
     suspend fun onExport(): String {
@@ -69,7 +103,7 @@ class SettingsViewModel(
         viewModelScope.launch { loadDemoData() }
     }
 
-    fun onResetAllData() {
+    fun onResetAllData() =
         viewModelScope.launch {
             // Leaving Settings mid-reset must not leave half the data behind, so it always finishes.
             withContext(NonCancellable) {
@@ -84,7 +118,6 @@ class SettingsViewModel(
             }
             _uiState.value = _uiState.value.copy(resetCompleted = true)
         }
-    }
 
     /** The screen has announced the finished reset; don't announce it again. */
     fun onResetMessageShown() {

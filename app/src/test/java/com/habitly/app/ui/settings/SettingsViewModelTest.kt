@@ -2,6 +2,7 @@ package com.habitly.app.ui.settings
 
 import androidx.test.core.app.ApplicationProvider
 import com.habitly.app.MainDispatcherRule
+import com.habitly.app.ai.AiPrefs
 import com.habitly.app.data.local.AchievementEntity
 import com.habitly.app.data.local.HabitEntity
 import com.habitly.app.data.local.HabitLogEntity
@@ -29,6 +30,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.time.DayOfWeek
 import java.time.LocalDate
+
+private fun aiPrefs() = AiPrefs(ApplicationProvider.getApplicationContext())
 
 private fun habit(id: Long) = HabitWithStats(
     habit = HabitEntity(id, "H$id", "star", "#000", "General", FrequencyType.DAILY, null, null, null, 0L, false),
@@ -86,10 +89,20 @@ class SettingsViewModelTest {
 
     @get:Rule val mainDispatcherRule = MainDispatcherRule()
 
+    /**
+     * Builds the ViewModel and waits until it has read every pref flow once. Each flow's first read opens the
+     * DataStore file on an IO thread, and on Windows a write that renames the file over an open read fails, so
+     * tests write only after this. The theme is the marker: SYSTEM differs from the state's DARK default.
+     */
+    private suspend fun settled(prefs: SettingsPrefs, build: () -> SettingsViewModel): SettingsViewModel {
+        prefs.setThemeMode(ThemeMode.SYSTEM)
+        return build().also { viewModel -> viewModel.uiState.first { it.themeMode == ThemeMode.SYSTEM } }
+    }
+
     @Test
     fun onThemeModeChangePersistsAndReflectsInUiState() = runTest {
         val prefs = SettingsPrefs(ApplicationProvider.getApplicationContext())
-        val viewModel = SettingsViewModel(prefs, FakeHabitDataSource(emptyList()))
+        val viewModel = settled(prefs) { SettingsViewModel(prefs, FakeHabitDataSource(emptyList()), aiPrefs()) }
         viewModel.onThemeModeChange(ThemeMode.DARK).join()
         advanceUntilIdle()
         assertEquals(ThemeMode.DARK, viewModel.uiState.value.themeMode)
@@ -102,7 +115,7 @@ class SettingsViewModelTest {
         prefs.markBadgesSeen(setOf("STREAK_7"))
         prefs.setLastCelebratedDate("2026-09-29")
         val cancelled = mutableListOf<Long>()
-        val viewModel = SettingsViewModel(prefs, fake, notifications = { cancelled += it })
+        val viewModel = settled(prefs) { SettingsViewModel(prefs, fake, aiPrefs(), notifications = { cancelled += it }) }
         advanceUntilIdle()
         viewModel.onResetAllData()
         // The prefs writes run on DataStore's own IO thread, so wait for the flag rather than idling.
@@ -124,34 +137,37 @@ class SettingsViewModelTest {
         fake.resetGate = gate
         val cancelled = mutableListOf<Long>()
         val store = androidx.lifecycle.ViewModelStore()
-        val viewModel = androidx.lifecycle.ViewModelProvider(
-            store,
-            object : androidx.lifecycle.ViewModelProvider.Factory {
-                @Suppress("UNCHECKED_CAST")
-                override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
-                    SettingsViewModel(prefs, fake, notifications = { cancelled += it }) as T
-            },
-        )[SettingsViewModel::class.java]
+        val viewModel = settled(prefs) {
+            androidx.lifecycle.ViewModelProvider(
+                store,
+                object : androidx.lifecycle.ViewModelProvider.Factory {
+                    @Suppress("UNCHECKED_CAST")
+                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                        SettingsViewModel(prefs, fake, aiPrefs(), notifications = { cancelled += it }) as T
+                },
+            )[SettingsViewModel::class.java]
+        }
         advanceUntilIdle()
 
-        viewModel.onResetAllData()
+        val reset = viewModel.onResetAllData()
         advanceUntilIdle()
         store.clear() // the user left Settings; viewModelScope is cancelled
         gate.complete(Unit)
-        advanceUntilIdle()
+        // A cancelled job still completes only once its NonCancellable block has returned, so every prefs
+        // write is done before the reads below (a read racing a DataStore write fails on Windows).
+        reset.join()
 
         assertTrue(fake.resetCalled)
         assertEquals(listOf(1L), cancelled)
-        // The prefs half ran too. Wait for its last write: DataStore runs each edit on the caller's
-        // dispatcher, so ending the test mid-edit would wedge the shared store for later tests.
-        prefs.seenBadgeKeys.first { it.isEmpty() }
-        prefs.lastCelebratedDate.first { it == null }
+        // The prefs half ran too.
+        assertTrue(prefs.seenBadgeKeys.first().isEmpty())
+        assertEquals(null, prefs.lastCelebratedDate.first())
     }
 
     @Test
     fun theResetConfirmationIsConsumedOnceShown() = runTest {
         val prefs = SettingsPrefs(ApplicationProvider.getApplicationContext())
-        val viewModel = SettingsViewModel(prefs, FakeHabitDataSource(emptyList()))
+        val viewModel = settled(prefs) { SettingsViewModel(prefs, FakeHabitDataSource(emptyList()), aiPrefs()) }
         advanceUntilIdle()
         assertFalse("nothing to confirm before a reset", viewModel.uiState.value.resetCompleted)
         viewModel.onResetAllData()
@@ -168,7 +184,7 @@ class SettingsViewModelTest {
     @Test
     fun onWeekStartChangePersistsAndReflectsInUiState() = runTest {
         val prefs = SettingsPrefs(ApplicationProvider.getApplicationContext())
-        val viewModel = SettingsViewModel(prefs, FakeHabitDataSource(emptyList()))
+        val viewModel = settled(prefs) { SettingsViewModel(prefs, FakeHabitDataSource(emptyList()), aiPrefs()) }
         viewModel.onWeekStartChange(DayOfWeek.SUNDAY).join()
         advanceUntilIdle()
         assertEquals(DayOfWeek.SUNDAY, prefs.weekStart.first())
@@ -178,7 +194,7 @@ class SettingsViewModelTest {
     @Test
     fun onStreakNudgeTogglePersistsAndReflectsInUiState() = runTest {
         val prefs = SettingsPrefs(ApplicationProvider.getApplicationContext())
-        val viewModel = SettingsViewModel(prefs, FakeHabitDataSource(emptyList()))
+        val viewModel = settled(prefs) { SettingsViewModel(prefs, FakeHabitDataSource(emptyList()), aiPrefs()) }
         viewModel.onStreakNudgeToggle(false).join()
         advanceUntilIdle()
         assertFalse(prefs.streakNudgeEnabled.first())
@@ -192,7 +208,7 @@ class SettingsViewModelTest {
             listOf(habit(1)),
             logs = listOf(HabitLogEntity(0, 1, "2026-09-28", CompletionStatus.DONE, 1L, null, 0)),
         )
-        val viewModel = SettingsViewModel(prefs, fake)
+        val viewModel = settled(prefs) { SettingsViewModel(prefs, fake, aiPrefs()) }
         val csv = viewModel.onExport()
         assertEquals("habit,category,date,status,progress,unit,note\nH1,General,2026-09-28,DONE,0,,\n", csv)
     }
@@ -201,7 +217,7 @@ class SettingsViewModelTest {
     fun onLoadDemoDataRunsTheSeeder() = runTest {
         val prefs = SettingsPrefs(ApplicationProvider.getApplicationContext())
         var seeded = 0
-        val viewModel = SettingsViewModel(prefs, FakeHabitDataSource(emptyList()), loadDemoData = { seeded++ })
+        val viewModel = settled(prefs) { SettingsViewModel(prefs, FakeHabitDataSource(emptyList()), aiPrefs(), loadDemoData = { seeded++ }) }
         viewModel.onLoadDemoData()
         advanceUntilIdle()
         assertEquals(1, seeded)
@@ -210,8 +226,37 @@ class SettingsViewModelTest {
     @Test
     fun versionAndBuildTypeAreExposed() = runTest {
         val prefs = SettingsPrefs(ApplicationProvider.getApplicationContext())
-        val viewModel = SettingsViewModel(prefs, FakeHabitDataSource(emptyList()), versionName = "9.9", isDebug = true)
+        val viewModel = settled(prefs) { SettingsViewModel(prefs, FakeHabitDataSource(emptyList()), aiPrefs(), versionName = "9.9", isDebug = true) }
         assertEquals("9.9", viewModel.uiState.value.versionName)
         assertTrue(viewModel.uiState.value.isDebug)
+    }
+
+    @Test
+    fun aiTogglesPersistAndReflectInUiState() = runTest {
+        val prefs = SettingsPrefs(ApplicationProvider.getApplicationContext())
+        val ai = aiPrefs()
+        val viewModel = settled(prefs) { SettingsViewModel(prefs, FakeHabitDataSource(emptyList()), ai) }
+        viewModel.onAiEnabledToggle(false).join()
+        viewModel.onShowForecastToggle(false).join()
+        viewModel.onDemoAiToggle(true).join()
+        assertFalse(ai.aiEnabled.first())
+        assertFalse(ai.showForecast.first())
+        assertTrue(ai.demoAi.first())
+        val state = viewModel.uiState.first { !it.aiEnabled && !it.showForecast && it.demoAi }
+        assertTrue("Demo AI already on keeps its switch visible", state.demoAiRevealed)
+    }
+
+    @Test
+    fun theFifthTapOnTheAiHeadingRevealsDemoAi() = runTest {
+        val prefs = SettingsPrefs(ApplicationProvider.getApplicationContext())
+        val ai = aiPrefs()
+        ai.setDemoAi(false)
+        val viewModel = settled(prefs) { SettingsViewModel(prefs, FakeHabitDataSource(emptyList()), ai) }
+        advanceUntilIdle()
+        repeat(4) { viewModel.onAiHeaderTapped() }
+        assertFalse("four taps are not enough", viewModel.uiState.value.demoAiRevealed)
+        viewModel.onAiHeaderTapped()
+        assertTrue(viewModel.uiState.value.demoAiRevealed)
+        assertFalse("revealing the switch does not turn Demo AI on", ai.demoAi.first())
     }
 }

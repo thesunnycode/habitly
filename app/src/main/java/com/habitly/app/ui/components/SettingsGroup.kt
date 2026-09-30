@@ -42,12 +42,25 @@ import com.habitly.app.ui.theme.LocalHabitlyColors
 fun SettingsGroup(
     modifier: Modifier = Modifier,
     title: String? = null,
+    /** Makes the title tappable with no visual change (used for hidden developer switches). */
+    onTitleClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val extras = LocalHabitlyColors.current
     Column(modifier = modifier.fillMaxWidth()) {
         if (title != null) {
-            SectionLabel(title, modifier = Modifier.padding(start = 4.dp, bottom = 8.dp))
+            SectionLabel(
+                title,
+                modifier = Modifier
+                    .then(
+                        if (onTitleClick != null) {
+                            Modifier.clickable(onClickLabel = null, role = null) { onTitleClick() }
+                        } else {
+                            Modifier
+                        },
+                    )
+                    .padding(start = 4.dp, bottom = 8.dp),
+            )
         }
         Surface(
             shape = RoundedCornerShape(20.dp),

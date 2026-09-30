@@ -15,6 +15,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.habitly.app.ai.AiServices
 import com.habitly.app.data.local.AppDatabase
 import com.habitly.app.data.prefs.OnboardingPrefs
 import com.habitly.app.data.prefs.SettingsPrefs
@@ -237,6 +238,7 @@ fun HabitlyNavHost(
                 SettingsViewModel(
                     prefs = prefs,
                     repository = repository,
+                    aiPrefs = AiServices.prefs(appContext),
                     notifications = notifications,
                     loadDemoData = {
                         // Silences the badges the demo history unlocks, so they don't all celebrate at once.
@@ -260,6 +262,10 @@ fun HabitlyNavHost(
                     onResetAllData = viewModel::onResetAllData,
                     onBack = { navController.popBackStack() },
                     onResetMessageShown = viewModel::onResetMessageShown,
+                    onAiEnabledToggle = viewModel::onAiEnabledToggle,
+                    onShowForecastToggle = viewModel::onShowForecastToggle,
+                    onDemoAiToggle = viewModel::onDemoAiToggle,
+                    onAiHeaderTapped = viewModel::onAiHeaderTapped,
                 )
             }
         }
