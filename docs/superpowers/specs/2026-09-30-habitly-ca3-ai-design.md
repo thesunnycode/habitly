@@ -96,7 +96,7 @@ them and runs them through the repository with a Snackbar Undo:
 | `set_days(habitId, [1..7])` | non-empty, distinct ISO weekdays; habit becomes SPECIFIC_DAYS |
 | `set_rest_day(habitId, date)` | today or within the next 7 days; habit due that day |
 | `set_goal(habitId, target)` | 1..999; habit already has a numeric goal or unit supplied |
-| `log_done(habitId)` / `log_partial(habitId, count)` | today only; count < target |
+| `log_done(habitId)` | habit due today and not already DONE |
 | `rest_today(habitId)` | habit due today and not DONE |
 | `open_habit(habitId)` | habit exists |
 
@@ -225,7 +225,7 @@ negative contribution → "on a {n}-day roll"; reminder absent → "no reminder 
 - Tile tap → Habit Detail. ⓘ → "How this works" sheet: the features in plain words, last trained,
   rows used, accuracy/AUC, "Runs only on your phone".
 - Hidden when Settings → Show forecast is off.
-- The coach (§5) and the streak-at-risk nudge use the same risk values.
+- The coach (§5) receives the same risk values in its context.
 
 ## 7. Proxy (`proxy/`)
 
