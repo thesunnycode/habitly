@@ -354,6 +354,7 @@ private fun TodayCard(
         endDate = today,
         weekStart = uiState.weekStart,
         streakDays = if (isGoal) 0 else habit.currentStreak,
+        countsUp = isGoal,
     )
 }
 

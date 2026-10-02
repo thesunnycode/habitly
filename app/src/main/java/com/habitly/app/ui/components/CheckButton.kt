@@ -4,9 +4,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -49,6 +47,9 @@ import com.habitly.app.ui.theme.habitTones
 
 enum class CheckState { EMPTY, DONE, IN_PROGRESS, SKIPPED }
 
+/** The empty square's hint glyph stays well below the in-progress "+" so the two never look alike. */
+private const val EMPTY_GLYPH_ALPHA = 0.45f
+
 /** The tappable completion square: [size] visual inside a 48dp touch target. */
 @Composable
 fun CheckButton(
@@ -58,6 +59,8 @@ fun CheckButton(
     contentDescription: String,
     modifier: Modifier = Modifier,
     size: Dp = 40.dp,
+    /** A numeric-goal habit: a tap adds one unit, so the empty square hints "+" rather than a tick. */
+    countsUp: Boolean = false,
 ) {
     val tones = habitTones(colorHex)
     val interactionSource = remember { MutableInteractionSource() }
@@ -84,12 +87,12 @@ fun CheckButton(
         CheckState.IN_PROGRESS -> "In progress"
         CheckState.SKIPPED -> "Rest day"
     }
+    // Empty is a soft tile in the habit's colour with a faint glyph, so it reads as something to tap;
+    // done fills it with the full colour.
     val fill = when (state) {
-        CheckState.EMPTY -> null
         CheckState.DONE -> tones.full
-        CheckState.IN_PROGRESS, CheckState.SKIPPED -> tones.low
+        CheckState.EMPTY, CheckState.IN_PROGRESS, CheckState.SKIPPED -> tones.low
     }
-    val outline = MaterialTheme.colorScheme.outline
     Box(
         modifier = modifier
             .minimumInteractiveComponentSize()
@@ -110,10 +113,7 @@ fun CheckButton(
                 .size(size)
                 .scale(scale)
                 .clip(shape)
-                .then(
-                    if (fill == null) Modifier.border(BorderStroke(1.5.dp, outline), shape)
-                    else Modifier.background(fill),
-                ),
+                .background(fill),
             contentAlignment = Alignment.Center,
         ) {
             val glyphSize = Modifier.size(size * 0.6f)
@@ -121,7 +121,12 @@ fun CheckButton(
                 CheckState.DONE -> Icon(Icons.Rounded.Check, null, tint = tones.onFull, modifier = glyphSize)
                 CheckState.IN_PROGRESS -> Icon(Icons.Rounded.Add, null, tint = tones.full, modifier = glyphSize)
                 CheckState.SKIPPED -> Icon(Icons.Rounded.Remove, null, tint = tones.full, modifier = glyphSize)
-                CheckState.EMPTY -> Unit
+                CheckState.EMPTY -> Icon(
+                    if (countsUp) Icons.Rounded.Add else Icons.Rounded.Check,
+                    null,
+                    tint = tones.full.copy(alpha = EMPTY_GLYPH_ALPHA),
+                    modifier = glyphSize,
+                )
             }
         }
     }
@@ -132,6 +137,7 @@ private fun CheckButtonPreviewContent() {
     Surface(color = MaterialTheme.colorScheme.background) {
         Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CheckState.entries.forEach { CheckButton(it, "#51CF66", {}, "Sample habit") }
+            CheckButton(CheckState.EMPTY, "#22B8CF", {}, "Sample goal habit", countsUp = true)
         }
     }
 }

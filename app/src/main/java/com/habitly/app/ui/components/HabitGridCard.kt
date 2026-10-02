@@ -55,6 +55,8 @@ fun HabitGridCard(
     endDate: LocalDate = LocalDate.now(),
     weekStart: DayOfWeek = DayOfWeek.MONDAY,
     streakDays: Int = 0,
+    /** A numeric-goal habit, where the check adds one unit per tap. */
+    countsUp: Boolean = false,
 ) {
     val extras = LocalHabitlyColors.current
     val tones = habitTones(colorHex)
@@ -108,6 +110,7 @@ fun HabitGridCard(
                     colorHex = colorHex,
                     onClick = onCheck,
                     contentDescription = "Mark $name",
+                    countsUp = countsUp,
                 )
             }
             Spacer(Modifier.height(10.dp))

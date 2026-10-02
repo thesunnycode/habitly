@@ -277,6 +277,7 @@ private fun FormPreview(uiState: AddEditUiState, weekStart: DayOfWeek) {
             onLongClick = {},
             endDate = end,
             weekStart = weekStart,
+            countsUp = uiState.targetCount != null,
         )
         // Swallows every touch so the preview can't be ticked or pressed.
         Box(
