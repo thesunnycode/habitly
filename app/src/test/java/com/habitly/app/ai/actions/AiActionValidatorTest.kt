@@ -54,7 +54,7 @@ class AiActionValidatorTest {
             ValidAction.SetReminder(1, "Set reminder", "19:00"),
             validate(dto("set_reminder", time = "19:00")),
         )
-        for (bad in listOf("25:00", "7pm", "7:00", "19:60", "")) assertNull(bad, validate(dto("set_reminder", time = bad)))
+        for (bad in listOf("24:00", "25:00", "7pm", "7:00", "19:60", "")) assertNull(bad, validate(dto("set_reminder", time = bad)))
         assertNull(validate(dto("set_reminder", time = null)))
     }
 

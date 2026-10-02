@@ -37,6 +37,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -121,6 +122,7 @@ fun TodayScreen(
     onCelebrationShown: () -> Unit,
     windowWidthSizeClass: WindowWidthSizeClass = WindowWidthSizeClass.Compact,
     now: LocalTime = LocalTime.now(),
+    onCreateWithAi: () -> Unit = {},
 ) {
     var showTemplates by rememberSaveable { mutableStateOf(false) }
     var statusTargetId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -163,6 +165,7 @@ fun TodayScreen(
             onLongPress = { statusTargetId = it.habit.id },
             onAddHabit = onAddHabit,
             onTemplatePicked = onTemplatePicked,
+            onCreateWithAi = onCreateWithAi,
         )
     }
 
@@ -230,6 +233,10 @@ fun TodayScreen(
                 showTemplates = false
                 onTemplatePicked(template)
             },
+            onCreateWithAi = {
+                showTemplates = false
+                onCreateWithAi()
+            },
         )
     }
 
@@ -268,9 +275,10 @@ private fun LazyListScope.habitSections(
     onLongPress: (HabitWithStats) -> Unit,
     onAddHabit: () -> Unit,
     onTemplatePicked: (HabitTemplate?) -> Unit,
+    onCreateWithAi: () -> Unit,
 ) {
     if (uiState.isEmpty) {
-        item(key = "empty") { TodayEmptyState(onAddHabit, onTemplatePicked) }
+        item(key = "empty") { TodayEmptyState(onAddHabit, onTemplatePicked, onCreateWithAi) }
         return
     }
 
@@ -480,7 +488,7 @@ private fun CollapsibleLabel(text: String, count: Int, expanded: Boolean, onTogg
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TodayEmptyState(onAddHabit: () -> Unit, onTemplatePicked: (HabitTemplate?) -> Unit) {
+private fun TodayEmptyState(onAddHabit: () -> Unit, onTemplatePicked: (HabitTemplate?) -> Unit, onCreateWithAi: () -> Unit) {
     val starters = remember { HabitTemplates.groups.first().templates.take(3) }
     Column(Modifier.fillMaxWidth().padding(top = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         EmptyState(
@@ -499,6 +507,7 @@ private fun TodayEmptyState(onAddHabit: () -> Unit, onTemplatePicked: (HabitTemp
                 SecondaryButton(text = template.name, onClick = { onTemplatePicked(template) })
             }
         }
+        TextButton(onClick = onCreateWithAi) { Text("✨ Describe a goal and let AI suggest habits") }
     }
 }
 

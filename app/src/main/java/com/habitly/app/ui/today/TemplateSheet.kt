@@ -37,6 +37,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.habitly.app.ai.ui.AiSparkleIcon
 import com.habitly.app.domain.HabitSchedule
 import com.habitly.app.domain.HabitTemplate
 import com.habitly.app.domain.HabitTemplateGroup
@@ -52,14 +53,14 @@ import com.habitly.app.ui.theme.habitTones
 
 /** "New habit" picker: start from scratch, or from one of the grouped templates. `null` means scratch. */
 @Composable
-fun TemplateSheet(onDismiss: () -> Unit, onPick: (HabitTemplate?) -> Unit) {
+fun TemplateSheet(onDismiss: () -> Unit, onPick: (HabitTemplate?) -> Unit, onCreateWithAi: (() -> Unit)? = null) {
     HabitlySheet(onDismiss = onDismiss, title = "New habit") {
-        TemplateSheetContent(onPick)
+        TemplateSheetContent(onPick, onCreateWithAi)
     }
 }
 
 @Composable
-private fun TemplateSheetContent(onPick: (HabitTemplate?) -> Unit) {
+private fun TemplateSheetContent(onPick: (HabitTemplate?) -> Unit, onCreateWithAi: (() -> Unit)? = null) {
     var query by rememberSaveable { mutableStateOf("") }
     val groups = filterTemplates(HabitTemplates.groups, query)
     Column(Modifier.verticalScroll(rememberScrollState())) {
@@ -79,6 +80,10 @@ private fun TemplateSheetContent(onPick: (HabitTemplate?) -> Unit) {
             ),
         )
         Spacer(Modifier.height(12.dp))
+        if (onCreateWithAi != null) {
+            AiTile(onClick = onCreateWithAi)
+            Spacer(Modifier.height(10.dp))
+        }
         ScratchTile(onClick = { onPick(null) })
         groups.forEach { group ->
             Spacer(Modifier.height(20.dp))
@@ -121,6 +126,39 @@ internal fun templateSubline(template: HabitTemplate): String {
     val scheduleText = if (schedule == "Daily") "daily" else schedule
     val goal = template.targetCount?.let { count -> listOfNotNull("$count", template.unit).joinToString(" ") }
     return listOfNotNull(goal, scheduleText).joinToString(" · ")
+}
+
+@Composable
+private fun AiTile(onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(LocalHabitlyColors.current.surfaceRaised),
+            contentAlignment = Alignment.Center,
+        ) {
+            AiSparkleIcon(Modifier.size(20.dp))
+        }
+        Spacer(Modifier.width(12.dp))
+        Column {
+            Text("Create with AI", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                "Describe a goal and get habit ideas",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }
 
 @Composable

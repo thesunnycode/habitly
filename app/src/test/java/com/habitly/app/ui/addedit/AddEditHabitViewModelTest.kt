@@ -170,6 +170,31 @@ class AddEditHabitViewModelTest {
         assertEquals(8, s.targetCount)
     }
 
+    @Test fun anIntervalTemplatePrefillsTheStep() = runTest {
+        val vm = AddEditHabitViewModel(fake, habitId = null); advanceUntilIdle()
+        vm.onTemplateSelected(
+            com.habitly.app.domain.HabitTemplate(
+                "Deep clean", "star", "#51CF66", "General",
+                frequencyType = FrequencyType.INTERVAL, intervalDays = 3,
+            ),
+        )
+        assertEquals(FrequencyType.INTERVAL, vm.uiState.value.frequencyType)
+        assertEquals(3, vm.uiState.value.intervalDays)
+    }
+
+    @Test fun aDraftPrefillsTheFormAndIsNotDirty() = runTest {
+        val draft = com.habitly.app.domain.HabitTemplate(
+            "Wind down", "sleep", "#748FFC", "Health", reminderTime = "22:15",
+        )
+        val vm = AddEditHabitViewModel(fake, habitId = null, templateKey = "drink_water", draft = draft); advanceUntilIdle()
+        val s = vm.uiState.value
+        assertEquals("Wind down", s.name)
+        assertEquals("sleep", s.icon)
+        assertEquals("#748FFC", s.colorHex)
+        assertEquals("22:15", s.reminderTime)
+        assertFalse(s.isDirty)
+    }
+
     @Test fun savingPersistsCategoryAndReminder() = runTest {
         val vm = AddEditHabitViewModel(fake, habitId = null); advanceUntilIdle()
         vm.onNameChange("Stretch"); vm.onCategoryChange("Fitness"); vm.onReminderTimeChange("07:15")

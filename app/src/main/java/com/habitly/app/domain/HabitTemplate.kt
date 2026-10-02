@@ -18,6 +18,8 @@ data class HabitTemplate(
     val targetCount: Int? = null,
     val unit: String? = null,
     val reminderTime: String? = null,
+    /** Step for [FrequencyType.INTERVAL] templates; ignored for every other schedule. */
+    val intervalDays: Int? = null,
 ) {
     /** Stable navigation key: lower-cased name, each run of non-alphanumerics collapsed to one underscore. */
     val key: String
@@ -37,7 +39,7 @@ fun HabitTemplate.toEntity(createdAt: Long): HabitEntity = HabitEntity(
     frequencyDays = specificDays
         .takeIf { frequencyType == FrequencyType.SPECIFIC_DAYS && it.isNotEmpty() }
         ?.sorted()?.joinToString(",") { it.name },
-    intervalDays = null,
+    intervalDays = if (frequencyType == FrequencyType.INTERVAL) intervalDays else null,
     reminderTime = reminderTime,
     createdAt = createdAt,
     isArchived = false,

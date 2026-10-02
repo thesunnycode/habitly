@@ -23,6 +23,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Archive
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.DeleteOutline
@@ -113,6 +114,7 @@ fun HabitsScreen(
     onMove: (fromId: Long, toId: Long) -> Unit,
     onHabitClick: (Long) -> Unit,
     onAddHabit: (HabitTemplate?) -> Unit,
+    onCreateWithAi: () -> Unit = {},
 ) {
     var showTemplates by rememberSaveable { mutableStateOf(false) }
     var deleteTargetId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -144,6 +146,9 @@ fun HabitsScreen(
                 actions = {
                     if (uiState.segment == HabitsSegment.ACTIVE) {
                         SortMenu(uiState.sort, onSortChange)
+                    }
+                    IconButton(onClick = onCreateWithAi) {
+                        Icon(Icons.Rounded.AutoAwesome, contentDescription = "Create with AI")
                     }
                     IconButton(onClick = { showTemplates = true }) {
                         Icon(Icons.Rounded.Add, contentDescription = "New habit")
@@ -192,6 +197,10 @@ fun HabitsScreen(
             onPick = { template ->
                 showTemplates = false
                 onAddHabit(template)
+            },
+            onCreateWithAi = {
+                showTemplates = false
+                onCreateWithAi()
             },
         )
     }

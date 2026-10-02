@@ -28,6 +28,9 @@ import com.habitly.app.ui.achievements.AchievementsViewModel
 import com.habitly.app.ui.achievements.LocalBadgeCelebrationShowing
 import com.habitly.app.ui.addedit.AddEditHabitScreen
 import com.habitly.app.ui.addedit.AddEditHabitViewModel
+import com.habitly.app.ui.create.AiDraftStore
+import com.habitly.app.ui.create.CreateWithAiScreen
+import com.habitly.app.ui.create.CreateWithAiViewModel
 import com.habitly.app.ui.calendar.CalendarScreen
 import com.habitly.app.ui.calendar.CalendarViewModel
 import com.habitly.app.ui.components.CenteredContent
@@ -144,6 +147,7 @@ fun HabitlyNavHost(
                     },
                     onCelebrationShown = viewModel::onCelebrationShown,
                     windowWidthSizeClass = windowWidthSizeClass,
+                    onCreateWithAi = { navController.navigate(Destination.CreateWithAi.route) },
                 )
             }
         }
@@ -172,6 +176,7 @@ fun HabitlyNavHost(
                     onAddHabit = { template ->
                         navController.navigate(Destination.AddEditHabit.createRoute(template = template?.key))
                     },
+                    onCreateWithAi = { navController.navigate(Destination.CreateWithAi.route) },
                 )
             }
         }
@@ -290,16 +295,52 @@ fun HabitlyNavHost(
                 )
             }
         }
+        composable(Destination.CreateWithAi.route) {
+            val viewModel = habitlyViewModel {
+                CreateWithAiViewModel(
+                    gateway = AiServices.gateway(appContext),
+                    data = repository,
+                    allowConsent = { AiServices.prefs(appContext).setAiConsent(true) },
+                )
+            }
+            val uiState by viewModel.uiState.collectAsState()
+            CenteredContent {
+                CreateWithAiScreen(
+                    uiState = uiState,
+                    onTextChange = viewModel::onTextChange,
+                    onChip = viewModel::onChip,
+                    onSuggest = viewModel::onSuggest,
+                    onTryAgain = viewModel::onTryAgain,
+                    onAdd = viewModel::onAdd,
+                    onUndo = viewModel::onUndo,
+                    onAddAll = viewModel::onAddAll,
+                    onDismiss = viewModel::onDismiss,
+                    onEdit = { key ->
+                        viewModel.onEdit(key)?.let { draft ->
+                            navController.navigate(Destination.AddEditHabit.createRoute(draft = draft))
+                        }
+                    },
+                    onConsentAllowed = viewModel::onConsentAllowed,
+                    onConsentDismissed = viewModel::onConsentDismissed,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+        }
         composable(
             route = Destination.AddEditHabit.route,
             arguments = listOf(
                 navArgument("habitId") { type = NavType.LongType; defaultValue = -1L },
                 navArgument("template") { type = NavType.StringType; defaultValue = "" },
+                navArgument("draft") { type = NavType.StringType; defaultValue = "" },
             ),
         ) { backStackEntry ->
             val habitId = (backStackEntry.arguments?.getLong("habitId") ?: -1L).takeIf { it != -1L }
             val templateKey = backStackEntry.arguments?.getString("template")?.takeIf { it.isNotEmpty() }
-            val viewModel = habitlyViewModel { AddEditHabitViewModel(repository, habitId, templateKey) }
+            // `take` removes the draft, so `remember` keeps it across recompositions.
+            val draft = remember(backStackEntry) {
+                backStackEntry.arguments?.getString("draft")?.takeIf { it.isNotEmpty() }?.let(AiDraftStore::take)
+            }
+            val viewModel = habitlyViewModel { AddEditHabitViewModel(repository, habitId, templateKey, draft) }
             val uiState by viewModel.uiState.collectAsState()
             val weekStart by prefs.weekStart.collectAsState(initial = java.time.DayOfWeek.MONDAY)
             if (uiState.isSaved || uiState.isNotFound) {

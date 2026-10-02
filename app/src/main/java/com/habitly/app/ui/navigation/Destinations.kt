@@ -15,9 +15,10 @@ sealed class Destination(val route: String) {
     data object Awards : Destination("awards")
     data object Settings : Destination("settings")
     data object Reminders : Destination("reminders")
-    data object AddEditHabit : Destination("add_edit_habit?habitId={habitId}&template={template}") {
-        fun createRoute(habitId: Long? = null, template: String? = null) =
-            "add_edit_habit?habitId=${habitId ?: -1L}&template=${template.orEmpty()}"
+    data object CreateWithAi : Destination("create_with_ai")
+    data object AddEditHabit : Destination("add_edit_habit?habitId={habitId}&template={template}&draft={draft}") {
+        fun createRoute(habitId: Long? = null, template: String? = null, draft: String? = null) =
+            "add_edit_habit?habitId=${habitId ?: -1L}&template=${template.orEmpty()}&draft=${draft.orEmpty()}"
     }
     data object HabitDetail : Destination("habit_detail/{habitId}") {
         fun createRoute(habitId: Long) = "habit_detail/$habitId"

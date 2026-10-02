@@ -19,8 +19,13 @@ class DestinationsTest {
         assertFalse(isTabRoute("habits"))
     }
     @Test fun `add edit route encodes id and template`() {
-        assertEquals("add_edit_habit?habitId=-1&template=drink_water", Destination.AddEditHabit.createRoute(template = "drink_water"))
-        assertEquals("add_edit_habit?habitId=5&template=", Destination.AddEditHabit.createRoute(habitId = 5))
+        assertEquals("add_edit_habit?habitId=-1&template=drink_water&draft=", Destination.AddEditHabit.createRoute(template = "drink_water"))
+        assertEquals("add_edit_habit?habitId=5&template=&draft=", Destination.AddEditHabit.createRoute(habitId = 5))
+    }
+    @Test fun `add edit route carries an AI draft key`() {
+        assertEquals("add_edit_habit?habitId=-1&template=&draft=d3", Destination.AddEditHabit.createRoute(draft = "d3"))
+        assertEquals("create_with_ai", Destination.CreateWithAi.route)
+        assertFalse(isTabRoute(Destination.CreateWithAi.route))
     }
     @Test fun `every template has a unique key that resolves back`() {
         val all = HabitTemplates.groups.flatMap { it.templates }

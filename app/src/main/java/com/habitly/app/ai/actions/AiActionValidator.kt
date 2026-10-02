@@ -12,6 +12,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.format.ResolverStyle
 
 /** An AI-proposed action that has been checked against the user's current data and is safe to offer. */
 sealed interface ValidAction {
@@ -37,7 +38,7 @@ object AiActionValidator {
     private const val MAX_LABEL = 28
     private const val MAX_REST_AHEAD_DAYS = 7L
     private val GOAL_RANGE = 1..999
-    private val timeFormat = DateTimeFormatter.ofPattern("HH:mm")
+    private val timeFormat = DateTimeFormatter.ofPattern("HH:mm").withResolverStyle(ResolverStyle.STRICT)
 
     fun validate(
         action: AiActionDto,

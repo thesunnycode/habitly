@@ -21,6 +21,7 @@ class AddEditHabitViewModel(
     private val repository: HabitDataSource,
     habitId: Long?,
     templateKey: String? = null,
+    draft: HabitTemplate? = null,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AddEditUiState(habitId = habitId))
@@ -34,7 +35,7 @@ class AddEditHabitViewModel(
 
     init {
         if (habitId == null) {
-            templateKey?.let(HabitTemplates::byKey)?.let(::onTemplateSelected)
+            (draft ?: templateKey?.let(HabitTemplates::byKey))?.let(::onTemplateSelected)
             resetBaseline()
         }
         viewModelScope.launch {
@@ -112,6 +113,7 @@ class AddEditHabitViewModel(
             category = template.category,
             frequencyType = template.frequencyType,
             specificDays = template.specificDays,
+            intervalDays = template.intervalDays,
             targetCount = template.targetCount,
             unit = template.unit.orEmpty(),
             reminderTime = template.reminderTime,
