@@ -305,7 +305,7 @@ private fun DeltaChip(delta: Float, period: StatsPeriod, modifier: Modifier = Mo
  * tones, with days before the habit existed drawn faint.
  */
 @Composable
-private fun WindowGrid(model: GridModel, weekStart: DayOfWeek) {
+internal fun WindowGrid(model: GridModel, weekStart: DayOfWeek) {
     val extras = LocalHabitlyColors.current
     val aligned = model.period == StatsPeriod.MONTH
     val rows = remember(model.window, weekStart, aligned) { StatsGridMath.weekRows(model.window, weekStart, aligned) }

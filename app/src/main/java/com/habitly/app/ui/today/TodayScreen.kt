@@ -75,6 +75,7 @@ import com.habitly.app.ui.components.ProgressRing
 import com.habitly.app.ui.components.SecondaryButton
 import com.habitly.app.ui.components.SectionLabel
 import com.habitly.app.ui.components.WeekStrip
+import com.habitly.app.ui.review.WeekReviewBanner
 import com.habitly.app.ui.theme.HabitlyTheme
 import com.habitly.app.ui.theme.LocalHabitlyColors
 import com.habitly.app.ui.theme.LocalReduceMotion
@@ -125,6 +126,9 @@ fun TodayScreen(
     now: LocalTime = LocalTime.now(),
     onCreateWithAi: () -> Unit = {},
     onOpenCoach: () -> Unit = {},
+    showReviewBanner: Boolean = false,
+    onOpenReview: () -> Unit = {},
+    onDismissReview: () -> Unit = {},
 ) {
     var showTemplates by rememberSaveable { mutableStateOf(false) }
     var statusTargetId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -185,6 +189,7 @@ fun TodayScreen(
                     TodayHeader(uiState, now, onOpenCoach)
                     TodayWeekStrip(uiState, today, onSelectDate)
                     forecast?.let { ForecastStrip(it, onHabitClick = onHabitClick, onInfo = { showForecastInfo = true }) }
+                    if (showReviewBanner && uiState.isViewingToday) WeekReviewBanner(onOpenReview, onDismissReview)
                     uiState.atRisk?.let { AtRiskBanner(it) }
                 }
                 LazyColumn(
@@ -204,6 +209,9 @@ fun TodayScreen(
                 item(key = "week") { TodayWeekStrip(uiState, today, onSelectDate, Modifier.padding(top = 6.dp)) }
                 forecast?.let { f ->
                     item(key = "forecast") { ForecastStrip(f, onHabitClick = onHabitClick, onInfo = { showForecastInfo = true }) }
+                }
+                if (showReviewBanner && uiState.isViewingToday) {
+                    item(key = "review") { WeekReviewBanner(onOpenReview, onDismissReview) }
                 }
                 uiState.atRisk?.let { habit -> item(key = "risk") { AtRiskBanner(habit) } }
                 lists()

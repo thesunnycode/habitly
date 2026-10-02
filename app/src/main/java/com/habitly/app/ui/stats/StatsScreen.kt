@@ -28,6 +28,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.automirrored.rounded.TrendingDown
 import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material.icons.rounded.Bedtime
@@ -64,6 +65,7 @@ import com.habitly.app.ui.components.IconTile
 import com.habitly.app.ui.components.SectionLabel
 import com.habitly.app.ui.components.SegmentedPill
 import com.habitly.app.ui.components.StatTile
+import com.habitly.app.ui.components.SettingsRow
 import com.habitly.app.ui.theme.HabitlyTheme
 import com.habitly.app.ui.theme.LocalHabitlyColors
 import com.habitly.app.ui.theme.LocalReduceMotion
@@ -87,6 +89,8 @@ fun StatsScreen(
     onHabitFilterChange: (Long?) -> Unit = {},
     onHabitClick: (Long) -> Unit = {},
     weekStart: DayOfWeek = DayOfWeek.MONDAY,
+    onOpenWeekReview: (() -> Unit)? = null,
+    weekReviewAvailable: Boolean = true,
 ) {
     // The chips flip the moment they are tapped, but the figures take a rebuild to catch up. Until
     // they do, keep drawing the last state whose figures matched its own selection, so a habit's
@@ -113,6 +117,25 @@ fun StatsScreen(
         }
 
         item { StatsHeroCard(shown, weekStart, margin) }
+
+        if (onOpenWeekReview != null) {
+            item(key = "review") {
+                Surface(
+                    modifier = margin.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainer,
+                ) {
+                    SettingsRow(
+                        title = "Week in review",
+                        icon = Icons.Rounded.AutoAwesome,
+                        iconTint = MaterialTheme.colorScheme.primary,
+                        supporting = if (weekReviewAvailable) "Last week, told as a story" else "Available after 3 days of tracking",
+                        titleColor = if (weekReviewAvailable) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                        onClick = if (weekReviewAvailable) onOpenWeekReview else null,
+                    )
+                }
+            }
+        }
 
         item { RecordTiles(shown, margin) }
 

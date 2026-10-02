@@ -39,6 +39,10 @@ import com.habitly.app.ui.coach.CoachSheet
 import com.habitly.app.ui.coach.CoachViewModel
 import com.habitly.app.ui.components.LocalSnackbarHostState
 import com.habitly.app.ui.create.AiDraftStore
+import com.habitly.app.ui.review.ReviewEvent
+import com.habitly.app.ui.review.WeekReviewEntryViewModel
+import com.habitly.app.ui.review.WeekReviewScreen
+import com.habitly.app.ui.review.WeekReviewViewModel
 import com.habitly.app.ui.create.CreateWithAiScreen
 import com.habitly.app.ui.create.CreateWithAiViewModel
 import com.habitly.app.ui.calendar.CalendarScreen
@@ -125,6 +129,16 @@ fun HabitlyNavHost(
             // Retrains off the main thread only when the stored model is over a day old; check-ins just re-predict.
             LaunchedEffect(Unit) { forecastRepo.refreshIfStale() }
             var coachOpen by rememberSaveable { mutableStateOf(false) }
+            val aiPrefs = AiServices.prefs(appContext)
+            val reviewEntry = habitlyViewModel(key = "reviewEntry") {
+                WeekReviewEntryViewModel(
+                    data = repository,
+                    weekStart = prefs.weekStart,
+                    dismissedWeek = aiPrefs.reviewBannerDismissedWeek,
+                    dismiss = aiPrefs::setReviewBannerDismissedWeek,
+                )
+            }
+            val reviewEntryState by reviewEntry.uiState.collectAsState()
             val coachVm = habitlyViewModel(key = "coach") {
                 CoachViewModel(
                     gateway = AiServices.gateway(appContext),
@@ -204,6 +218,9 @@ fun HabitlyNavHost(
                     windowWidthSizeClass = windowWidthSizeClass,
                     onCreateWithAi = { navController.navigate(Destination.CreateWithAi.route) },
                     onOpenCoach = { coachOpen = true },
+                    showReviewBanner = reviewEntryState.bannerVisible,
+                    onOpenReview = { navController.navigate(Destination.WeekReview.route) },
+                    onDismissReview = reviewEntry::onDismissBanner,
                 )
             }
         }
@@ -246,6 +263,16 @@ fun HabitlyNavHost(
             val statsViewModel = habitlyViewModel { StatsViewModel(repository) }
             val statsState by statsViewModel.uiState.collectAsState()
             val weekStart by prefs.weekStart.collectAsState(initial = java.time.DayOfWeek.MONDAY)
+            val insightsAiPrefs = AiServices.prefs(appContext)
+            val reviewEntry = habitlyViewModel(key = "reviewEntry") {
+                WeekReviewEntryViewModel(
+                    data = repository,
+                    weekStart = prefs.weekStart,
+                    dismissedWeek = insightsAiPrefs.reviewBannerDismissedWeek,
+                    dismiss = insightsAiPrefs::setReviewBannerDismissedWeek,
+                )
+            }
+            val reviewEntryState by reviewEntry.uiState.collectAsState()
             CenteredContent(enabled = !twoPane) {
                 InsightsScreen(
                     tab = tab,
@@ -262,6 +289,8 @@ fun HabitlyNavHost(
                             onHabitFilterChange = statsViewModel::onHabitFilterChange,
                             onHabitClick = { id -> navController.navigate(Destination.HabitDetail.createRoute(id)) },
                             weekStart = weekStart,
+                            onOpenWeekReview = { navController.navigate(Destination.WeekReview.route) },
+                            weekReviewAvailable = reviewEntryState.available,
                         )
                     },
                     calendar = {
@@ -350,6 +379,46 @@ fun HabitlyNavHost(
                     onBack = { navController.popBackStack() },
                 )
             }
+        }
+        composable(Destination.WeekReview.route) {
+            val aiPrefs = AiServices.prefs(appContext)
+            val weekStart by prefs.weekStart.collectAsState(initial = java.time.DayOfWeek.MONDAY)
+            val viewModel = habitlyViewModel {
+                WeekReviewViewModel(
+                    gateway = AiServices.gateway(appContext),
+                    context = AiContextSource(repository),
+                    data = repository,
+                    cacheJson = aiPrefs.reviewCacheJson,
+                    saveCacheJson = aiPrefs::setReviewCacheJson,
+                    weekStart = prefs.weekStart,
+                    validation = { AiActionValidator.snapshot(repository) },
+                    runner = AiActionRunner(repository),
+                    allowConsent = { aiPrefs.setAiConsent(true) },
+                )
+            }
+            val uiState by viewModel.uiState.collectAsState()
+            val snackbar = LocalSnackbarHostState.current
+            LaunchedEffect(viewModel) {
+                viewModel.events.collect { event ->
+                    when (event) {
+                        is ReviewEvent.Applied -> launch {
+                            val result = snackbar.showSnackbar(event.message, actionLabel = "Undo", duration = SnackbarDuration.Short)
+                            if (result == SnackbarResult.ActionPerformed) event.undo()
+                        }
+                        ReviewEvent.ActionFailed -> launch { snackbar.showSnackbar("Couldn\u2019t apply that \u2014 try again") }
+                    }
+                }
+            }
+            WeekReviewScreen(
+                uiState = uiState,
+                onClose = { navController.popBackStack() },
+                onApply = viewModel::onApply,
+                onRegenerate = viewModel::onRegenerate,
+                onRetry = viewModel::onRetry,
+                onConsentAllowed = viewModel::onConsentAllowed,
+                onConsentDismissed = viewModel::onConsentDismissed,
+                weekStart = weekStart,
+            )
         }
         composable(Destination.CreateWithAi.route) {
             val viewModel = habitlyViewModel {
