@@ -35,7 +35,7 @@ Run these from the repository root.
    npx wrangler secret put APP_TOKEN
    ```
    `OPENAI_API_KEY` is your OpenAI key. `APP_TOKEN` is any long random string (a password manager can
-   generate one). Keep a copy of the token, because the app needs the same value in step 3.
+   generate one). Keep a copy of the token, because the app needs the same value in section 3.
 4. Optional: change `OPENAI_MODEL` (default `gpt-5-mini`), `DEVICE_DAILY_LIMIT` (default 30) or
    `GLOBAL_DAILY_LIMIT` (default 500) under `[vars]` in `proxy/wrangler.toml`.
 5. Deploy:
@@ -106,7 +106,7 @@ Without the four signing properties the release build still succeeds but produce
 ## 6. Demo tips
 
 - **No internet, or a proxy that is not deployed:** in Settings, tap the "AI features" heading 5 times to
-  reveal the **Demo AI** switch. It answers every AI feature with canned responses and needs no consent or
+  reveal the **Demo AI** switch. The main "AI features" switch must stay on. It answers every AI feature with canned responses and needs no consent or
   network. It also stays visible while it is switched on.
 - **Today's forecast** works fully offline, because the model runs on the phone.
 - With Demo AI off and no proxy configured, AI screens show "AI isn't set up in this build".
@@ -129,8 +129,9 @@ Without the four signing properties the release build still succeeds but produce
 |---|---|---|
 | Proxy answers 401 | The token in the APK differs from the Worker's `APP_TOKEN` | Make `habitly.aiAppToken` match, rebuild |
 | Proxy answers 400 | Missing or malformed `X-Device-Id`, bad JSON or body over 32 KB | Use the app; for curl tests send a UUID in `X-Device-Id` |
-| 429, "Daily AI limit reached" | The device or global daily cap is used up | Wait for the reset, or raise the limit in `wrangler.toml` and redeploy |
+| 429, "Daily AI limit reached" | The device or global daily cap is used up | Caps reset at midnight UTC, or raise the limit in `wrangler.toml` and redeploy |
+| "Something went wrong. Try again." | The app's message for any 401, 400, 502 or timeout | Check the rows above with `npx wrangler tail` running in `proxy/` |
 | 502 | OpenAI failed twice: bad key, billing or spend limit reached, wrong model name | Run `npx wrangler tail` in `proxy/` and retry from the app |
 | "AI isn't set up in this build" | `habitly.aiBaseUrl` or `habitly.aiAppToken` was empty when the app was built | Fill both in `local.properties` and rebuild |
 | "AI needs an internet connection" | The phone is offline or the Worker URL is wrong | Check the URL with the `/v1/health` call |
-| `app-release-unsigned.apk` will not install | No signing properties | Complete step 4 of the release build |
+| `app-release-unsigned.apk` will not install | No signing properties | Follow the release steps in section 4 |

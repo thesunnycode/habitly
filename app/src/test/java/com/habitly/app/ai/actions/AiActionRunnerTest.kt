@@ -23,8 +23,21 @@ private class RecordingData(var habit: HabitEntity?, val statuses: MutableMap<Lo
     HabitDataSource {
     val calls = mutableListOf<String>()
     var fail = false
+    var cancel = false
+    /** Extra fields per day (progress, note, time), as a real log row would carry them. */
+    val rows = mutableMapOf<LocalDate, HabitLogEntity>()
+    val restored = mutableListOf<HabitLogEntity?>()
 
-    private fun check() { if (fail) error("db down") }
+    override suspend fun restoreLog(habitId: Long, date: LocalDate, previous: HabitLogEntity?) {
+        restored += previous
+        calls += "restore:$habitId:$date:${previous?.status}:${previous?.progress}"
+        if (previous == null) statuses.remove(date) else statuses[date] = previous.status
+    }
+
+    private fun check() {
+        if (cancel) throw kotlinx.coroutines.CancellationException("left the screen")
+        if (fail) error("db down")
+    }
 
     override suspend fun getHabit(habitId: Long): HabitEntity? = habit
     override suspend fun setReminder(habitId: Long, time: String?) { check(); calls += "reminder:$habitId:$time" }
@@ -36,7 +49,9 @@ private class RecordingData(var habit: HabitEntity?, val statuses: MutableMap<Lo
         return emptySet()
     }
     override fun observeAllLogs(): Flow<List<HabitLogEntity>> = flowOf(
-        statuses.map { (d, s) -> HabitLogEntity(habitId = habit?.id ?: 0, date = d.toString(), status = s, completedAt = null, note = null) },
+        statuses.map { (d, s) ->
+            rows[d]?.copy(status = s) ?: HabitLogEntity(habitId = habit?.id ?: 0, date = d.toString(), status = s, completedAt = null, note = null)
+        },
     )
 
     override fun observeHabitsWithStats(today: LocalDate): Flow<List<HabitWithStats>> = flowOf(emptyList())
@@ -116,7 +131,7 @@ class AiActionRunnerTest {
         assertEquals("Rest day planned for Sat 3 Oct", out.message)
         assertEquals(CompletionStatus.SKIPPED, data.statuses[date])
         out.undo()
-        assertEquals("status:7:$date:null", data.calls.last())
+        assertEquals("restore:7:$date:null:null", data.calls.last())
         assertTrue(data.statuses.isEmpty())
     }
 
@@ -135,6 +150,61 @@ class AiActionRunnerTest {
         assertEquals(CompletionStatus.DONE, data.statuses[today])
         done.undo()
         assertEquals(CompletionStatus.MISSED, data.statuses[today])
+    }
+
+    @Test fun undoRestoresAGoalHabitsPartialCountNoteAndTime() = runTest {
+        val data = fake().also {
+            it.statuses[today] = CompletionStatus.PARTIAL
+            it.rows[today] = HabitLogEntity(
+                id = 3, habitId = 7, date = today.toString(), status = CompletionStatus.PARTIAL,
+                completedAt = 123L, note = "half way", progress = 2,
+            )
+        }
+        val out = applied(AiActionRunner(data), ValidAction.LogDone(7, "x"))
+        out.undo()
+        val previous = data.restored.single()!!
+        assertEquals(CompletionStatus.PARTIAL, previous.status)
+        assertEquals(2, previous.progress)
+        assertEquals("half way", previous.note)
+        assertEquals(123L, previous.completedAt)
+    }
+
+    @Test fun undoOnlyRevertsWhatTheActionChanged() = runTest {
+        val data = fake()
+        val runner = AiActionRunner(data)
+        val days = applied(runner, ValidAction.SetDays(7, "x", setOf(DayOfWeek.MONDAY)))
+        // The user renames the habit and moves its reminder before tapping Undo.
+        data.habit = data.habit!!.copy(name = "Evening run", reminderTime = "19:30")
+        days.undo()
+        assertEquals(original.copy(name = "Evening run", reminderTime = "19:30"), data.habit)
+
+        val goal = applied(runner, ValidAction.SetGoal(7, "x", 9))
+        data.habit = data.habit!!.copy(colorHex = "#000000")
+        goal.undo()
+        assertEquals(original.targetCount, data.habit!!.targetCount)
+        assertEquals("#000000", data.habit!!.colorHex)
+    }
+
+    @Test fun everyDayReadsAsDaily() = runTest {
+        val out = applied(AiActionRunner(fake()), ValidAction.SetDays(7, "x", DayOfWeek.entries.toSet()))
+        assertEquals("Now daily", out.message)
+    }
+
+    @Test fun cancellationIsNotSwallowed() = runTest {
+        val data = fake().also { it.cancel = true }
+        val thrown = runCatching { AiActionRunner(data).run(ValidAction.SetGoal(7, "x", 2), today) }.exceptionOrNull()
+        assertTrue(thrown is kotlinx.coroutines.CancellationException)
+    }
+
+    @Test fun everyWritingActionFailsCleanly() = runTest {
+        val actions = listOf(
+            ValidAction.SetReminder(7, "x", "08:00"), ValidAction.SetDays(7, "x", setOf(DayOfWeek.MONDAY)),
+            ValidAction.SetRestDay(7, "x", today), ValidAction.LogDone(7, "x"), ValidAction.RestToday(7, "x"),
+        )
+        for (action in actions) {
+            val data = fake().also { it.fail = true }
+            assertEquals(action.toString(), ActionOutcome.Failed, AiActionRunner(data).run(action, today))
+        }
     }
 
     @Test fun openHabitNavigates() = runTest {

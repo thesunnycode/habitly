@@ -45,6 +45,28 @@ class HabitRepositoryTest {
     )
 
     @Test
+    fun restoreLogPutsBackTheWholeRowOrClearsIt() = runBlocking {
+        val id = repo.addHabit(newHabit().copy(targetCount = 5, unit = "cups"))
+        val day = LocalDate.of(2026, 8, 22)
+        repo.incrementProgress(id, day)
+        repo.incrementProgress(id, day)
+        val before = db.habitLogDao().getLog(id, day.toString())!!
+        assertEquals(CompletionStatus.PARTIAL, before.status)
+        assertEquals(2, before.progress)
+
+        repo.setStatus(id, day, CompletionStatus.DONE)
+        repo.restoreLog(id, day, before)
+        val after = db.habitLogDao().getLog(id, day.toString())!!
+        assertEquals(CompletionStatus.PARTIAL, after.status)
+        assertEquals(2, after.progress)
+        assertEquals(before.completedAt, after.completedAt)
+        assertEquals(1, db.habitLogDao().observeAllLogs().first().count { it.habitId == id })
+
+        repo.restoreLog(id, day, null)
+        assertNull(db.habitLogDao().getLog(id, day.toString()))
+    }
+
+    @Test
     fun observeHabitsWithStatsReflectsAFreshHabitAsNotCompletedToday() = runBlocking {
         repo.addHabit(newHabit())
         val today = LocalDate.of(2026, 8, 22)

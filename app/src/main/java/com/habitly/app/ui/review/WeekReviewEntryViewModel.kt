@@ -6,7 +6,9 @@ import com.habitly.app.data.repository.HabitDataSource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
@@ -28,11 +30,13 @@ class WeekReviewEntryViewModel(
     dismissedWeek: Flow<String?>,
     private val dismiss: suspend (String) -> Unit,
     private val now: () -> LocalDateTime = { LocalDateTime.now() },
+    /** Re-checks the clock; the banner opens at 18:00 on the last day and closes two days later. */
+    ticks: Flow<Unit> = minuteTicks(),
 ) : ViewModel() {
 
     val uiState: StateFlow<WeekReviewEntryState> = combine(
-        data.observeAllHabits(), data.observeAllLogs(), weekStart, dismissedWeek,
-    ) { habits, logs, ws, dismissed ->
+        data.observeAllHabits(), data.observeAllLogs(), weekStart, dismissedWeek, ticks,
+    ) { habits, logs, ws, dismissed, _ ->
         val current = now()
         val days = WeekReviewSchedule.trackingDays(habits, logs, current.toLocalDate())
         WeekReviewEntryState(
@@ -41,6 +45,15 @@ class WeekReviewEntryViewModel(
             weekStart = WeekReviewSchedule.reviewWeekStart(current, ws).toString(),
         )
     }.stateIn(viewModelScope, SharingStarted.Eagerly, WeekReviewEntryState())
+
+    private companion object {
+        fun minuteTicks(): Flow<Unit> = flow {
+            while (true) {
+                emit(Unit)
+                delay(60_000)
+            }
+        }
+    }
 
     fun onDismissBanner() {
         val week = uiState.value.weekStart ?: return

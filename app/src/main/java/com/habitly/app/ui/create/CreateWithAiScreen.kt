@@ -101,8 +101,11 @@ fun CreateWithAiScreen(
     val listState = rememberLazyListState()
     // Results land below the fold on a phone; bring them into view when they arrive.
     val hasResults = uiState.visibleCards.isNotEmpty()
+    val reduceMotion = LocalReduceMotion.current
     LaunchedEffect(hasResults) {
-        if (hasResults) listState.animateScrollToItem(RESULTS_ITEM_INDEX_HINT.coerceAtMost(listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0))
+        if (!hasResults) return@LaunchedEffect
+        val target = RESULTS_ITEM_INDEX_HINT.coerceAtMost(listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0)
+        if (reduceMotion) listState.scrollToItem(target) else listState.animateScrollToItem(target)
     }
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
         ScreenHeader(

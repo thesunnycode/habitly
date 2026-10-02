@@ -176,11 +176,17 @@ fun HabitlyNavHost(
                     onAction = coachVm::onAction,
                     onRetry = coachVm::onRetry,
                     onConsentAllowed = coachVm::onConsentAllowed,
-                    onConsentDismissed = coachVm::onConsentDismissed,
+                    // Without consent there is nothing the coach can do, so "Not now" closes it too.
+                    onConsentDismissed = {
+                        coachVm.onConsentDismissed()
+                        coachOpen = false
+                        coachVm.reset()
+                    },
                     onDismiss = {
                         coachOpen = false
                         coachVm.reset()
                     },
+                    onUndo = coachVm::onUndo,
                 )
             }
             val viewModel = habitlyViewModel {
@@ -417,7 +423,11 @@ fun HabitlyNavHost(
                     onRegenerate = viewModel::onRegenerate,
                     onRetry = viewModel::onRetry,
                     onConsentAllowed = viewModel::onConsentAllowed,
-                    onConsentDismissed = viewModel::onConsentDismissed,
+                    // Without consent the review cannot be written; "Not now" leaves the screen.
+                    onConsentDismissed = {
+                        viewModel.onConsentDismissed()
+                        navController.popBackStack()
+                    },
                     weekStart = weekStart,
                 )
             }

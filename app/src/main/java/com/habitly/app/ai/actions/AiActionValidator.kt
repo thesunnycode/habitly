@@ -68,6 +68,8 @@ object AiActionValidator {
             "set_rest_day" -> {
                 val date = action.date?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: return null
                 if (date.isBefore(today) || date.isAfter(today.plusDays(MAX_REST_AHEAD_DAYS)) || !dueOn(date)) return null
+                // Same guard as rest_today: never turn a kept day into a rest day.
+                if (ctx.statuses[id to date] == CompletionStatus.DONE) return null
                 ValidAction.SetRestDay(id, label("Plan a rest day"), date)
             }
             "set_goal" -> {
@@ -84,7 +86,10 @@ object AiActionValidator {
 
     suspend fun snapshot(data: HabitDataSource): ValidationContext = ValidationContext(
         habits = data.observeAllHabits().first().filter { !it.isArchived }.associateBy { it.id },
-        statuses = data.observeAllLogs().first().associate { (it.habitId to LocalDate.parse(it.date)) to it.status },
+        // A malformed date drops that one row rather than the whole snapshot.
+        statuses = data.observeAllLogs().first()
+            .mapNotNull { log -> runCatching { LocalDate.parse(log.date) }.getOrNull()?.let { (log.habitId to it) to log.status } }
+            .toMap(),
     )
 
     private fun isValidTime(t: String): Boolean =

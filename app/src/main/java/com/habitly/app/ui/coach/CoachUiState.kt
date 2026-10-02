@@ -12,6 +12,8 @@ data class CoachMessage(
     val actions: List<ValidAction> = emptyList(),
     /** What an applied action did, shown under the bubble in case the snackbar is hidden behind the sheet. */
     val appliedNote: String? = null,
+    /** The applied action can still be undone from the bubble. */
+    val canUndo: Boolean = false,
 )
 
 data class CoachUiState(

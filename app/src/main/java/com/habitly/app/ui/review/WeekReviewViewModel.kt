@@ -70,7 +70,14 @@ class WeekReviewViewModel(
 
     fun onConsentAllowed() {
         viewModelScope.launch {
-            allowConsent()
+            try {
+                allowConsent()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update { it.copy(needsConsent = false, error = AiResult.Failed("consent not saved")) }
+                return@launch
+            }
             _uiState.update { it.copy(needsConsent = false) }
             load(force = false)
         }

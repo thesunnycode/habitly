@@ -27,7 +27,7 @@ android {
         buildConfigField("String", "AI_APP_TOKEN", "\"${localProps.getProperty("habitly.aiAppToken", "")}\"")
     }
 
-    // Optional: only when the four habitly.key* properties are in local.properties. Without them
+    // Optional: only when habitly.keystore.path/password and habitly.key.alias/password are in local.properties. Without them
     // assembleRelease still builds, just unsigned. Never commit a keystore or its passwords.
     signingConfigs {
         val keystorePath = localProps.getProperty("habitly.keystore.path")

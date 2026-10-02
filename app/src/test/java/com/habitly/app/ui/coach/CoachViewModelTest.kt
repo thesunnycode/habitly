@@ -226,6 +226,68 @@ class CoachViewModelTest {
         assertEquals("Logged Run", after.appliedNote)
     }
 
+    @Test fun undoFromTheBubbleRevertsOnceAndOffersTheActionAgain() = runTest {
+        api.result = AiResult.Success(CoachResponse("Do it", listOf(action("log_done"))), remaining = null)
+        val vm = vm()
+        vm.open()
+        advanceUntilIdle()
+        val message = vm.uiState.value.messages.single()
+        vm.onAction(message.id, message.actions.single())
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.messages.single().canUndo)
+        val event = vm.events.first() as CoachEvent.Applied
+
+        vm.onUndo(message.id)
+        advanceUntilIdle()
+        // The snackbar's Undo after the bubble's must not undo a second time.
+        event.undo()
+        advanceUntilIdle()
+        assertEquals(2, data.statusCalls.size) // apply + one undo
+        assertEquals(CompletionStatus.DONE, data.statusCalls[0].third)
+        val after = vm.uiState.value.messages.single()
+        assertEquals(listOf(ValidAction.LogDone(7, "Log it")), after.actions)
+        assertEquals(null, after.appliedNote)
+        assertFalse(after.canUndo)
+    }
+
+    @Test fun undoPutsTheActionBackInItsPlace() = runTest {
+        api.result = AiResult.Success(CoachResponse("Do it", listOf(action("log_done"), action("rest_today"))), remaining = null)
+        val vm = vm()
+        vm.open()
+        advanceUntilIdle()
+        val message = vm.uiState.value.messages.single()
+        vm.onAction(message.id, message.actions[1])
+        advanceUntilIdle()
+        vm.onUndo(message.id)
+        advanceUntilIdle()
+        assertEquals(message.actions, vm.uiState.value.messages.single().actions)
+    }
+
+    @Test fun doubleTapAppliesOnce() = runTest {
+        api.result = AiResult.Success(CoachResponse("Do it", listOf(action("log_done"))), remaining = null)
+        val vm = vm()
+        vm.open()
+        advanceUntilIdle()
+        val message = vm.uiState.value.messages.single()
+        vm.onAction(message.id, message.actions.single())
+        vm.onAction(message.id, message.actions.single())
+        advanceUntilIdle()
+        assertEquals(1, data.statusCalls.size)
+    }
+
+    @Test fun chipKeepsTheDraftAndLongRepliesAreTrimmedInHistory() = runTest {
+        api.result = AiResult.Success(CoachResponse("r".repeat(900)), remaining = null)
+        val vm = vm()
+        vm.open()
+        advanceUntilIdle()
+        vm.onInputChange("half-typed thought")
+        vm.onChip("Motivate me")
+        advanceUntilIdle()
+        assertEquals("half-typed thought", vm.uiState.value.input)
+        val history = api.requests.last().messages
+        assertTrue(history.all { it.text.length <= 600 })
+    }
+
     @Test fun failedActionEmitsActionFailedAndKeepsTheButton() = runTest {
         api.result = AiResult.Success(CoachResponse("Do it", listOf(action("log_done"))), remaining = null)
         val vm = vm()

@@ -53,7 +53,7 @@ private val WEEK = LocalDate.of(2026, 9, 28)
 private fun habit(id: Long, name: String, color: String, createdOn: LocalDate = WEEK.minusDays(20)) = HabitEntity(
     id = id, name = name, icon = "run", colorHex = color, category = "Fitness",
     frequencyType = FrequencyType.DAILY, frequencyDays = null, intervalDays = null, reminderTime = null,
-    createdAt = createdOn.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(), isArchived = false, sortOrder = id.toInt(),
+    createdAt = createdOn.atTime(12, 0).toInstant(ZoneOffset.UTC).toEpochMilli(), isArchived = false, sortOrder = id.toInt(),
 )
 
 private fun log(habitId: Long, date: LocalDate, status: CompletionStatus) =
@@ -171,6 +171,10 @@ class WeekReviewViewModelTest {
         val req = api.requests.single()
         assertEquals("2026-09-28", req.weekStart)
         assertEquals(2, req.habits.size)
+        // Summaries are built as of the week's last day (Sun 4 Oct), not today (Mon 5 Oct):
+        // the habits were created on 8 Sep, 26 days before 4 Oct.
+        assertEquals(26, req.habits.first().createdDaysAgo)
+        assertEquals(7, req.habits.first { it.id == 1L }.last7.done)
         assertEquals(1, saves)
         assertTrue(ReviewCache.decode(cache.value).containsKey("2026-09-28"))
 
@@ -181,8 +185,8 @@ class WeekReviewViewModelTest {
         val close = state.pages.last()
         assertEquals(PageKind.CLOSE, close.kind)
         assertEquals("See you next week", close.headline)
-        assertTrue(close.body.startsWith("Your next review is ready on "))
-        assertTrue(close.body.endsWith(" evening."))
+        val sunday = DayOfWeek.SUNDAY.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault())
+        assertEquals("Your next review is ready on $sunday evening.", close.body)
         assertEquals(6, state.remaining)
     }
 
@@ -206,9 +210,10 @@ class WeekReviewViewModelTest {
         assertEquals("Run", win.name)
         assertEquals("run", win.iconKey)
         assertEquals("#FF922B", win.colorHex)
-        assertEquals(7, win.weekdayRates.size)
-        assertTrue(win.currentStreak >= 7)
-        assertTrue(win.weekdayRates.all { it in 0f..1f })
+        assertEquals(7, win.currentStreak)
+        // Over the 28 days to 4 Oct: Run was due on 3 Mondays (8 Sep start) and 4 of every other
+        // weekday, and kept once each, in the review week.
+        assertEquals(listOf(1f / 3, 0.25f, 0.25f, 0.25f, 0.25f, 0.25f, 0.25f), win.weekdayRates)
 
         assertEquals(ValidAction.LogDone(1, "Log Run"), pages[3].action)
         // Unknown habit: the page stays, the visual and action do not.

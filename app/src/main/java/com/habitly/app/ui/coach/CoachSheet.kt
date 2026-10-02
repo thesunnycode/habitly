@@ -41,6 +41,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -87,11 +88,12 @@ fun CoachSheet(
     onConsentAllowed: () -> Unit,
     onConsentDismissed: () -> Unit,
     onDismiss: () -> Unit,
+    onUndo: (Int) -> Unit = {},
 ) {
     // At large font sizes the half-height sheet would hide the input row, so open it full height.
     val bigText = LocalDensity.current.fontScale > 1.3f
     HabitlySheet(onDismiss = onDismiss, title = "Quick coach", skipPartiallyExpanded = bigText) {
-        CoachSheetContent(uiState, onInputChange, onSend, onChip, onAction, onRetry)
+        CoachSheetContent(uiState, onInputChange, onSend, onChip, onAction, onRetry, onUndo)
     }
     if (uiState.needsConsent) ConsentSheet(onAllow = onConsentAllowed, onDismiss = onConsentDismissed)
 }
@@ -105,6 +107,7 @@ private fun CoachSheetContent(
     onChip: (String) -> Unit,
     onAction: (Int, ValidAction) -> Unit,
     onRetry: () -> Unit,
+    onUndo: (Int) -> Unit = {},
 ) {
     val listState = rememberLazyListState()
     val maxListHeight = (LocalConfiguration.current.screenHeightDp * 0.4f).dp.coerceAtMost(420.dp)
@@ -120,7 +123,7 @@ private fun CoachSheetContent(
         ) {
             items(uiState.messages, key = { it.id }) { message ->
                 when (message.role) {
-                    CoachRole.COACH -> CoachBubble(message, onAction)
+                    CoachRole.COACH -> CoachBubble(message, onAction, onUndo)
                     CoachRole.USER -> UserBubble(message)
                 }
             }
@@ -160,7 +163,7 @@ private fun CoachSheetContent(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun CoachBubble(message: CoachMessage, onAction: (Int, ValidAction) -> Unit) {
+private fun CoachBubble(message: CoachMessage, onAction: (Int, ValidAction) -> Unit, onUndo: (Int) -> Unit) {
     val reduceMotion = LocalReduceMotion.current
     // Starts hidden and flips on first composition so each new reply fades in; skipped under reduce motion.
     var visible by remember { mutableStateOf(reduceMotion) }
@@ -211,6 +214,10 @@ private fun CoachBubble(message: CoachMessage, onAction: (Int, ValidAction) -> U
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(note, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (message.canUndo) {
+                        Spacer(Modifier.width(4.dp))
+                        TextButton(onClick = { onUndo(message.id) }) { Text("Undo") }
+                    }
                 }
             }
         }
@@ -303,5 +310,14 @@ private fun CoachPreviewContent(state: CoachUiState) {
     HabitlyTheme(darkTheme = false) { CoachPreviewContent(CoachUiState(messages = previewMessages.take(1))) }
 @Preview @Composable private fun CoachTypingPreview() =
     HabitlyTheme(darkTheme = true) { CoachPreviewContent(CoachUiState(messages = previewMessages, isTyping = true, input = "hm")) }
+@Preview @Composable private fun CoachTypingLightPreview() =
+    HabitlyTheme(darkTheme = false) { CoachPreviewContent(CoachUiState(messages = previewMessages, isTyping = true, input = "hm")) }
 @Preview @Composable private fun CoachErrorPreview() =
     HabitlyTheme(darkTheme = true) { CoachPreviewContent(CoachUiState(messages = previewMessages, error = AiResult.Offline)) }
+@Preview @Composable private fun CoachErrorLightPreview() =
+    HabitlyTheme(darkTheme = false) { CoachPreviewContent(CoachUiState(messages = previewMessages, error = AiResult.Offline)) }
+@Preview @Composable private fun CoachAppliedPreview() = HabitlyTheme(darkTheme = true) {
+    CoachPreviewContent(
+        CoachUiState(messages = listOf(previewMessages[0].copy(actions = previewMessages[0].actions.drop(1), appliedNote = "Logged workout", canUndo = true))),
+    )
+}

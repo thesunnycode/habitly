@@ -14,6 +14,7 @@ import com.habitly.app.domain.FrequencyType
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -68,8 +69,13 @@ class WeekReviewEntryViewModelTest {
         weekStart = flowOf(DayOfWeek.MONDAY),
         dismissedWeek = dismissed,
         dismiss = { dismissed.value = it },
-        now = { monday9 },
+        now = { clock },
+        ticks = ticks.map { },
     )
+
+    private var clock = monday9
+    private val ticks = MutableStateFlow(0)
+
 
     @Test fun bannerVisibleMondayMorningWithFiveTrackingDays() = runTest {
         val vm = vm(daysAgo = 4)
@@ -88,6 +94,21 @@ class WeekReviewEntryViewModelTest {
         assertEquals("2026-09-28", dismissed.value)
         assertFalse(vm.uiState.value.bannerVisible)
         assertTrue(vm.uiState.value.available)
+    }
+
+    @Test fun bannerFollowsTheClockWithoutDataChanges() = runTest {
+        clock = LocalDateTime.of(2026, 10, 4, 17, 0)
+        val vm = vm(daysAgo = 4)
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.bannerVisible)
+        clock = LocalDateTime.of(2026, 10, 4, 18, 1)
+        ticks.value++
+        advanceUntilIdle()
+        assertTrue(vm.uiState.value.bannerVisible)
+        clock = LocalDateTime.of(2026, 10, 7, 9, 0)
+        ticks.value++
+        advanceUntilIdle()
+        assertFalse(vm.uiState.value.bannerVisible)
     }
 
     @Test fun availableTracksTheMinimumHistory() = runTest {

@@ -179,6 +179,8 @@ describe("coach", () => {
     expect(out.actions[0].label.length).toBeLessThanOrEqual(28);
   });
   it("reply is capped at 80 words", async () => {
+    const long: any = await ROUTES["/v1/coach"](body, llmReturning({ reply: Array(80).fill("x".repeat(20)).join(" "), actions: [] }));
+    expect(long.reply.length).toBeLessThanOrEqual(600);
     const out: any = await ROUTES["/v1/coach"](body, llmReturning({ reply: Array(120).fill("word").join(" "), actions: [] }));
     expect(out.reply.split(/\s+/).length).toBeLessThanOrEqual(80);
   });

@@ -28,7 +28,6 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.automirrored.rounded.TrendingDown
 import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material.icons.rounded.Bedtime
@@ -65,6 +64,7 @@ import com.habitly.app.ui.components.IconTile
 import com.habitly.app.ui.components.SectionLabel
 import com.habitly.app.ui.components.SegmentedPill
 import com.habitly.app.ui.components.StatTile
+import com.habitly.app.ai.ui.AiSparkleIcon
 import com.habitly.app.ui.components.SettingsRow
 import com.habitly.app.ui.theme.HabitlyTheme
 import com.habitly.app.ui.theme.LocalHabitlyColors
@@ -107,8 +107,34 @@ fun StatsScreen(
         // Nothing to say until the first build lands; the empty card would only flash.
         if (uiState.isLoading) return@LazyColumn
         val margin = Modifier.padding(horizontal = SCREEN_MARGIN)
+        // The review link is always offered; until there is enough history it explains why it is off.
+        val reviewItem: () -> Unit = {
+            if (onOpenWeekReview != null) {
+                item(key = "review") {
+                    Surface(
+                        modifier = margin.fillMaxWidth(),
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainer,
+                    ) {
+                        SettingsRow(
+                            title = "Week in review",
+                            leading = {
+                                Box(
+                                    Modifier.size(32.dp).clip(RoundedCornerShape(10.dp)).background(LocalHabitlyColors.current.surfaceRaised),
+                                    contentAlignment = Alignment.Center,
+                                ) { AiSparkleIcon(Modifier.size(18.dp)) }
+                            },
+                            supporting = if (weekReviewAvailable) "Last week, told as a story" else "Available after 3 days of tracking",
+                            titleColor = if (weekReviewAvailable) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
+                            onClick = if (weekReviewAvailable) onOpenWeekReview else null,
+                        )
+                    }
+                }
+            }
+        }
         if (!uiState.hasAnyHistory) {
             item { NothingYetCard(margin) }
+            reviewItem()
             return@LazyColumn
         }
 
@@ -118,24 +144,7 @@ fun StatsScreen(
 
         item { StatsHeroCard(shown, weekStart, margin) }
 
-        if (onOpenWeekReview != null) {
-            item(key = "review") {
-                Surface(
-                    modifier = margin.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainer,
-                ) {
-                    SettingsRow(
-                        title = "Week in review",
-                        icon = Icons.Rounded.AutoAwesome,
-                        iconTint = MaterialTheme.colorScheme.primary,
-                        supporting = if (weekReviewAvailable) "Last week, told as a story" else "Available after 3 days of tracking",
-                        titleColor = if (weekReviewAvailable) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                        onClick = if (weekReviewAvailable) onOpenWeekReview else null,
-                    )
-                }
-            }
-        }
+        reviewItem()
 
         item { RecordTiles(shown, margin) }
 

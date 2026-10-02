@@ -214,6 +214,17 @@ class HabitRepository(
         return evaluateAchievements()
     }
 
+    override suspend fun restoreLog(habitId: Long, date: LocalDate, previous: HabitLogEntity?) {
+        val dateStr = date.format(ISO)
+        if (previous == null) {
+            logDao.deleteLog(habitId, dateStr)
+        } else {
+            // Keep the current row's id so the restore replaces it rather than adding a second log.
+            val existing = logDao.getLog(habitId, dateStr)
+            logDao.upsert(previous.copy(id = existing?.id ?: 0, habitId = habitId, date = dateStr))
+        }
+    }
+
     override suspend fun reconcileAchievements(): Set<AchievementType> = evaluateAchievements()
 
     /** Habits (archived too), their logs and every badge, in one transaction so it never half-completes. */

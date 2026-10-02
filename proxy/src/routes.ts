@@ -83,7 +83,8 @@ async function coach(body: unknown, llm: Llm) {
   const ids = new Set(input.habits.map((h) => h.id));
   const out = await llm.parse(CoachOutput, "coach_reply", COACH_PROMPT, JSON.stringify(input), 1200);
   const actions = out.actions.map((a) => cleanAction(a, ids)).filter((a): a is Act => a !== null).slice(0, 2);
-  return { reply: words(out.reply, 80), actions };
+  // Capped in characters as well as words: the app sends this reply back as history, limited to 600.
+  return { reply: words(out.reply, 80).slice(0, 600), actions };
 }
 
 export const ROUTES: Routes = { "/v1/habits/suggest": suggest, "/v1/review/weekly": review, "/v1/coach": coach };

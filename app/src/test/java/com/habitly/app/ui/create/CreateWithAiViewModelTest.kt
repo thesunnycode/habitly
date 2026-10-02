@@ -284,6 +284,35 @@ class CreateWithAiViewModelTest {
         assertEquals(1, s.visibleCards.size)
     }
 
+    @Test fun aCardSavedThroughEditShowsAsAddedAndIsNotAddedAgain() = runTest {
+        val vm = vm()
+        vm.suggest()
+        advanceUntilIdle()
+        val card = vm.uiState.value.cards.first()
+        vm.onEdit(card.key)
+        // The user saves it from the Add/Edit form.
+        data.habits.value = listOf(habit(card.suggestion.template.name).copy(id = 55))
+        advanceUntilIdle()
+        val after = vm.uiState.value.cards.first { it.key == card.key }
+        assertEquals(CardStatus.ADDED, after.status)
+        assertEquals(55L, after.habitId)
+
+        vm.onAddAll()
+        advanceUntilIdle()
+        assertEquals(listOf(vm.uiState.value.cards[1].suggestion.template.name), data.added.map { it.name })
+    }
+
+    @Test fun keysAreNotReusedAcrossRequests() = runTest {
+        val vm = vm()
+        vm.suggest()
+        advanceUntilIdle()
+        val first = vm.uiState.value.cards.map { it.key }.toSet()
+        vm.onTryAgain()
+        advanceUntilIdle()
+        val second = vm.uiState.value.cards.map { it.key }.toSet()
+        assertTrue(first.intersect(second).isEmpty())
+    }
+
     @Test fun editReturnsDraftKey() = runTest {
         val vm = vm()
         vm.suggest()

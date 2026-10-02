@@ -39,6 +39,23 @@ class CreateWithAiViewModel(
     /** Cards with an add or undo in flight, so a double tap cannot insert twice. */
     private val busy = mutableSetOf<Int>()
 
+    /** Card keys are never reused, so an add still in flight cannot land on a card from a newer request. */
+    private var nextKey = 0
+
+    init {
+        // A suggestion saved through Edit arrives as a new habit: show its card as added, so Add
+        // or Add all cannot create it a second time.
+        viewModelScope.launch {
+            try {
+                data.observeAllHabits().collect { habits -> markSavedElsewhere(habits) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Without the list, cards simply stay as they are.
+            }
+        }
+    }
+
     fun onTextChange(text: String) = _uiState.update { it.copy(text = text.take(MAX_PROMPT_CHARS)) }
 
     fun onChip(chip: String) = onTextChange(chip)
@@ -57,7 +74,14 @@ class CreateWithAiViewModel(
 
     fun onConsentAllowed() {
         viewModelScope.launch {
-            allowConsent()
+            try {
+                allowConsent()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _uiState.update { it.copy(needsConsent = false, error = AiResult.Failed("consent not saved")) }
+                return@launch
+            }
             _uiState.update { it.copy(needsConsent = false) }
             if (lastText != null && !_uiState.value.isLoading) send()
         }
@@ -122,7 +146,7 @@ class CreateWithAiViewModel(
                             isLoading = false,
                             remaining = result.remaining ?: it.remaining,
                             intent = result.value.intent.takeIf { _ -> suggestions.isNotEmpty() },
-                            cards = suggestions.mapIndexed { index, s -> SuggestionCard(index, s) },
+                            cards = suggestions.map { s -> SuggestionCard(nextKey++, s) },
                             emptyMessage = if (suggestions.isEmpty()) EMPTY_MESSAGE else null,
                         )
                     }
@@ -147,6 +171,16 @@ class CreateWithAiViewModel(
             // Nothing was saved; the card stays NEW so the user can tap Add again.
         } finally {
             busy.remove(key)
+        }
+    }
+
+    private fun markSavedElsewhere(habits: List<HabitEntity>) {
+        val active = habits.filter { !it.isArchived }.associateBy { it.name.trim().lowercase() }
+        for (card in _uiState.value.cards) {
+            if (card.status != CardStatus.NEW || card.key in busy) continue
+            val saved = active[card.suggestion.template.name.trim().lowercase()] ?: continue
+            inserted[card.key] = saved
+            setStatus(card.key, CardStatus.ADDED, saved.id)
         }
     }
 

@@ -11,6 +11,32 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneOffset
 
+private class SnapshotData(
+    private val habits: List<HabitEntity>,
+    private val logs: List<com.habitly.app.data.local.HabitLogEntity>,
+) : com.habitly.app.data.repository.HabitDataSource {
+    override fun observeAllHabits() = kotlinx.coroutines.flow.flowOf(habits)
+    override fun observeAllLogs() = kotlinx.coroutines.flow.flowOf(logs)
+    override fun observeHabitsWithStats(today: LocalDate) = kotlinx.coroutines.flow.flowOf(emptyList<com.habitly.app.data.repository.HabitWithStats>())
+    override fun observeHabitWithStats(habitId: Long, today: LocalDate) = kotlinx.coroutines.flow.flowOf<com.habitly.app.data.repository.HabitWithStats?>(null)
+    override suspend fun addHabit(habit: HabitEntity) = 0L
+    override suspend fun updateHabit(habit: HabitEntity) {}
+    override suspend fun deleteHabit(habit: HabitEntity) {}
+    override suspend fun toggleCompletion(habitId: Long, date: LocalDate, note: String?) = emptySet<com.habitly.app.domain.AchievementType>()
+    override suspend fun incrementProgress(habitId: Long, date: LocalDate) = emptySet<com.habitly.app.domain.AchievementType>()
+    override suspend fun setStatus(habitId: Long, date: LocalDate, status: CompletionStatus?, note: String?) = emptySet<com.habitly.app.domain.AchievementType>()
+    override fun observeArchivedHabits() = kotlinx.coroutines.flow.flowOf(emptyList<HabitEntity>())
+    override suspend fun setArchived(habitId: Long, archived: Boolean) {}
+    override suspend fun reorder(orderedIds: List<Long>) {}
+    override suspend fun setReminder(habitId: Long, time: String?) {}
+    override suspend fun getHabit(habitId: Long): HabitEntity? = null
+    override fun observeAchievements() = kotlinx.coroutines.flow.flowOf(emptyList<com.habitly.app.data.local.AchievementEntity>())
+    override fun observeAchievementProgress(today: LocalDate) = kotlinx.coroutines.flow.flowOf(emptyList<com.habitly.app.data.repository.AchievementProgress>())
+    override suspend fun reconcileAchievements() = emptySet<com.habitly.app.domain.AchievementType>()
+    override suspend fun resetAll() {}
+    override fun observeRecordsForHabit(habitId: Long) = kotlinx.coroutines.flow.flowOf(emptyList<com.habitly.app.domain.CompletionRecord>())
+}
+
 class AiActionValidatorTest {
     // 2026-09-30 is a Wednesday.
     private val today = LocalDate.of(2026, 9, 30)
@@ -88,6 +114,25 @@ class AiActionValidatorTest {
             ValidAction.SetRestDay(1, "Plan a rest day", today.plusDays(2)),
             validate(dto("set_rest_day", date = today.plusDays(2).toString()), monFri),
         )
+    }
+
+    @Test fun setRestDayNeverOverwritesAKeptDay() {
+        val done = ctx(habit(), statuses = mapOf((1L to today) to CompletionStatus.DONE))
+        assertNull(validate(dto("set_rest_day", date = today.toString()), done))
+        assertEquals(
+            ValidAction.SetRestDay(1, "Plan a rest day", today.plusDays(1)),
+            validate(dto("set_rest_day", date = today.plusDays(1).toString()), done),
+        )
+    }
+
+    @Test fun snapshotKeepsActiveHabitsAndSkipsMalformedDates() = kotlinx.coroutines.test.runTest {
+        val logs = listOf(
+            com.habitly.app.data.local.HabitLogEntity(habitId = 1, date = today.toString(), status = CompletionStatus.DONE, completedAt = null, note = null),
+            com.habitly.app.data.local.HabitLogEntity(habitId = 1, date = "not-a-date", status = CompletionStatus.DONE, completedAt = null, note = null),
+        )
+        val snapshot = AiActionValidator.snapshot(SnapshotData(listOf(habit(id = 1), habit(id = 2, archived = true)), logs))
+        assertEquals(setOf(1L), snapshot.habits.keys)
+        assertEquals(mapOf((1L to today) to CompletionStatus.DONE), snapshot.statuses)
     }
 
     @Test fun setGoalNeedsAnExistingGoalAndAValidRange() {

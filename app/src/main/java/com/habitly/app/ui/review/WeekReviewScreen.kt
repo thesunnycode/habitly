@@ -84,6 +84,8 @@ fun WeekReviewScreen(
     onConsentAllowed: () -> Unit,
     onConsentDismissed: () -> Unit,
     weekStart: DayOfWeek,
+    /** For previews: the page the story opens on. */
+    initialPage: Int = 0,
 ) {
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         when {
@@ -96,7 +98,7 @@ fun WeekReviewScreen(
                     modifier = Modifier.weight(1f),
                 )
             }
-            uiState.pages.isNotEmpty() -> Story(uiState, onClose, onApply, onRegenerate, weekStart)
+            uiState.pages.isNotEmpty() -> Story(uiState, onClose, onApply, onRegenerate, weekStart, initialPage)
             else -> Column(Modifier.fillMaxSize().statusBarsPadding()) {
                 TopBar("Week in review", pages = 0, current = 0, onClose = onClose, onRegenerate = null)
                 Column(
@@ -130,9 +132,10 @@ private fun Story(
     onApply: (Int) -> Unit,
     onRegenerate: () -> Unit,
     weekStart: DayOfWeek,
+    initialPage: Int = 0,
 ) {
     val pages = uiState.pages
-    val pagerState = rememberPagerState { pages.size }
+    val pagerState = rememberPagerState(initialPage = initialPage.coerceIn(0, pages.lastIndex)) { pages.size }
     val scope = rememberCoroutineScope()
     val reduceMotion = LocalReduceMotion.current
     val goTo: (Int) -> Unit = { target ->
@@ -234,7 +237,9 @@ private fun PageContent(
     onDone: () -> Unit,
 ) {
     val bigText = LocalDensity.current.fontScale > 1.3f
-    val eyebrow = eyebrowFor(page.kind)
+    // The summary also names the week it covers, e.g. "This week · 28 Sep – 4 Oct".
+    val eyebrow = eyebrowFor(page.kind) +
+        if (page.kind == PageKind.SUMMARY && uiState.weekLabel.isNotEmpty()) " · ${uiState.weekLabel}" else ""
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.Center,
@@ -338,7 +343,12 @@ private fun PatternVisual(habit: HabitVisual) {
 
 @Composable
 private fun TipActions(page: ReviewPageUi, onApply: () -> Unit, onSkip: () -> Unit) {
-    val action = page.action ?: return
+    val action = page.action
+    if (action == null) {
+        // Nothing safe to apply: the tip still reads, and Skip still moves on.
+        TextButton(onClick = onSkip) { Text("Skip") }
+        return
+    }
     if (page.applied) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
@@ -372,15 +382,21 @@ private val previewState = WeekReviewUiState(
 )
 
 @Composable
-private fun PreviewContent(state: WeekReviewUiState) {
-    WeekReviewScreen(state, {}, {}, {}, {}, {}, {}, DayOfWeek.MONDAY)
+private fun PreviewContent(state: WeekReviewUiState, page: Int = 0) {
+    WeekReviewScreen(state, {}, {}, {}, {}, {}, {}, DayOfWeek.MONDAY, initialPage = page)
 }
 
 @Preview(showBackground = true, heightDp = 780) @Composable private fun ReviewSummaryDarkPreview() =
     HabitlyTheme(darkTheme = true) { PreviewContent(previewState) }
 @Preview(showBackground = true, heightDp = 780) @Composable private fun ReviewSummaryLightPreview() =
     HabitlyTheme(darkTheme = false) { PreviewContent(previewState) }
+@Preview(showBackground = true, heightDp = 780) @Composable private fun ReviewTipDarkPreview() =
+    HabitlyTheme(darkTheme = true) { PreviewContent(previewState, page = 3) }
+@Preview(showBackground = true, heightDp = 780) @Composable private fun ReviewTipLightPreview() =
+    HabitlyTheme(darkTheme = false) { PreviewContent(previewState, page = 3) }
 @Preview(showBackground = true, heightDp = 780) @Composable private fun ReviewLoadingPreview() =
     HabitlyTheme(darkTheme = true) { PreviewContent(WeekReviewUiState(isLoading = true)) }
+@Preview(showBackground = true, heightDp = 780) @Composable private fun ReviewLoadingLightPreview() =
+    HabitlyTheme(darkTheme = false) { PreviewContent(WeekReviewUiState(isLoading = true)) }
 @Preview(showBackground = true, heightDp = 780) @Composable private fun ReviewErrorPreview() =
     HabitlyTheme(darkTheme = true) { PreviewContent(WeekReviewUiState(error = AiResult.Offline)) }

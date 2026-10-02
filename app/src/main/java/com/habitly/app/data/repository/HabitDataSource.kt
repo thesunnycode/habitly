@@ -39,6 +39,14 @@ interface HabitDataSource {
         status: CompletionStatus?,
         note: String? = null,
     ): Set<AchievementType>
+    /**
+     * Puts a day back exactly as [previous] recorded it (status, progress, note and time), or clears it
+     * when [previous] is null. Used by Undo, where [setStatus] would reset a goal habit's count.
+     */
+    suspend fun restoreLog(habitId: Long, date: LocalDate, previous: HabitLogEntity?) {
+        setStatus(habitId, date, previous?.status, previous?.note.orEmpty())
+    }
+
     fun observeArchivedHabits(): Flow<List<HabitEntity>>
     suspend fun setArchived(habitId: Long, archived: Boolean)
     suspend fun reorder(orderedIds: List<Long>)

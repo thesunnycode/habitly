@@ -49,11 +49,13 @@ class AiActionRunner(private val data: HabitDataSource) {
                     ),
                 )
                 val label = HabitSchedule(FrequencyType.SPECIFIC_DAYS, action.days).label(Locale.ENGLISH)
-                applied(if (label == "Daily") "Now daily" else "Now on $label") { data.updateHabit(habit) }
+                applied(if (label == "Daily") "Now daily" else "Now on $label") {
+                    revert(habit.id) { it.copy(frequencyType = habit.frequencyType, frequencyDays = habit.frequencyDays, intervalDays = habit.intervalDays) }
+                }
             }
             is ValidAction.SetGoal -> {
                 data.updateHabit(habit.copy(targetCount = action.target))
-                applied("Goal set to ${action.target}") { data.updateHabit(habit) }
+                applied("Goal set to ${action.target}") { revert(habit.id) { it.copy(targetCount = habit.targetCount) } }
             }
             is ValidAction.SetRestDay ->
                 setStatus(habit, action.date, CompletionStatus.SKIPPED, "Rest day planned for ${action.date.format(restDayFormat)}")
@@ -71,10 +73,17 @@ class AiActionRunner(private val data: HabitDataSource) {
         status: CompletionStatus,
         message: String,
     ): ActionOutcome {
+        // The whole row, so Undo also brings back a goal habit's count, the note and the check-in time.
         val previous = data.observeAllLogs().first()
-            .firstOrNull { it.habitId == habit.id && it.date == date.toString() }?.status
+            .firstOrNull { it.habitId == habit.id && it.date == date.toString() }
         data.setStatus(habit.id, date, status)
-        return applied(message) { data.setStatus(habit.id, date, previous) }
+        return applied(message) { data.restoreLog(habit.id, date, previous) }
+    }
+
+    /** Undoes only the fields an action changed, on the habit as it is now, so later edits survive. */
+    private suspend fun revert(habitId: Long, restore: (HabitEntity) -> HabitEntity) {
+        val current = data.getHabit(habitId) ?: return
+        data.updateHabit(restore(current))
     }
 
     private fun applied(message: String, undo: suspend () -> Unit) = ActionOutcome.Applied(message, undo)
