@@ -9,6 +9,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
+import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -28,6 +31,13 @@ import com.habitly.app.ui.achievements.AchievementsViewModel
 import com.habitly.app.ui.achievements.LocalBadgeCelebrationShowing
 import com.habitly.app.ui.addedit.AddEditHabitScreen
 import com.habitly.app.ui.addedit.AddEditHabitViewModel
+import com.habitly.app.ai.AiContextSource
+import com.habitly.app.ai.actions.AiActionRunner
+import com.habitly.app.ai.actions.AiActionValidator
+import com.habitly.app.ui.coach.CoachEvent
+import com.habitly.app.ui.coach.CoachSheet
+import com.habitly.app.ui.coach.CoachViewModel
+import com.habitly.app.ui.components.LocalSnackbarHostState
 import com.habitly.app.ui.create.AiDraftStore
 import com.habitly.app.ui.create.CreateWithAiScreen
 import com.habitly.app.ui.create.CreateWithAiViewModel
@@ -114,6 +124,51 @@ fun HabitlyNavHost(
             val forecastRepo = remember { ForecastServices.repository(appContext) }
             // Retrains off the main thread only when the stored model is over a day old; check-ins just re-predict.
             LaunchedEffect(Unit) { forecastRepo.refreshIfStale() }
+            var coachOpen by rememberSaveable { mutableStateOf(false) }
+            val coachVm = habitlyViewModel(key = "coach") {
+                CoachViewModel(
+                    gateway = AiServices.gateway(appContext),
+                    context = AiContextSource(repository, risks = forecastRepo::todayRisks),
+                    validation = { AiActionValidator.snapshot(repository) },
+                    runner = AiActionRunner(repository),
+                    allowConsent = { AiServices.prefs(appContext).setAiConsent(true) },
+                )
+            }
+            val snackbar = LocalSnackbarHostState.current
+            LaunchedEffect(coachVm) {
+                coachVm.events.collect { event ->
+                    when (event) {
+                        is CoachEvent.Applied -> launch {
+                            val result = snackbar.showSnackbar(event.message, actionLabel = "Undo", duration = SnackbarDuration.Short)
+                            if (result == SnackbarResult.ActionPerformed) event.undo()
+                        }
+                        is CoachEvent.OpenHabit -> {
+                            coachOpen = false
+                            coachVm.reset()
+                            navController.navigate(Destination.HabitDetail.createRoute(event.habitId))
+                        }
+                        CoachEvent.ActionFailed -> launch { snackbar.showSnackbar("Couldn\u2019t apply that \u2014 try again") }
+                    }
+                }
+            }
+            if (coachOpen) {
+                LaunchedEffect(Unit) { coachVm.open() }
+                val coachState by coachVm.uiState.collectAsState()
+                CoachSheet(
+                    uiState = coachState,
+                    onInputChange = coachVm::onInputChange,
+                    onSend = coachVm::onSend,
+                    onChip = coachVm::onChip,
+                    onAction = coachVm::onAction,
+                    onRetry = coachVm::onRetry,
+                    onConsentAllowed = coachVm::onConsentAllowed,
+                    onConsentDismissed = coachVm::onConsentDismissed,
+                    onDismiss = {
+                        coachOpen = false
+                        coachVm.reset()
+                    },
+                )
+            }
             val viewModel = habitlyViewModel {
                 TodayViewModel(
                     repository, prefs, notifications = notifications,
@@ -148,6 +203,7 @@ fun HabitlyNavHost(
                     onCelebrationShown = viewModel::onCelebrationShown,
                     windowWidthSizeClass = windowWidthSizeClass,
                     onCreateWithAi = { navController.navigate(Destination.CreateWithAi.route) },
+                    onOpenCoach = { coachOpen = true },
                 )
             }
         }

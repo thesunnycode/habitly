@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.GridView
@@ -123,6 +124,7 @@ fun TodayScreen(
     windowWidthSizeClass: WindowWidthSizeClass = WindowWidthSizeClass.Compact,
     now: LocalTime = LocalTime.now(),
     onCreateWithAi: () -> Unit = {},
+    onOpenCoach: () -> Unit = {},
 ) {
     var showTemplates by rememberSaveable { mutableStateOf(false) }
     var statusTargetId by rememberSaveable { mutableStateOf<Long?>(null) }
@@ -180,7 +182,7 @@ fun TodayScreen(
                         .padding(end = 20.dp, bottom = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    TodayHeader(uiState, now)
+                    TodayHeader(uiState, now, onOpenCoach)
                     TodayWeekStrip(uiState, today, onSelectDate)
                     forecast?.let { ForecastStrip(it, onHabitClick = onHabitClick, onInfo = { showForecastInfo = true }) }
                     uiState.atRisk?.let { AtRiskBanner(it) }
@@ -198,7 +200,7 @@ fun TodayScreen(
                 contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 120.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                item(key = "header") { TodayHeader(uiState, now, Modifier.statusBarsPadding()) }
+                item(key = "header") { TodayHeader(uiState, now, onOpenCoach, Modifier.statusBarsPadding()) }
                 item(key = "week") { TodayWeekStrip(uiState, today, onSelectDate, Modifier.padding(top = 6.dp)) }
                 forecast?.let { f ->
                     item(key = "forecast") { ForecastStrip(f, onHabitClick = onHabitClick, onInfo = { showForecastInfo = true }) }
@@ -377,7 +379,7 @@ private fun CompletionStatus?.toCheckState(): CheckState = when (this) {
 }
 
 @Composable
-private fun TodayHeader(uiState: TodayUiState, now: LocalTime, modifier: Modifier = Modifier) {
+private fun TodayHeader(uiState: TodayUiState, now: LocalTime, onOpenCoach: () -> Unit, modifier: Modifier = Modifier) {
     val date = uiState.selectedDate
     val eyebrow = if (uiState.isViewingToday) date.format(EYEBROW_DATE) else "Viewing ${date.format(EYEBROW_DATE)}"
     val title = if (uiState.isViewingToday) "Today" else date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
@@ -409,6 +411,11 @@ private fun TodayHeader(uiState: TodayUiState, now: LocalTime, modifier: Modifie
                 description = "${uiState.doneCount} of ${uiState.dueCount} done",
                 size = 56.dp,
             )
+        }
+        if (uiState.isViewingToday) {
+            IconButton(onClick = onOpenCoach) {
+                Icon(Icons.Rounded.AutoAwesome, contentDescription = "Open coach")
+            }
         }
     }
 }
