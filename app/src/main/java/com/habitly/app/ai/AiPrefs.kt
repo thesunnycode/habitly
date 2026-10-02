@@ -3,12 +3,15 @@ package com.habitly.app.ai
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.habitly.app.data.prefs.habitlyDataStore
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import java.util.UUID
+import java.time.LocalDate
+
+/** Real AI calls allowed per day on this phone; Demo AI does not count. */
+const val DAILY_AI_LIMIT = 30
 
 interface AiSettingsSource {
     val aiEnabled: Flow<Boolean>
@@ -35,12 +38,22 @@ class AiPrefs(private val context: Context) : AiSettingsSource {
     suspend fun setForecastModelJson(json: String) { store.edit { it[FORECAST_MODEL] = json } }
     suspend fun setReviewCacheJson(json: String) { store.edit { it[REVIEW_CACHE] = json } }
 
-    suspend fun installId(): String {
-        store.data.first()[INSTALL_ID]?.let { return it }
-        val fresh = UUID.randomUUID().toString()
-        var result = fresh
-        store.edit { prefs -> result = prefs[INSTALL_ID] ?: fresh.also { prefs[INSTALL_ID] = it } }
-        return result
+    /**
+     * Counts one real AI call against today's allowance. Returns the calls left after this one, or
+     * null when today's allowance is already used up (nothing is counted then).
+     */
+    suspend fun consumeDailyAi(limit: Int = DAILY_AI_LIMIT, today: LocalDate = LocalDate.now()): Int? {
+        var remaining: Int? = null
+        store.edit { prefs ->
+            val day = today.toString()
+            val used = if (prefs[QUOTA_DAY] == day) prefs[QUOTA_USED] ?: 0 else 0
+            if (used < limit) {
+                prefs[QUOTA_DAY] = day
+                prefs[QUOTA_USED] = used + 1
+                remaining = limit - used - 1
+            }
+        }
+        return remaining
     }
 
     private companion object {
@@ -51,6 +64,7 @@ class AiPrefs(private val context: Context) : AiSettingsSource {
         val REVIEW_DISMISSED = stringPreferencesKey("review_banner_dismissed_week")
         val FORECAST_MODEL = stringPreferencesKey("forecast_model_json")
         val REVIEW_CACHE = stringPreferencesKey("review_cache_json")
-        val INSTALL_ID = stringPreferencesKey("install_id")
+        val QUOTA_DAY = stringPreferencesKey("ai_quota_day")
+        val QUOTA_USED = intPreferencesKey("ai_quota_used")
     }
 }

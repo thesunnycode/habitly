@@ -23,8 +23,10 @@ android {
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("String", "AI_BASE_URL", "\"${localProps.getProperty("habitly.aiBaseUrl", "")}\"")
-        buildConfigField("String", "AI_APP_TOKEN", "\"${localProps.getProperty("habitly.aiAppToken", "")}\"")
+        // Personal build: the OpenAI key is compiled in from the git-ignored local.properties.
+        // Never commit it, and never share an APK built with it.
+        buildConfigField("String", "AI_OPENAI_KEY", "\"${localProps.getProperty("habitly.openaiKey", "")}\"")
+        buildConfigField("String", "AI_OPENAI_MODEL", "\"${localProps.getProperty("habitly.openaiModel", "gpt-5-mini")}\"")
     }
 
     // Optional: only when habitly.keystore.path/password and habitly.key.alias/password are in local.properties. Without them

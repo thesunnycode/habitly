@@ -1,5 +1,8 @@
 # Habitly AI proxy
 
+> **Not used by the current app.** Since 2026-10-02 the app calls OpenAI directly from the phone
+> (see `docs/DEPLOY.md`). This Worker is kept for reference.
+
 A small Cloudflare Worker that sits between the Habitly app and OpenAI. The app never holds an OpenAI key; it
 sends a shared app token plus a per-install device id, and the Worker:
 

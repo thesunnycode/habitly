@@ -25,6 +25,16 @@ compact and expanded widths and at 200% font scale.
 
 ## 2. Architecture
 
+> **Change, 2026-10-02 — direct OpenAI calls.** The app is a personal build for one phone, so it now calls
+> OpenAI's Responses API directly (`ai/openai/OpenAiApi.kt`) with a key compiled in from the git-ignored
+> `local.properties` (`habitly.openaiKey`). The proxy's behaviour moved into the app unchanged: the same
+> prompts (`OpenAiPrompts`), strict JSON schemas (`OpenAiSchemas`), moderation of coach input, trimming and
+> shape checks (`OpenAiCleaner`) and one retry on an unusable answer; the daily cap is kept on the phone
+> (30 calls, `AiPrefs.consumeDailyAi`). `HttpAiApi` and the app token were removed; `proxy/` is kept for
+> reference but unused. Trade-off: the key can be extracted from the APK, so the APK is never shared and the
+> OpenAI account has a spend limit. Sections below that mention the proxy describe the original design.
+
+
 ```
 Habitly app ──HTTPS + app token──► Cloudflare Worker (proxy/) ──► OpenAI API
   │                                  • one endpoint per feature     (OPENAI_API_KEY is a

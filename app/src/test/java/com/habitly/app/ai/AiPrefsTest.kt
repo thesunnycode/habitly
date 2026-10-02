@@ -47,11 +47,13 @@ class AiPrefsTest {
         assertEquals("[]", p.reviewCacheJson.first())
     }
 
-    @Test fun installIdIsStableUuid() = runBlocking {
+    @Test fun dailyAllowanceCountsDownAndResetsTheNextDay() = runBlocking {
         val p = AiPrefs(context)
-        val first = p.installId()
-        assertEquals(first, p.installId())
-        assertEquals(first, AiPrefs(context).installId())
-        assertTrue(Regex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}").matches(first))
+        val day = java.time.LocalDate.of(2026, 10, 2)
+        assertEquals(2, p.consumeDailyAi(limit = 3, today = day))
+        assertEquals(1, p.consumeDailyAi(limit = 3, today = day))
+        assertEquals(0, p.consumeDailyAi(limit = 3, today = day))
+        assertNull(p.consumeDailyAi(limit = 3, today = day))
+        assertEquals(2, p.consumeDailyAi(limit = 3, today = day.plusDays(1)))
     }
 }

@@ -37,7 +37,7 @@ import com.habitly.app.ui.theme.LocalHabitlyColors
 
 const val CONSENT_TEXT_SENT = "Habit names, schedules, reminder times and daily done / rest / missed counts."
 const val CONSENT_TEXT_NOT_SENT = "Your name and your notes."
-const val CONSENT_TEXT_WHERE = "Habitly's server, which asks OpenAI and returns suggestions. Nothing is stored there."
+const val CONSENT_TEXT_WHERE = "OpenAI, straight from this phone. Habitly has no server of its own and keeps nothing."
 
 private const val CONSENT_TITLE = "Before you use AI"
 
