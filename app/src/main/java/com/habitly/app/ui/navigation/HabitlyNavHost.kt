@@ -409,16 +409,18 @@ fun HabitlyNavHost(
                     }
                 }
             }
-            WeekReviewScreen(
-                uiState = uiState,
-                onClose = { navController.popBackStack() },
-                onApply = viewModel::onApply,
-                onRegenerate = viewModel::onRegenerate,
-                onRetry = viewModel::onRetry,
-                onConsentAllowed = viewModel::onConsentAllowed,
-                onConsentDismissed = viewModel::onConsentDismissed,
-                weekStart = weekStart,
-            )
+            CenteredContent {
+                WeekReviewScreen(
+                    uiState = uiState,
+                    onClose = { navController.popBackStack() },
+                    onApply = viewModel::onApply,
+                    onRegenerate = viewModel::onRegenerate,
+                    onRetry = viewModel::onRetry,
+                    onConsentAllowed = viewModel::onConsentAllowed,
+                    onConsentDismissed = viewModel::onConsentDismissed,
+                    weekStart = weekStart,
+                )
+            }
         }
         composable(Destination.CreateWithAi.route) {
             val viewModel = habitlyViewModel {

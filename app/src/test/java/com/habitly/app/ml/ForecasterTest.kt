@@ -79,7 +79,11 @@ class ForecasterTest {
     @Test fun percentRoundsAndLevelsFollowThresholds() {
         fun risk(p: Double) = HabitRisk(1, "H", "star", "#FF922B", p, RiskLevel.of(p), "r")
         assertEquals(46, risk(0.456).percent)
-        assertEquals(0, risk(0.004).percent)
+        // A forecast is never shown as a certainty either way.
+        assertEquals(1, risk(0.004).percent)
+        assertEquals(99, risk(0.9996).percent)
+        assertEquals(99, risk(1.0).percent)
+        assertEquals(1, risk(0.0).percent)
         assertEquals(RiskLevel.HIGH, RiskLevel.of(0.6))
         assertEquals(RiskLevel.MEDIUM, RiskLevel.of(0.59))
         assertEquals(RiskLevel.MEDIUM, RiskLevel.of(0.3))

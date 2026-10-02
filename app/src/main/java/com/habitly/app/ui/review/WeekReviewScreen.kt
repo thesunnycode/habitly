@@ -279,7 +279,8 @@ private fun SummaryVisual(uiState: WeekReviewUiState, weekStart: DayOfWeek) {
                     window = uiState.stackDays,
                     stacks = uiState.stacks,
                     levels = emptyMap(),
-                    today = uiState.stackDays.last(),
+                    // A day past the window, so no cell is marked as "today".
+                    today = uiState.stackDays.last().plusDays(1),
                     slotCount = uiState.slotCount,
                     habitStart = null,
                 ),

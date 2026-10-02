@@ -24,9 +24,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -45,6 +47,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,6 +78,9 @@ import java.time.DayOfWeek
 
 private const val COUNTER_THRESHOLD = 250
 
+/** hero, input, chips, suggest: the results label is the item right after these. */
+private const val RESULTS_ITEM_INDEX_HINT = 4
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CreateWithAiScreen(
@@ -92,13 +98,20 @@ fun CreateWithAiScreen(
     onConsentDismissed: () -> Unit,
     onBack: () -> Unit,
 ) {
-    Column(Modifier.fillMaxSize()) {
+    val listState = rememberLazyListState()
+    // Results land below the fold on a phone; bring them into view when they arrive.
+    val hasResults = uiState.visibleCards.isNotEmpty()
+    LaunchedEffect(hasResults) {
+        if (hasResults) listState.animateScrollToItem(RESULTS_ITEM_INDEX_HINT.coerceAtMost(listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0))
+    }
+    Column(Modifier.fillMaxSize().statusBarsPadding()) {
         ScreenHeader(
             title = "Create with AI",
             onBack = onBack,
-            modifier = Modifier.padding(horizontal = 12.dp),
+            modifier = Modifier.padding(horizontal = 20.dp),
         )
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize().imePadding(),
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),

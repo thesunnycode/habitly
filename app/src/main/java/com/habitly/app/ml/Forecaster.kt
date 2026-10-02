@@ -28,7 +28,8 @@ data class HabitRisk(
     val level: RiskLevel,
     val reason: String,
 ) {
-    val percent: Int get() = (probability * 100).roundToInt()
+    /** Whole percent, never 0 or 100: a forecast from past habits is never a certainty. */
+    val percent: Int get() = (probability * 100).roundToInt().coerceIn(1, 99)
 }
 
 data class Forecast(

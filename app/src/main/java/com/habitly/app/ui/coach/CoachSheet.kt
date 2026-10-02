@@ -52,6 +52,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
@@ -86,7 +88,9 @@ fun CoachSheet(
     onConsentDismissed: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    HabitlySheet(onDismiss = onDismiss, title = "Quick coach", skipPartiallyExpanded = false) {
+    // At large font sizes the half-height sheet would hide the input row, so open it full height.
+    val bigText = LocalDensity.current.fontScale > 1.3f
+    HabitlySheet(onDismiss = onDismiss, title = "Quick coach", skipPartiallyExpanded = bigText) {
         CoachSheetContent(uiState, onInputChange, onSend, onChip, onAction, onRetry)
     }
     if (uiState.needsConsent) ConsentSheet(onAllow = onConsentAllowed, onDismiss = onConsentDismissed)
@@ -103,6 +107,7 @@ private fun CoachSheetContent(
     onRetry: () -> Unit,
 ) {
     val listState = rememberLazyListState()
+    val maxListHeight = (LocalConfiguration.current.screenHeightDp * 0.4f).dp.coerceAtMost(420.dp)
     val rows = uiState.messages.size + if (uiState.isTyping) 1 else 0
     LaunchedEffect(rows) {
         if (rows > 0) listState.animateScrollToItem(rows - 1)
@@ -110,7 +115,7 @@ private fun CoachSheetContent(
     Column(Modifier.imePadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(max = maxListHeight),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             items(uiState.messages, key = { it.id }) { message ->
@@ -167,13 +172,13 @@ private fun CoachBubble(message: CoachMessage, onAction: (Int, ValidAction) -> U
         ) {
             Row(verticalAlignment = Alignment.Top) {
                 Box(
-                    Modifier.size(28.dp).clip(CircleShape).background(LocalHabitlyColors.current.surfaceRaised),
+                    Modifier.size(28.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surface),
                     contentAlignment = Alignment.Center,
                 ) { AiSparkleIcon(Modifier.size(16.dp)) }
                 Spacer(Modifier.width(8.dp))
                 Surface(
                     shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    color = MaterialTheme.colorScheme.surface,
                     modifier = Modifier.widthIn(max = 320.dp),
                 ) {
                     Text(
@@ -191,7 +196,7 @@ private fun CoachBubble(message: CoachMessage, onAction: (Int, ValidAction) -> U
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     message.actions.forEachIndexed { index, action ->
-                        if (index == 0) PrimaryButton(action.label, { onAction(message.id, action) })
+                        if (index == 0 && message.appliedNote == null) PrimaryButton(action.label, { onAction(message.id, action) })
                         else SecondaryButton(action.label, { onAction(message.id, action) })
                     }
                 }
