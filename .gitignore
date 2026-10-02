@@ -11,3 +11,8 @@ local.properties
 /app/build
 
 .superpowers/
+
+# Secrets and signing material
+*.jks
+*.keystore
+proxy/.dev.vars
