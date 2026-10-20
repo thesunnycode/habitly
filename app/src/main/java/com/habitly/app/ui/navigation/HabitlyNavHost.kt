@@ -348,9 +348,13 @@ fun HabitlyNavHost(
                     notifications = notifications,
                     loadDemoData = {
                         // Silences the badges the demo history unlocks, so they don't all celebrate at once.
-                        SeedDataProvider.seedAndSilenceBadges(
-                            repository, AppDatabase.getInstance(appContext).habitDao(), LocalDate.now(), prefs::markBadgesSeen,
+                        val db = AppDatabase.getInstance(appContext)
+                        val added = SeedDataProvider.seedAndSilenceBadges(
+                            repository, db.habitDao(), db.habitLogDao(), LocalDate.now(), prefs::markBadgesSeen,
                         )
+                        // Retrain now: the model from first launch saw no history and wouldn't refresh for a day.
+                        if (added > 0) ForecastServices.repository(appContext).train()
+                        added
                     },
                 )
             }
@@ -368,6 +372,7 @@ fun HabitlyNavHost(
                     onResetAllData = viewModel::onResetAllData,
                     onBack = { navController.popBackStack() },
                     onResetMessageShown = viewModel::onResetMessageShown,
+                    onDemoMessageShown = viewModel::onDemoMessageShown,
                     onAiEnabledToggle = viewModel::onAiEnabledToggle,
                     onShowForecastToggle = viewModel::onShowForecastToggle,
                     onDemoAiToggle = viewModel::onDemoAiToggle,

@@ -24,8 +24,8 @@ class SettingsViewModel(
     private val prefs: SettingsPrefs,
     private val repository: HabitDataSource,
     private val aiPrefs: AiPrefs,
-    /** Seeds the demo habits (debug builds only); injected because seeding needs the concrete repository and DAO. */
-    private val loadDemoData: suspend () -> Unit = {},
+    /** Seeds the demo habits (debug builds only) and returns how many were added; injected because seeding needs the concrete repository and DAOs. */
+    private val loadDemoData: suspend () -> Int = { 0 },
     versionName: String = BuildConfig.VERSION_NAME,
     isDebug: Boolean = BuildConfig.DEBUG,
     private val notifications: ReminderNotifications = ReminderNotifications.None,
@@ -101,7 +101,11 @@ class SettingsViewModel(
     }
 
     fun onLoadDemoData() {
-        viewModelScope.launch { loadDemoData() }
+        viewModelScope.launch {
+            val added = loadDemoData()
+            val message = if (added == 0) "Demo habits are already loaded" else "Added $added demo habits with 8 weeks of history"
+            _uiState.value = _uiState.value.copy(demoMessage = message)
+        }
     }
 
     fun onResetAllData() =
@@ -123,5 +127,10 @@ class SettingsViewModel(
     /** The screen has announced the finished reset; don't announce it again. */
     fun onResetMessageShown() {
         _uiState.value = _uiState.value.copy(resetCompleted = false)
+    }
+
+    /** The screen has shown the demo-data result; don't show it again. */
+    fun onDemoMessageShown() {
+        _uiState.value = _uiState.value.copy(demoMessage = null)
     }
 }

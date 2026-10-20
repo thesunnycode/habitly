@@ -11,6 +11,8 @@ data class SettingsUiState(
     val versionName: String = "",
     val isDebug: Boolean = false,
     val resetCompleted: Boolean = false,
+    /** What loading demo data did, waiting to be shown once. */
+    val demoMessage: String? = null,
     val aiEnabled: Boolean = true,
     val showForecast: Boolean = true,
     val demoAi: Boolean = false,

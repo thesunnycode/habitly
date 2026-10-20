@@ -32,38 +32,53 @@ class SeedDataProviderTest {
     @After
     fun teardown() { db.close() }
 
-    @Test
-    fun seedIfEmptyInsertsFourHabitsIntoAnEmptyDatabase() = runBlocking {
-        SeedDataProvider.seedIfEmpty(repo, db.habitDao(), LocalDate.of(2026, 8, 22))
-        val habits = db.habitDao().observeAllHabits().first()
-        assertEquals(4, habits.size)
-    }
+    private val today = LocalDate.of(2026, 8, 22)
 
-    @Test
-    fun seedIfEmptyBackfillsAtLeastTenDaysOfLogsPerHabit() = runBlocking {
-        SeedDataProvider.seedIfEmpty(repo, db.habitDao(), LocalDate.of(2026, 8, 22))
-        val habits = db.habitDao().observeAllHabits().first()
-        val logs = db.habitLogDao().observeLogsForHabit(habits.first().id).first()
-        assertTrue(logs.size >= 10)
-    }
+    private suspend fun seed() = SeedDataProvider.seed(repo, db.habitDao(), db.habitLogDao(), today)
 
-    @Test
-    fun seedIfEmptyDoesNothingWhenHabitsAlreadyExist() = runBlocking {
-        repo.addHabit(
-            com.habitly.app.data.local.HabitEntity(
-                0, "Existing", "star", "#000000", "Custom",
-                com.habitly.app.domain.FrequencyType.DAILY, null, null, null, 0L, false,
-            )
+    private suspend fun addOwnHabit(name: String) = repo.addHabit(
+        com.habitly.app.data.local.HabitEntity(
+            0, name, "star", "#000000", "Custom",
+            com.habitly.app.domain.FrequencyType.DAILY, null, null, null, 0L, false,
         )
-        SeedDataProvider.seedIfEmpty(repo, db.habitDao(), LocalDate.of(2026, 8, 22))
-        val habits = db.habitDao().observeAllHabits().first()
-        assertEquals(1, habits.size)
+    )
+
+    @Test
+    fun seedInsertsSixHabitsIntoAnEmptyDatabase() = runBlocking {
+        assertEquals(6, seed())
+        assertEquals(6, db.habitDao().observeAllHabits().first().size)
+    }
+
+    @Test
+    fun seedBackfillsEnoughHistoryForWeekdayInsights() = runBlocking {
+        seed()
+        val water = db.habitDao().observeAllHabits().first().first { it.name == "Drink Water" }
+        val logs = db.habitLogDao().observeLogsForHabit(water.id).first()
+        // Four of every weekday need 28 days; the demo carries eight weeks.
+        assertTrue(logs.size >= 40)
+        assertTrue(logs.minOf { LocalDate.parse(it.date) } <= today.minusDays(28))
+    }
+
+    @Test
+    fun seedWorksAlongsideTheUsersOwnHabits() = runBlocking {
+        addOwnHabit("My habit")
+        addOwnHabit("workout")
+        // Every demo habit but the one whose name is already taken.
+        assertEquals(5, seed())
+        assertEquals(7, db.habitDao().observeAllHabits().first().size)
+    }
+
+    @Test
+    fun seedingTwiceAddsNothingTheSecondTime() = runBlocking {
+        seed()
+        assertEquals(0, seed())
+        assertEquals(6, db.habitDao().observeAllHabits().first().size)
     }
 
     @Test
     fun seedAndSilenceBadgesMarksEveryStoredBadgeSeen() = runBlocking {
         var seen = emptySet<String>()
-        SeedDataProvider.seedAndSilenceBadges(repo, db.habitDao(), LocalDate.of(2026, 8, 22)) { seen = seen + it }
+        SeedDataProvider.seedAndSilenceBadges(repo, db.habitDao(), db.habitLogDao(), today) { seen = seen + it }
         val stored = repo.observeAchievements().first().map { it.type }.toSet()
         assertTrue(stored.isNotEmpty())
         assertEquals(stored, seen)
@@ -71,14 +86,9 @@ class SeedDataProviderTest {
 
     @Test
     fun seedAndSilenceBadgesMarksNothingWhenNothingWasSeeded() = runBlocking {
-        repo.addHabit(
-            com.habitly.app.data.local.HabitEntity(
-                0, "Existing", "star", "#000000", "Custom",
-                com.habitly.app.domain.FrequencyType.DAILY, null, null, null, 0L, false,
-            )
-        )
+        seed()
         var called = false
-        SeedDataProvider.seedAndSilenceBadges(repo, db.habitDao(), LocalDate.of(2026, 8, 22)) { called = true }
+        SeedDataProvider.seedAndSilenceBadges(repo, db.habitDao(), db.habitLogDao(), today) { called = true }
         assertEquals(false, called)
     }
 }

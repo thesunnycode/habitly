@@ -91,6 +91,7 @@ fun SettingsScreen(
     onResetAllData: () -> Unit,
     onBack: () -> Unit,
     onResetMessageShown: () -> Unit = {},
+    onDemoMessageShown: () -> Unit = {},
     onAiEnabledToggle: (Boolean) -> Unit = {},
     onShowForecastToggle: (Boolean) -> Unit = {},
     onDemoAiToggle: (Boolean) -> Unit = {},
@@ -222,7 +223,7 @@ fun SettingsScreen(
                 SettingsRow(
                     title = "Load demo data",
                     icon = Icons.Rounded.Science,
-                    supporting = "Adds sample habits when there are none",
+                    supporting = "Adds sample habits with 8 weeks of history",
                     onClick = onLoadDemoData,
                     showDivider = true,
                 )
@@ -260,6 +261,12 @@ fun SettingsScreen(
             // Outside this effect, so consuming the flag doesn't cancel the snackbar it triggers.
             scope.launch { snackbar.showSnackbar("Everything has been reset") }
         }
+    }
+
+    LaunchedEffect(uiState.demoMessage) {
+        val message = uiState.demoMessage ?: return@LaunchedEffect
+        onDemoMessageShown()
+        scope.launch { snackbar.showSnackbar(message) }
     }
 
     if (showResetConfirm) {
