@@ -16,3 +16,6 @@ local.properties
 *.jks
 *.keystore
 proxy/.dev.vars
+
+# Coursework submissions (kept local)
+docs/coursework/
