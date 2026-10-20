@@ -32,6 +32,7 @@ and an AI coach.
 - [Testing](#testing)
 - [Project structure](#project-structure)
 - [Privacy](#privacy)
+- [Team](#team)
 
 ## Demo videos
 
@@ -192,3 +193,9 @@ proxy/             # Earlier Cloudflare Worker AI proxy (reference only, not use
 - The forecast model is trained and run **on the device**.
 - AI features run only after you agree. They send habit names, schedules, reminder times and
   done / rest / missed counts. **Your name and notes are never sent.**
+
+## Team
+
+- Sunny Kr Singh
+- Shrawan Gautam
+- Ayush Kumar
